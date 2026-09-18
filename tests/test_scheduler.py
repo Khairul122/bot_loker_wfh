@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import sqlite3
 import unittest
@@ -55,11 +56,14 @@ class SchedulerTest(unittest.TestCase):
         )
         scheduler.run_once()
 
-        log = stream.getvalue()
-        self.assertIn("source=remoteok", log)
-        self.assertIn("inserted=1", log)
-        self.assertNotIn("description", log)
-        self.assertNotIn("cover_letter", log)
+        record = json.loads(stream.getvalue())
+        self.assertEqual(record["event"], "fetch_complete")
+        self.assertEqual(record["source"], "remoteok")
+        self.assertEqual(record["status"], "success")
+        self.assertEqual(record["duration_ms"], 0)
+        self.assertEqual(record["inserted_count"], 1)
+        self.assertNotIn("description", record)
+        self.assertNotIn("cover_letter", record)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""MVP scheduler for periodic job sourcing."""
+﻿"""MVP scheduler for periodic job sourcing."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable
+from time import perf_counter
 
+from .logging_utils import StructuredLogger, sanitize_error
+from .remoteok import RemoteOKFetcher
+from .greenhouse import GreenhouseFetcher
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 
@@ -30,15 +34,30 @@ class JobScheduler:
         self.connection = connection
         self.fetchers = fetchers if fetchers is not None else _default_fetchers(connection)
         self.interval_seconds = interval_seconds
-        self.logger = logger or logging.getLogger(__name__)
+        self.logger = StructuredLogger(logger or logging.getLogger(__name__))
 
     def run_once(self) -> dict[str, int]:
         results: dict[str, int] = {}
         for source, fetch in self.fetchers.items():
-            inserted_count = fetch()
+            started_at = perf_counter()
+            try:
+                inserted_count = fetch()
+            except Exception as error:
+                self.logger.error(
+                    "fetch_failed",
+                    source=source,
+                    status="error",
+                    duration_ms=int((perf_counter() - started_at) * 1000),
+                    error_code=sanitize_error(error),
+                )
+                raise
             results[source] = inserted_count
-            self.logger.info(
-                "fetch_complete source=%s inserted=%s", source, inserted_count
+            self.logger.event(
+                "fetch_complete",
+                source=source,
+                status="success",
+                duration_ms=int((perf_counter() - started_at) * 1000),
+                inserted_count=inserted_count,
             )
         return results
 
@@ -52,5 +71,5 @@ def _default_fetchers(connection: sqlite3.Connection) -> dict[str, FetchFn]:
     return {
         "remoteok": RemoteOKFetcher(connection).fetch_and_store,
         "remotive": RemotiveFetcher(connection).fetch_and_store,
+        "greenhouse": GreenhouseFetcher(connection).fetch_and_store,
     }
-

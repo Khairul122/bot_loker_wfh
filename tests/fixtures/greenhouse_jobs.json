@@ -1,0 +1,60 @@
+{
+  "acme": [
+    {
+      "id": 1001,
+      "title": "Senior Backend Engineer",
+      "content": "<p>Join Acme as a Senior Backend Engineer building Python services.</p><ul><li>Remote</li></ul>",
+      "url": "https://www.acme.com/jobs/senior-backend-engineer",
+      "location": {"name": "Worldwide"},
+      "updated_at": "2026-09-18T09:00:00Z"
+    },
+    {
+      "id": 1002,
+      "title": "Mobile Developer (Flutter)",
+      "content": "<p>Build cross-platform mobile apps for a fully remote team.</p>",
+      "url": "https://www.acme.com/jobs/mobile-developer-flutter",
+      "location": {"name": "Anywhere"},
+      "updated_at": "2026-09-17T10:00:00Z"
+    }
+  ],
+  "betacorp": [
+    {
+      "id": 2001,
+      "title": "Full Stack Developer - Remote",
+      "content": "<p>Work on our NestJS and React stack, fully remote.</p>",
+      "url": "https://betacorp.com/careers/full-stack-developer-remote",
+      "location": {"name": "Remote, US"},
+      "updated_at": "2026-09-16T11:00:00Z"
+    }
+  ],
+  "deltatech": [
+    {
+      "id": 3001,
+      "title": "Laravel Backend Engineer",
+      "content": "<p>Backend role building APIs with Laravel, fully remote worldwide.</p>",
+      "url": "https://deltatech.io/jobs/laravel-backend-engineer",
+      "location": {"name": "Worldwide"},
+      "updated_at": "2026-09-15T12:00:00Z"
+    }
+  ],
+  "omegacorp": [
+    {
+      "id": 4001,
+      "title": "DevOps Engineer - Remote",
+      "content": "<p>DevOps role supporting fully remote infrastructure.</p>",
+      "url": "https://omegacorp.com/jobs/devops-engineer-remote",
+      "location": {"name": "Anywhere"},
+      "updated_at": "2026-09-14T13:00:00Z"
+    }
+  ],
+  "sigmacom": [
+    {
+      "id": 5001,
+      "title": "Python API Developer",
+      "content": "<p>Build REST APIs with Python, fully remote, worldwide.</p>",
+      "url": "https://sigmacom.com/jobs/python-api-developer",
+      "location": {"name": "Worldwide"},
+      "updated_at": "2026-09-13T14:00:00Z"
+    }
+  ]
+}

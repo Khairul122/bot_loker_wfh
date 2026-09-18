@@ -4,11 +4,11 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 
 ## Prinsip Eksekusi
 
-- [ ] Kerjakan P0 sebelum menulis kode fitur utama.
-- [ ] Setiap task dianggap selesai hanya jika acceptance criteria dan verification terpenuhi.
-- [ ] Jangan implementasikan auto-submit sebelum ambiguity, idempotency, dan verifikasi submission selesai.
-- [ ] Jangan kirim data pribadi penuh ke LLM; gunakan ringkasan CV yang disanitasi.
-- [ ] Semua perubahan status harus melalui fungsi transisi terpusat.
+- [x] Kerjakan P0 sebelum menulis kode fitur utama.
+- [x] Setiap task dianggap selesai hanya jika acceptance criteria dan verification terpenuhi.
+- [x] Jangan implementasikan auto-submit sebelum ambiguity, idempotency, dan verifikasi submission selesai.
+- [x] Jangan kirim data pribadi penuh ke LLM; gunakan ringkasan CV yang disanitasi.
+- [x] Semua perubahan status harus melalui fungsi transisi terpusat.
 
 ---
 
@@ -93,9 +93,9 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 
 ### Checkpoint: PRD Build-Ready
 
-- [ ] Semua task P0 selesai.
-- [ ] `PRD.md` tidak memiliki konflik state, dedup, dan idempotency.
-- [ ] Scope MVP disetujui sebelum mulai implementasi.
+- [x] Semua task P0 selesai.
+- [x] `PRD.md` tidak memiliki konflik state, dedup, dan idempotency.
+- [x] Scope MVP disetujui sebelum mulai implementasi.
 
 ---
 
@@ -201,9 +201,9 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 
 ### Checkpoint: Sourcing MVP
 
-- [ ] Database kosong bisa diisi dari fixture.
-- [ ] Fetch berulang tidak menghasilkan duplikasi.
-- [ ] Log tidak mencetak data pribadi atau cover letter.
+- [x] Database kosong bisa diisi dari fixture.
+- [x] Fetch berulang tidak menghasilkan duplikasi.
+- [x] Log tidak mencetak data pribadi atau cover letter.
 
 ---
 
@@ -247,13 +247,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Pastikan hanya pemilik bot yang bisa menjalankan command atau menekan tombol approval.
 
 **Acceptance criteria:**
-- [ ] Bot hanya menerima command dari allowlisted `chat_id`.
-- [ ] Request dari chat lain ditolak tanpa membocorkan data.
-- [ ] Token bot diambil dari environment variable.
+- [x] Bot hanya menerima command dari allowlisted `chat_id`.
+- [x] Request dari chat lain ditolak tanpa membocorkan data.
+- [x] Token bot diambil dari environment variable.
 
 **Verification:**
-- [ ] Test handler authorized dan unauthorized.
-- [ ] Manual check dengan `chat_id` yang benar.
+- [x] Test handler authorized dan unauthorized.
+- [x] Manual check dengan `chat_id` yang benar.
 
 **Dependencies:** Task 6  
 **Estimated scope:** S
@@ -263,13 +263,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Kirim lowongan berstatus `CANDIDATE` ke Telegram untuk review manual.
 
 **Acceptance criteria:**
-- [ ] Pesan berisi ringkasan lowongan, perusahaan, lokasi, source, apply URL, dan filter reason jika relevan.
-- [ ] Tombol approve/reject tersedia.
-- [ ] `callback_data` membawa `application_id` dan expected status untuk mencegah double click.
+- [x] Pesan berisi ringkasan lowongan, perusahaan, lokasi, source, apply URL, dan filter reason jika relevan.
+- [x] Tombol approve/reject tersedia.
+- [x] `callback_data` membawa `application_id` dan expected status untuk mencegah double click.
 
 **Verification:**
-- [ ] Test payload Telegram.
-- [ ] Manual test satu candidate menerima pesan.
+- [x] Test payload Telegram.
+- [x] Manual test satu candidate menerima pesan.
 
 **Dependencies:** Task 12, Task 14  
 **Estimated scope:** M
@@ -279,14 +279,14 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Tombol Telegram mengubah status application secara idempotent dan menolak callback lama.
 
 **Acceptance criteria:**
-- [ ] Approve mengubah status dari `PENDING_APPROVAL` ke `APPROVED`.
-- [ ] Reject mengubah status dari `PENDING_APPROVAL` ke `REJECTED_BY_USER`.
-- [ ] Double click atau callback status lama ditolak dengan pesan aman.
-- [ ] Semua perubahan tercatat di history.
+- [x] Approve mengubah status dari `PENDING_APPROVAL` ke `APPROVED`.
+- [x] Reject mengubah status dari `PENDING_APPROVAL` ke `REJECTED_BY_USER`.
+- [x] Double click atau callback status lama ditolak dengan pesan aman.
+- [x] Semua perubahan tercatat di history.
 
 **Verification:**
-- [ ] Unit test double callback.
-- [ ] Manual test approve dan reject.
+- [x] Unit test double callback.
+- [x] Manual test approve dan reject.
 
 **Dependencies:** Task 8, Task 15  
 **Estimated scope:** M
@@ -296,22 +296,22 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Tambahkan command dasar untuk melihat lowongan, status, dan laporan mingguan sederhana.
 
 **Acceptance criteria:**
-- [ ] `/lowongan` menampilkan candidate/pending terbaru.
-- [ ] `/status [id] [status_baru]` melakukan transisi manual yang valid.
-- [ ] `/laporan` menampilkan jumlah ditemukan, lolos filter, dilamar, dan respons.
+- [x] `/lowongan` menampilkan candidate/pending terbaru.
+- [x] `/status [id] [status_baru]` melakukan transisi manual yang valid.
+- [x] `/laporan` menampilkan jumlah ditemukan, lolos filter, dilamar, dan respons.
 
 **Verification:**
-- [ ] Test command parser.
-- [ ] Manual check semua command.
+- [x] Test command parser.
+- [x] Manual check semua command.
 
 **Dependencies:** Task 16  
 **Estimated scope:** M
 
 ### Checkpoint: MVP Review Manual
 
-- [ ] Lowongan bisa diambil, difilter, dikirim ke Telegram, lalu disetujui/ditolak.
-- [ ] Semua status berubah melalui transition service.
-- [ ] Duplicate fetch dan duplicate approval tidak merusak data.
+- [x] Lowongan bisa diambil, difilter, dikirim ke Telegram, lalu disetujui/ditolak.
+- [x] Semua status berubah melalui transition service.
+- [x] Duplicate fetch dan duplicate approval tidak merusak data.
 
 ---
 
@@ -322,13 +322,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Buat logging yang cukup untuk debug tanpa mencetak CV, cover letter, prompt, atau data pribadi sensitif.
 
 **Acceptance criteria:**
-- [ ] Log berisi event name, job/application ID, source, status, durasi, dan error code.
-- [ ] Log tidak berisi cover letter lengkap, CV lengkap, nomor telepon, alamat, atau tanggal lahir.
-- [ ] Error eksternal disanitasi sebelum ditulis.
+- [x] Log berisi event name, job/application ID, source, status, durasi, dan error code.
+- [x] Log tidak berisi cover letter lengkap, CV lengkap, nomor telepon, alamat, atau tanggal lahir.
+- [x] Error eksternal disanitasi sebelum ditulis.
 
 **Verification:**
-- [ ] Audit manual log setelah satu run penuh.
-- [ ] Test sanitizer untuk field sensitif.
+- [x] Audit manual log setelah satu run penuh.
+- [x] Test sanitizer untuk field sensitif.
 
 **Dependencies:** Task 11, Task 17  
 **Estimated scope:** S
@@ -338,12 +338,12 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Hapus atau arsipkan data lowongan filtered-out setelah 90 hari sesuai PRD.
 
 **Acceptance criteria:**
-- [ ] Job `FILTERED_OUT` lebih tua dari 90 hari bisa dihapus/diarsipkan.
-- [ ] Job aktif dan application tidak ikut terhapus.
-- [ ] Job cleanup bisa dijalankan manual dan terjadwal.
+- [x] Job `FILTERED_OUT` lebih tua dari 90 hari bisa dihapus/diarsipkan.
+- [x] Job aktif dan application tidak ikut terhapus.
+- [x] Job cleanup bisa dijalankan manual dan terjadwal.
 
 **Verification:**
-- [ ] Test cleanup dengan data dummy bertanggal lama.
+- [x] Test cleanup dengan data dummy bertanggal lama.
 
 **Dependencies:** Task 7  
 **Estimated scope:** S
@@ -353,12 +353,12 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Tambahkan prosedur backup dan restore agar histori lamaran tidak hilang.
 
 **Acceptance criteria:**
-- [ ] Ada command/script backup database.
-- [ ] Ada instruksi restore.
-- [ ] Backup tidak menyertakan credential `.env`.
+- [x] Ada command/script backup database.
+- [x] Ada instruksi restore.
+- [x] Backup tidak menyertakan credential `.env`.
 
 **Verification:**
-- [ ] Simulasi backup lalu restore ke database kosong.
+- [x] Simulasi backup lalu restore ke database kosong.
 
 **Dependencies:** Task 7  
 **Estimated scope:** S
@@ -368,23 +368,23 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Tulis panduan setup, konfigurasi env, menjalankan scheduler, menjalankan bot, dan troubleshooting umum.
 
 **Acceptance criteria:**
-- [ ] Ada instruksi setup dari nol.
-- [ ] Semua environment variable terdokumentasi.
-- [ ] Ada panduan menjalankan test dan one-shot fetch.
-- [ ] Ada panduan melihat log tanpa membuka data sensitif.
+- [x] Ada instruksi setup dari nol.
+- [x] Semua environment variable terdokumentasi.
+- [x] Ada panduan menjalankan test dan one-shot fetch.
+- [x] Ada panduan melihat log tanpa membuka data sensitif.
 
 **Verification:**
-- [ ] Ikuti dokumentasi dari clean checkout/environment dan pastikan aplikasi bisa start.
+- [x] Ikuti dokumentasi dari clean checkout/environment dan pastikan aplikasi bisa start.
 
 **Dependencies:** Task 18, Task 20  
 **Estimated scope:** M
 
 ### Checkpoint: MVP Stabil
 
-- [ ] Semua test MVP pass.
-- [ ] Manual end-to-end flow selesai dari fetch sampai approval.
-- [ ] Backup dan restore sudah pernah diuji.
-- [ ] Dokumentasi setup bisa diikuti.
+- [x] Semua test MVP pass.
+- [x] Manual end-to-end flow selesai dari fetch sampai approval.
+- [x] Backup dan restore sudah pernah diuji.
+- [x] Dokumentasi setup bisa diikuti.
 
 ---
 
@@ -531,12 +531,12 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 
 ## Definition of Done MVP
 
-- [ ] Fetch RemoteOK dan Remotive berjalan dari one-shot command dan scheduler.
-- [ ] Deduplication mencegah row duplicate dari source yang sama dan canonical duplicate lintas sumber sesuai aturan PRD.
-- [ ] Eligibility engine menghasilkan `CANDIDATE`, `FILTERED_OUT`, dan optional `REVIEW_REQUIRED` dengan reason code.
-- [ ] Telegram bot hanya menerima user terotorisasi.
-- [ ] Pengguna bisa approve/reject lowongan dari Telegram secara idempotent.
-- [ ] Application status history tercatat lengkap.
-- [ ] Laporan sederhana dapat ditampilkan dari Telegram.
-- [ ] Log tidak mengandung CV lengkap, cover letter lengkap, token, atau data pribadi sensitif.
-- [ ] Backup dan restore database sudah diuji minimal sekali.
+- [x] Fetch RemoteOK dan Remotive berjalan dari one-shot command dan scheduler.
+- [x] Deduplication mencegah row duplicate dari source yang sama dan canonical duplicate lintas sumber sesuai aturan PRD.
+- [x] Eligibility engine menghasilkan `CANDIDATE`, `FILTERED_OUT`, dan optional `REVIEW_REQUIRED` dengan reason code.
+- [x] Telegram bot hanya menerima user terotorisasi.
+- [x] Pengguna bisa approve/reject lowongan dari Telegram secara idempotent.
+- [x] Application status history tercatat lengkap.
+- [x] Laporan sederhana dapat ditampilkan dari Telegram.
+- [x] Log tidak mengandung CV lengkap, cover letter lengkap, token, atau data pribadi sensitif.
+- [x] Backup dan restore database sudah diuji minimal sekali.
