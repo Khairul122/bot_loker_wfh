@@ -1,0 +1,17 @@
+[
+  {
+    "id": "remoteok-123",
+    "company": "Acme Inc.",
+    "position": "Senior Backend Developer - Remote",
+    "description": "Build APIs with Python and PostgreSQL.",
+    "location": "Worldwide",
+    "salary_min": 70000,
+    "salary_max": 90000,
+    "salary_currency": "USD",
+    "date": "2026-09-18T08:00:00+00:00",
+    "apply_url": "https://example.com/jobs/remoteok-123?utm_source=remoteok"
+  },
+  {
+    "legal": "RemoteOK legal notice"
+  }
+]
