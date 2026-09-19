@@ -1,4 +1,4 @@
-﻿CREATE TABLE IF NOT EXISTS jobs (
+CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   external_id TEXT NOT NULL,
@@ -90,7 +90,7 @@ INSERT OR IGNORE INTO filters (
   no_response_after_days
 ) VALUES (
   'default',
-  '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "mobile developer"]',
+  '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "fullstack", "mobile developer", "software engineer", "software developer", "web developer"]',
   '["unpaid", "commission only", "equity only", "must relocate"]',
   0.65,
   14,

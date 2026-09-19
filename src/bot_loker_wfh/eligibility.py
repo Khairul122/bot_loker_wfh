@@ -34,13 +34,14 @@ class EligibilityEngine:
         description = str(job.get("description") or "")
         title = str(job.get("title") or "")
         company = str(job.get("company") or "")
-        searchable_text = f"{title} {description}".lower()
+        searchable_text = f"{title} {description}".lower().replace("-", " ")
 
         duplicate_reason = self._duplicate_reason(job)
         if duplicate_reason:
             return EligibilityResult("FILTERED_OUT", duplicate_reason)
 
-        if not _is_fully_remote(description):
+        remote_text = f"{description} {job.get('location') or ''}"
+        if not _is_fully_remote(remote_text, str(job.get("source") or "")):
             return EligibilityResult("FILTERED_OUT", "not fully remote")
 
         if _has_region_restriction(description):
@@ -132,10 +133,16 @@ class EligibilityEngine:
         return row is not None
 
 
-def _is_fully_remote(description: str) -> bool:
+# Boards that only list remote jobs; their postings often never say "remote".
+REMOTE_ONLY_SOURCES = frozenset({"remoteok", "remotive"})
+
+
+def _is_fully_remote(description: str, source: str = "") -> bool:
     text = description.lower()
     if any(term in text for term in ("hybrid", "on-site", "onsite", "in-office")):
         return False
+    if source in REMOTE_ONLY_SOURCES:
+        return True
     return any(term in text for term in ("remote", "worldwide", "anywhere", "fully remote"))
 
 

@@ -1,0 +1,2 @@
+[console_scripts]
+bot-loker-wfh = bot_loker_wfh.__main__:main

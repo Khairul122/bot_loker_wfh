@@ -29,7 +29,11 @@ class FilterRepositoryTest(unittest.TestCase):
                 "python",
                 "backend",
                 "full stack",
+                "fullstack",
                 "mobile developer",
+                "software engineer",
+                "software developer",
+                "web developer",
             ),
         )
         self.assertEqual(config.exclusion_keywords, (

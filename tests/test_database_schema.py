@@ -38,7 +38,7 @@ class DatabaseSchemaTest(unittest.TestCase):
         ).fetchone()
         self.assertEqual(
             filter_row[0],
-            '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "mobile developer"]',
+            '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "fullstack", "mobile developer", "software engineer", "software developer", "web developer"]',
         )
         self.assertEqual(filter_row[1], '["unpaid", "commission only", "equity only", "must relocate"]')
         self.assertEqual(filter_row[2:], (0.65, 14, 21))

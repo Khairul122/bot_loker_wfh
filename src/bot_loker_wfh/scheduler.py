@@ -1,4 +1,4 @@
-﻿"""MVP scheduler for periodic job sourcing."""
+"""MVP scheduler for periodic job sourcing."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ class JobScheduler:
         fetchers: dict[str, FetchFn] | None = None,
         interval_hours: float = 4,
         logger: logging.Logger | None = None,
+        raise_on_error: bool = True,
     ) -> None:
         interval_seconds = int(interval_hours * 60 * 60)
         if interval_seconds < MIN_INTERVAL_SECONDS:
@@ -34,6 +35,7 @@ class JobScheduler:
         self.connection = connection
         self.fetchers = fetchers if fetchers is not None else _default_fetchers(connection)
         self.interval_seconds = interval_seconds
+        self.raise_on_error = raise_on_error
         self.logger = StructuredLogger(logger or logging.getLogger(__name__))
 
     def run_once(self) -> dict[str, int]:
@@ -50,7 +52,9 @@ class JobScheduler:
                     duration_ms=int((perf_counter() - started_at) * 1000),
                     error_code=sanitize_error(error),
                 )
-                raise
+                if self.raise_on_error:
+                    raise
+                continue
             results[source] = inserted_count
             self.logger.event(
                 "fetch_complete",

@@ -1,6 +1,8 @@
 import io
+import os
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from bot_loker_wfh.__main__ import main
 from bot_loker_wfh.config import Settings
@@ -17,7 +19,9 @@ class ScaffoldSmokeTest(unittest.TestCase):
     def test_application_starts_without_external_jobs(self):
         output = io.StringIO()
 
-        with redirect_stdout(output):
+        with patch.dict(
+            os.environ, {"EXTERNAL_JOBS_ENABLED": "false", "APP_ENV": "development"}
+        ), redirect_stdout(output):
             exit_code = main([])
 
         self.assertEqual(exit_code, 0)

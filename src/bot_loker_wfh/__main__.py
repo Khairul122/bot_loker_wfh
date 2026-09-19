@@ -5,18 +5,25 @@ from __future__ import annotations
 import argparse
 import logging
 import sqlite3
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
 from .backup import backup_database, restore_database
+from .bot import BotRunner
 from .config import Settings
+from .cv_profile import load_profile
 from .database import initialize_database
+from .drafts import DraftService
 from .greenhouse import GreenhouseFetcher
 from .lever import LeverFetcher
+from .llm import AnthropicProvider
+from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 from .retention import FilteredOutRetention
 from .scheduler import JobScheduler
+from .telegram_client import TelegramClient
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -25,6 +32,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--backup-path", help="Path for backup-db output")
     parser.add_argument("--restore-path", help="Path for restore-db input")
     parser.add_argument("--target-db", help="Target SQLite path for restore-db")
+    parser.add_argument("--ats", choices=("greenhouse", "lever"), help="ATS for add-company")
+    parser.add_argument("--slug", help="ATS board slug for add-company")
+    parser.add_argument("--name", help="Company display name for add-company")
     parser.add_argument(
         "command",
         choices=(
@@ -36,6 +46,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "fetch-lever",
             "fetch-once",
             "run-scheduler",
+            "run-bot",
+            "process-jobs",
+            "add-company",
             "cleanup-retention",
             "backup-db",
             "restore-db",
@@ -74,6 +87,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"greenhouse fetch complete inserted={inserted_count}")
         return 0
 
+    if args.command == "fetch-lever":
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            inserted_count = LeverFetcher(connection).fetch_and_store()
+        print(f"lever fetch complete inserted={inserted_count}")
+        return 0
+
     if args.command == "fetch-once":
         database_path = initialize_database(settings.database_url)
         with sqlite3.connect(database_path) as connection:
@@ -87,10 +107,41 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "run-scheduler":
+        if not settings.external_jobs_enabled:
+            print("EXTERNAL_JOBS_ENABLED is false; scheduler not started")
+            return 1
         database_path = initialize_database(settings.database_url)
         with sqlite3.connect(database_path) as connection:
             JobScheduler(connection).run_forever()
         return 0
+
+    if args.command == "process-jobs":
+        database_path = initialize_database(settings.database_url)
+        profile = load_profile(settings.profile_path)
+        with sqlite3.connect(database_path) as connection:
+            counts = JobPipeline(connection, profile).process_discovered()
+        print(
+            "process complete "
+            + " ".join(f"{key}={value}" for key, value in counts.items())
+        )
+        return 0
+
+    if args.command == "add-company":
+        if not (args.ats and args.slug and args.name):
+            parser.error("add-company requires --ats, --slug, and --name")
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO companies_ats "
+                "(id, company_name, ats_type, ats_slug) VALUES (?, ?, ?, ?)",
+                (str(uuid.uuid4()), args.name, args.ats, args.slug),
+            )
+            connection.commit()
+        print(f"company registered ats={args.ats} slug={args.slug}")
+        return 0
+
+    if args.command == "run-bot":
+        return _run_bot(settings)
 
     if args.command == "cleanup-retention":
         database_path = initialize_database(settings.database_url)
@@ -123,6 +174,61 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"environment={settings.environment} "
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()}"
     )
+    return 0
+
+
+def _run_bot(settings: Settings) -> int:
+    if not settings.telegram_bot_token:
+        print("TELEGRAM_BOT_TOKEN is not set")
+        return 1
+    if not settings.telegram_allowed_chat_ids:
+        print("TELEGRAM_ALLOWED_CHAT_IDS is not set")
+        return 1
+    try:
+        profile = load_profile(settings.profile_path)
+    except FileNotFoundError as error:
+        print(error)
+        return 1
+    if not profile.skills:
+        print("Profile has no skills; edit " + settings.profile_path)
+        return 1
+
+    database_path = initialize_database(settings.database_url)
+    llm = (
+        AnthropicProvider(settings.anthropic_api_key, settings.anthropic_model)
+        if settings.anthropic_api_key
+        else None
+    )
+    connection = sqlite3.connect(database_path)
+    scheduler = (
+        JobScheduler(
+            connection,
+            interval_hours=settings.fetch_interval_hours,
+            raise_on_error=False,
+        )
+        if settings.external_jobs_enabled
+        else None
+    )
+    runner = BotRunner(
+        connection,
+        client=TelegramClient(settings.telegram_bot_token),
+        allowed_chat_ids=settings.telegram_allowed_chat_ids,
+        draft_service=DraftService(connection, profile, llm=llm),
+        pipeline=JobPipeline(connection, profile),
+        scheduler=scheduler,
+        interval_seconds=int(settings.fetch_interval_hours * 3600),
+    )
+    print(
+        "bot running "
+        f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()} "
+        f"llm={'anthropic' if llm else 'template'}"
+    )
+    try:
+        runner.run_forever()
+    except KeyboardInterrupt:
+        print("bot stopped")
+    finally:
+        connection.close()
     return 0
 
 

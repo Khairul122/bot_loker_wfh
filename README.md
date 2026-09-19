@@ -26,7 +26,7 @@ Telegram control is restricted by allowlisted chat IDs. Set `TELEGRAM_BOT_TOKEN`
 
 ## Commands
 
-Run the application:
+Print the startup configuration (does not run the bot; use `run-bot` for that):
 
 ```powershell
 python -m bot_loker_wfh
@@ -84,43 +84,72 @@ Structured events use JSON with an event name, generated `run_id`, source, statu
 6. Edit `.env` to set:
    - `TELEGRAM_BOT_TOKEN` (obtain from @BotFather on Telegram)
    - `TELEGRAM_ALLOWED_CHAT_IDS` (comma-separated list of your Telegram chat IDs)
-   - Leave `EXTERNAL_JOBS_ENABLED=false` for safe local testing
-7. Initialize the database: `python -m bot_loker_wfh init-db`
+   - `EXTERNAL_JOBS_ENABLED=true` to let the bot call the job APIs (leave `false` for safe local testing)
+   - Optional: `ANTHROPIC_API_KEY` to draft cover letters with Claude (a template draft is used otherwise)
+   - The `.env` file is loaded automatically; real environment variables take precedence
+7. Create your safe CV profile: `Copy-Item resume/profile.example.json data/profile.json`, then edit skills, experience, and projects. Only these fields are ever used for drafts, and contact details are redacted.
+8. Initialize the database: `python -m bot_loker_wfh init-db`
+9. Register the company boards to watch (optional, adds Greenhouse/Lever jobs):
+   ```powershell
+   python -m bot_loker_wfh add-company --ats greenhouse --slug gitlab --name GitLab
+   python -m bot_loker_wfh add-company --ats lever --slug binance --name Binance
+   ```
 
 ### Running the Bot
 
-The bot supports multiple operational modes:
-
-#### Manual One-Shot Fetch (Recommended for Development)
 ```powershell
-python -m bot_loker_wfh fetch-once
+python -m bot_loker_wfh run-bot
 ```
-This runs all configured fetchers once and exits.
 
-#### Periodic Scheduler (Production Mode)
-```powershell
-python -m bot_loker_wfh run-scheduler
-```
-This runs the fetchers every 4 hours (minimum interval) until interrupted.
+`run-bot` is the single long-running process. It polls Telegram for commands and buttons and, when `EXTERNAL_JOBS_ENABLED=true`, runs a fetch cycle at start-up and every `FETCH_INTERVAL_HOURS` (minimum 4). Each cycle:
 
-#### Individual Source Fetching
+1. fetches RemoteOK, Remotive, and every registered Greenhouse/Lever board (one failing source does not stop the others),
+2. scores each new job by how many of your profile skills it mentions and applies the eligibility filters,
+3. sends up to 10 new `CANDIDATE` jobs to Telegram (best score first; the rest follow every 30 minutes).
+
+The first cycle downloads every job description from Greenhouse boards and can take several minutes for large boards; later cycles skip jobs that are already stored.
+
+Other one-off commands:
+
 ```powershell
-python -m bot_loker_wfh fetch-remoteok   # Fetch only from RemoteOK
-python -m bot_loker_wfh fetch-remotive   # Fetch only from Remotive
-python -m bot_loker_wfh fetch-greenhouse # Fetch only from Greenhouse
-python -m bot_loker_wfh fetch-lever      # Fetch only from Lever
+python -m bot_loker_wfh fetch-once      # fetch all sources once
+python -m bot_loker_wfh process-jobs    # score + filter DISCOVERED jobs
+python -m bot_loker_wfh run-scheduler   # fetch only, no Telegram (needs EXTERNAL_JOBS_ENABLED=true)
+python -m bot_loker_wfh fetch-remoteok  # also fetch-remotive / fetch-greenhouse / fetch-lever
 ```
 
 ### Telegram Interaction
 
-Once the bot is running and has fetched jobs:
+Applications are submitted **manually**: the bot prepares a draft and, after you approve it, gives you the apply link.
 
-1. Use `/lowongan` in your Telegram chat to see available jobs
-2. Use `/siapkan [job_id]` to start preparing a draft application for a job
-3. Use `/draft [job_id]` to submit your cover letter and CV summary
-4. Use `/setuju [application_id]` to approve an application for submission
-5. Use `/tolak [application_id]` to reject an application
-6. Use `/laporan` to see weekly statistics
+1. A candidate arrives with a **Siapkan draft** button (or `/siapkan <job_id>`).
+2. The bot replies with the cover letter draft and **Setujui / Tolak** buttons (or `/setuju <id>` / `/tolak <id>`).
+3. After approval, open the apply link, send the application yourself, then run `/dilamar <application_id>`.
+4. Track the outcome with `/status <application_id> <INTERVIEW|OFFER|REJECTED_BY_COMPANY|NO_RESPONSE>`.
+
+Also available: `/lowongan` (candidates and pending drafts), `/fetch` (run a cycle now), `/laporan` (statistics), `/help`. IDs can be shortened to their first 8 characters.
+
+### Deployment (VPS + Docker)
+
+The bot is a single process that keeps a local SQLite file, so one small VPS (1 vCPU / 512 MB–1 GB RAM) is enough.
+
+1. On the server, install Docker (with the Compose plugin) and clone the repository.
+2. Copy the files that are not in git from your machine (`.env`, `data/profile.json`, and optionally `data/app.db` to keep your history):
+   ```bash
+   scp .env user@server:~/bot-loker-wfh/.env
+   scp -r data user@server:~/bot-loker-wfh/data
+   ```
+3. Start it: `docker compose up -d --build`
+4. Watch the logs: `docker compose logs -f bot`. Expect `bot running ...`, then a Telegram message "Bot aktif".
+5. Update later: `git pull && docker compose up -d --build`.
+
+Stop any locally running bot first: a Telegram token can be polled by only one process at a time.
+
+Back up the database from the server:
+
+```bash
+docker compose exec bot python -m bot_loker_wfh backup-db --backup-path data/backups/app.sqlite
+```
 
 ### Maintenance Operations
 
@@ -154,7 +183,7 @@ The init-db command will create directories automatically.
 Verify:
 1. `TELEGRAM_BOT_TOKEN` is correct in `.env`
 2. Your chat ID is in `TELEGRAM_ALLOWED_CHAT_IDS` (comma-separated)
-3. The bot is running (`python -m bot_loker_wfh start`)
+3. The bot is running (`python -m bot_loker_wfh run-bot`). Only one instance may poll a token at a time
 4. You're sending commands to the bot, not to a group or channel (unless added there)
 
 #### No jobs appearing in `/lowongan`
@@ -202,11 +231,9 @@ If any of the above appear in a log line, it is a bug. Report and do not share t
 
 To enable full automation:
 
-1. Set `EXTERNAL_JOBS_ENABLED=true` in `.env`
-2. Configure and test the auto-submit feature (requires additional setup for Playwright targets)
-3. Consider deploying to a VPS or cloud service for 24/7 operation
-4. Set up monitoring for the structured logs (e.g., via ELK stack or cloud logging)
-5. Implement the LLM-based cover letter generation (Phase 2 features)
+1. Keep the `run-bot` process alive (Windows Task Scheduler, a VPS with systemd, or Docker) so it can poll 24/7
+2. Auto-submit (Playwright) is intentionally not enabled; see `docs/auto-submit-risk-assessment.md`
+3. Set up monitoring for the structured logs (e.g., via ELK stack or cloud logging)
 
 ## Support
 

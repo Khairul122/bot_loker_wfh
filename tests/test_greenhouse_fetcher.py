@@ -1,4 +1,4 @@
-﻿import json
+import json
 import sqlite3
 import unittest
 from pathlib import Path
@@ -209,6 +209,26 @@ class GreenhouseFetcherTest(unittest.TestCase):
             ),
         )
         self.connection.commit()
+
+
+class GreenhouseBoardEnvelopeTest(unittest.TestCase):
+    def test_board_api_envelope_is_unwrapped(self):
+        import io
+        from unittest.mock import patch
+
+        from bot_loker_wfh import greenhouse
+
+        body = b'{"jobs": [{"id": 1, "title": "Dev"}], "meta": {"total": 1}}'
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        with patch.object(greenhouse, "urlopen", lambda request, timeout: Response(body)):
+            self.assertEqual(greenhouse._fetch_company_jobs("acme"), [{"id": 1, "title": "Dev"}])
 
 
 if __name__ == "__main__":

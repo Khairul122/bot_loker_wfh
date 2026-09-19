@@ -1,9 +1,11 @@
-﻿"""Editable, privacy-safe CV profile for LLM prompts."""
+"""Editable, privacy-safe CV profile for LLM prompts."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import re
+from pathlib import Path
 from typing import Iterable
 
 
@@ -68,3 +70,19 @@ def _sanitize_text(value: object) -> str:
     for pattern in _SENSITIVE_PATTERNS:
         sanitized = pattern.sub("[redacted]", sanitized)
     return sanitized
+
+
+def load_profile(path: str | Path) -> SafeCvProfile:
+    """Load a sanitized profile from a JSON file with skills/experience/projects."""
+    profile_path = Path(path)
+    if not profile_path.is_file():
+        raise FileNotFoundError(
+            f"Profile file not found: {profile_path}. "
+            "Copy resume/profile.example.json to that path and edit it."
+        )
+    data = json.loads(profile_path.read_text(encoding="utf-8-sig"))
+    return SafeCvProfile.from_values(
+        skills=data.get("skills", ()),
+        experience=data.get("experience", ()),
+        projects=data.get("projects", ()),
+    )

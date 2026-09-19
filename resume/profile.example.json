@@ -1,0 +1,10 @@
+{
+  "skills": ["Python", "Django", "React"],
+  "experience": [
+    "Two sentences about your real experience. Only facts you can back up; the cover letter draft repeats this text."
+  ],
+  "projects": [
+    "short description of a project you built",
+    "another project"
+  ]
+}

@@ -85,7 +85,7 @@ class GreenhouseFetcher:
         return [
             self._normalize_job(company_name, ats_slug, item)
             for item in payload
-            if _is_greenhouse_job(item)
+            if _is_greenhouse_job(item) and not self._already_stored(item)
         ]
 
     def _normalize_job(
@@ -95,8 +95,9 @@ class GreenhouseFetcher:
         external_id = str(item["id"])
         title = str(item["title"]).strip()
         raw_content = self._load_content(ats_slug, int(external_id))
-        text_content = re.sub(r"<[^>]+>", "", raw_content)
-        description = html.unescape(text_content).strip()
+        # Greenhouse returns entity-escaped HTML, so unescape before stripping tags.
+        text_content = re.sub(r"<[^>]+>", " ", html.unescape(raw_content))
+        description = " ".join(html.unescape(text_content).split())
         if not description:
             description = f"{title} at {company_name}"
         company = str(company_name).strip()
@@ -130,6 +131,14 @@ class GreenhouseFetcher:
             "apply_url": apply_url,
             "posted_at": posted_at,
         }
+
+    def _already_stored(self, item: dict[str, Any]) -> bool:
+        """Skip the per-job detail request for jobs fetched in an earlier run."""
+        row = self.connection.execute(
+            "SELECT 1 FROM jobs WHERE source_external_key = ?",
+            (f"greenhouse:{item['id']}",),
+        ).fetchone()
+        return row is not None
 
     def _load_content(self, ats_slug: str, job_id: int) -> str:
         try:
@@ -176,7 +185,13 @@ def _fetch_company_jobs(ats_slug: str) -> list[dict[str, Any]]:
         headers={"User-Agent": "bot-loker-wfh/0.1"},
     )
     with urlopen(request, timeout=30) as response:
-        return json.load(response)
+        payload = json.load(response)
+    # The board API wraps postings as {"jobs": [...], "meta": {...}}.
+    if isinstance(payload, dict):
+        payload = payload.get("jobs", [])
+    if not isinstance(payload, list):
+        raise ValueError("Greenhouse jobs payload is not a list")
+    return payload
 
 
 def _fetch_job_detail(ats_slug: str, job_id: int) -> dict[str, Any]:

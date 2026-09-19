@@ -41,6 +41,24 @@ class TelegramNotificationService:
         ).fetchall()
         return [self._approval_message(row) for row in rows]
 
+    def candidate_message(self, job_id: str) -> TelegramMessage | None:
+        row = self.connection.execute(
+            "SELECT id, title, company, location, source, apply_url, filtered_reason "
+            "FROM jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        return self._candidate_message(row) if row else None
+
+    def approval_message(self, application_id: str) -> TelegramMessage | None:
+        row = self.connection.execute(
+            "SELECT applications.id, jobs.title, jobs.company, jobs.location, "
+            "jobs.source, jobs.apply_url, applications.cover_letter, applications.cv_summary "
+            "FROM applications JOIN jobs ON jobs.id = applications.job_id "
+            "WHERE applications.id = ?",
+            (application_id,),
+        ).fetchone()
+        return self._approval_message(row) if row else None
+
     def _candidate_message(self, row: tuple[object, ...]) -> TelegramMessage:
         job_id, title, company, location, source, apply_url, filtered_reason = row
         reason_line = (

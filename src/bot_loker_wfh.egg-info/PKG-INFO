@@ -1,0 +1,7 @@
+Metadata-Version: 2.4
+Name: bot-loker-wfh
+Version: 0.1.0
+Summary: Bot personal untuk sourcing dan review lowongan kerja remote.
+Requires-Python: >=3.11
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
