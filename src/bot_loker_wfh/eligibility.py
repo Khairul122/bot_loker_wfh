@@ -134,12 +134,14 @@ class EligibilityEngine:
 
 
 # Boards that only list remote jobs; their postings often never say "remote".
-REMOTE_ONLY_SOURCES = frozenset({"remoteok", "remotive"})
+REMOTE_ONLY_SOURCES = frozenset({"remoteok", "remotive", "kalibrr", "dealls"})
 
 
 def _is_fully_remote(description: str, source: str = "") -> bool:
     text = description.lower()
-    if any(term in text for term in ("hybrid", "on-site", "onsite", "in-office")):
+    if any(term in text for term in (
+        "hybrid", "on-site", "onsite", "in-office", "work from office", "wfo",
+    )):
         return False
     if source in REMOTE_ONLY_SOURCES:
         return True

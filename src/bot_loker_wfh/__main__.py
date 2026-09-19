@@ -16,6 +16,13 @@ from .cv_profile import load_profile
 from .database import initialize_database
 from .drafts import DraftService
 from .greenhouse import GreenhouseFetcher
+from .indonesia_jobs import DeallsFetcher, KalibrrFetcher
+from .leads import (
+    FreelancerFetcher,
+    LeadService,
+    ProjectsCoIdFetcher,
+    TelegramChannelFetcher,
+)
 from .lever import LeverFetcher
 from .llm import AnthropicProvider
 from .pipeline import JobPipeline
@@ -45,6 +52,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "fetch-remotive",
             "fetch-greenhouse",
             "fetch-lever",
+            "fetch-kalibrr",
+            "fetch-dealls",
+            "fetch-leads",
             "fetch-once",
             "run-scheduler",
             "run-bot",
@@ -94,6 +104,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         with sqlite3.connect(database_path) as connection:
             inserted_count = LeverFetcher(connection).fetch_and_store()
         print(f"lever fetch complete inserted={inserted_count}")
+        return 0
+
+    if args.command in {"fetch-kalibrr", "fetch-dealls"}:
+        fetcher_class = KalibrrFetcher if args.command == "fetch-kalibrr" else DeallsFetcher
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            inserted_count = fetcher_class(connection).fetch_and_store()
+        print(f"{fetcher_class.source} fetch complete inserted={inserted_count}")
+        return 0
+
+    if args.command == "fetch-leads":
+        database_path = initialize_database(settings.database_url)
+        profile = load_profile(settings.profile_path)
+        with sqlite3.connect(database_path) as connection:
+            counts = _lead_service(connection, profile, settings).collect()
+        print(
+            "leads fetch complete "
+            + " ".join(f"{source}_new={count}" for source, count in counts.items())
+        )
         return 0
 
     if args.command == "fetch-once":
@@ -184,6 +213,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _lead_service(connection, profile, settings: Settings) -> LeadService:
+    fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher()]
+    if settings.lead_telegram_channels:
+        fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
+    return LeadService(connection, profile, fetchers=fetchers)
+
+
 def _fill_form(settings: Settings, application_id: str) -> int:
     """Open the application form in a visible browser, fill it, never submit."""
     from .form_assist import (
@@ -269,6 +305,7 @@ def _run_bot(settings: Settings) -> int:
         allowed_chat_ids=settings.telegram_allowed_chat_ids,
         draft_service=DraftService(connection, profile, llm=llm),
         form_assist_enabled=settings.form_assist_enabled,
+        lead_service=_lead_service(connection, profile, settings),
         pipeline=JobPipeline(connection, profile),
         scheduler=scheduler,
         interval_seconds=int(settings.fetch_interval_hours * 3600),

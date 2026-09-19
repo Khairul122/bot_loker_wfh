@@ -34,6 +34,7 @@ class FilterRepositoryTest(unittest.TestCase):
                 "software engineer",
                 "software developer",
                 "web developer",
+                "programmer",
             ),
         )
         self.assertEqual(config.exclusion_keywords, (

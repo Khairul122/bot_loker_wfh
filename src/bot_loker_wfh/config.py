@@ -22,6 +22,7 @@ class Settings:
     form_assist_enabled: bool = False
     applicant_path: str = "data/applicant.json"
     answers_path: str = "data/answers.json"
+    lead_telegram_channels: tuple[str, ...] = ()
 
     @classmethod
     def from_environment(
@@ -48,6 +49,11 @@ class Settings:
             in {"1", "true", "yes", "on"},
             applicant_path=source.get("APPLICANT_PATH") or "data/applicant.json",
             answers_path=source.get("ANSWERS_PATH") or "data/answers.json",
+            lead_telegram_channels=tuple(
+                item.strip()
+                for item in source.get("LEAD_TELEGRAM_CHANNELS", "").split(",")
+                if item.strip()
+            ),
         )
 
 

@@ -9,6 +9,7 @@ from collections.abc import Callable
 from time import perf_counter
 
 from .greenhouse import GreenhouseFetcher
+from .indonesia_jobs import DeallsFetcher, KalibrrFetcher
 from .lever import LeverFetcher
 from .logging_utils import StructuredLogger, sanitize_error
 from .remoteok import RemoteOKFetcher
@@ -77,5 +78,7 @@ def _default_fetchers(connection: sqlite3.Connection) -> dict[str, FetchFn]:
         "remotive": RemotiveFetcher(connection).fetch_and_store,
         "greenhouse": GreenhouseFetcher(connection).fetch_and_store,
         "lever": LeverFetcher(connection).fetch_and_store,
+        "kalibrr": KalibrrFetcher(connection).fetch_and_store,
+        "dealls": DeallsFetcher(connection).fetch_and_store,
     }
 

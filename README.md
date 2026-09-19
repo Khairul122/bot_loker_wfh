@@ -103,7 +103,7 @@ python -m bot_loker_wfh run-bot
 
 `run-bot` is the single long-running process. It polls Telegram for commands and buttons and, when `EXTERNAL_JOBS_ENABLED=true`, runs a fetch cycle at start-up and every `FETCH_INTERVAL_HOURS` (minimum 4). Each cycle:
 
-1. fetches RemoteOK, Remotive, and every registered Greenhouse/Lever board (one failing source does not stop the others),
+1. fetches RemoteOK, Remotive, the Indonesian boards Kalibrr and Dealls, and every registered Greenhouse/Lever board (one failing source does not stop the others),
 2. scores each new job by how many of your profile skills it mentions and applies the eligibility filters,
 3. sends up to 10 new `CANDIDATE` jobs to Telegram (best score first; the rest follow every 30 minutes).
 
@@ -116,6 +116,8 @@ python -m bot_loker_wfh fetch-once      # fetch all sources once
 python -m bot_loker_wfh process-jobs    # score + filter DISCOVERED jobs
 python -m bot_loker_wfh run-scheduler   # fetch only, no Telegram (needs EXTERNAL_JOBS_ENABLED=true)
 python -m bot_loker_wfh fetch-remoteok  # also fetch-remotive / fetch-greenhouse / fetch-lever
+python -m bot_loker_wfh fetch-kalibrr   # Indonesian remote jobs; also fetch-dealls
+python -m bot_loker_wfh fetch-leads     # freelance leads (see below)
 ```
 
 ### Telegram Interaction
@@ -126,6 +128,18 @@ Applications are submitted **manually**: the bot prepares a draft and, after you
 2. The bot replies with the cover letter draft and **Setujui / Tolak** buttons (or `/setuju <id>` / `/tolak <id>`).
 3. After approval, open the apply link, send the application yourself, then run `/dilamar <application_id>`.
 4. Track the outcome with `/status <application_id> <INTERVIEW|OFFER|REJECTED_BY_COMPANY|NO_RESPONSE>`.
+
+### Indonesian jobs
+
+Kalibrr and Dealls are read through the public JSON their own websites use (no login, sequential requests with a delay, `robots.txt` respected). Only postings the board itself marks as remote/WFH are stored, so hybrid and on-site jobs never enter the bot. They then go through the same filters as every other source, including the 14-day posting age limit in the `filters` table. Indonesian remote developer jobs are scarce (Kalibrr had about 30 WFH postings and Dealls 13, mostly non-technical), so also register Indonesian companies' Greenhouse/Lever boards with `add-company`. LinkedIn is not used because its terms forbid automated access; JobStreet, Indeed, and Glints are skipped because they block detail pages or rely on unstable internal APIs.
+
+### Freelance leads (`/lead`)
+
+Besides jobs, the bot looks for **freelance projects that need a fullstack developer** and **chances to sell your source code**. Sources: Freelancer.com (public projects API), projects.co.id (Indonesian marketplace), and optionally public Telegram channels you list in `LEAD_TELEGRAM_CHANNELS` (comma-separated usernames, read through the public `t.me/s/<channel>` preview; private groups are not reachable).
+
+- A lead is kept when it mentions your stack (Laravel, React, Flutter, NestJS, PHP, Python, ... plus the skills in `data/profile.json`) and is at most 3 days old.
+- It is labelled **Proyek dicari developer**, or **Peluang jual source code** when someone wants to buy existing code (phrases such as "looking for source code", "ready made", "WTB", "cari source code"). A project that merely requires the source code as a deliverable is a normal project. The classification is keyword based, so expect some noise.
+- Each lead arrives in Telegram (up to 5 per batch) with **Minat** and **Abaikan** buttons. `/lead` lists the ones you marked and the new ones. There is no application workflow: open the link and contact the client on the platform yourself.
 
 ### Semi-automatic form filling (`/isi`)
 

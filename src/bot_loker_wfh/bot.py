@@ -13,6 +13,7 @@ from typing import Any
 
 from .drafts import DraftService
 from .form_assist import FormAssistError, resolve_form_target
+from .leads import LeadService
 from .logging_utils import StructuredLogger, sanitize_error
 from .pipeline import JobPipeline
 from .scheduler import JobScheduler
@@ -34,7 +35,9 @@ HELP_TEXT = (
     "/siapkan <job_id> - buat draft lamaran untuk lowongan\n"
     "/setuju <application_id> - setujui lamaran\n"
     "/tolak <application_id> - tolak lamaran\n"
+    "/isi <application_id> - buka form lamaran di browser & isi otomatis (tidak dikirim)\n"
     "/dilamar <application_id> - tandai sudah dikirim manual\n"
+    "/lead - proyek freelance & peluang jual source code\n"
     "/status <application_id> <status> - ubah status manual\n"
     "/fetch - ambil lowongan baru sekarang\n"
     "/laporan - ringkasan statistik\n\n"
@@ -44,6 +47,7 @@ HELP_TEXT = (
 
 NOTIFY_INTERVAL_SECONDS = 30 * 60
 MAX_NOTIFICATIONS_PER_BATCH = 10
+MAX_LEAD_NOTIFICATIONS_PER_BATCH = 5
 POLL_TIMEOUT_SECONDS = 30
 ERROR_BACKOFF_SECONDS = 5
 
@@ -64,7 +68,9 @@ class BotRunner:
         sleep: Callable[[float], None] = time.sleep,
         form_assist_enabled: bool = False,
         spawn: Callable[..., Any] = subprocess.Popen,
+        lead_service: LeadService | None = None,
     ) -> None:
+        self.lead_service = lead_service
         self.form_assist_enabled = form_assist_enabled
         self.spawn = spawn
         self.connection = connection
@@ -127,6 +133,9 @@ class BotRunner:
                 summary[f"{source}_inserted"] = inserted
         summary.update(self.pipeline.process_discovered())
         summary["notified"] = self.notify_candidates()
+        if self.lead_service is not None and self.scheduler is not None:
+            summary["lead_new"] = sum(self.lead_service.collect().values())
+            summary["lead_notified"] = self.notify_leads()
         self.logger.event(
             "cycle_complete", status="success", inserted_count=summary["candidate"]
         )
@@ -143,6 +152,7 @@ class BotRunner:
     def _safe_notify(self) -> None:
         try:
             self.notify_candidates()
+            self.notify_leads()
         except Exception as error:
             self.logger.error(
                 "notify_failed", status="error", error_code=sanitize_error(error)
@@ -178,6 +188,23 @@ class BotRunner:
             sent += 1
         return sent
 
+    def notify_leads(self) -> int:
+        """Send not-yet-notified freelance leads (best scored first); returns count."""
+        if self.lead_service is None:
+            return 0
+        sent = 0
+        for lead_id in self.lead_service.unnotified_ids(MAX_LEAD_NOTIFICATIONS_PER_BATCH):
+            try:
+                for chat_id in sorted(self.allowed_chat_ids):
+                    message = self.lead_service.message(lead_id, chat_id)
+                    if message is not None:
+                        self.client.send_message(message)
+            except TelegramError:
+                break
+            self.lead_service.mark_notified(lead_id)
+            sent += 1
+        return sent
+
     # -------------------------------------------------------------- handlers
 
     def handle_update(self, update: dict[str, Any]) -> None:
@@ -210,6 +237,11 @@ class BotRunner:
                 "approve" if command == "/setuju" else "reject",
                 self._resolve("applications", args),
             )
+        elif command == "/lead":
+            self._safe_send(
+                chat_id,
+                self.lead_service.list_text() if self.lead_service else "Fitur lead belum aktif.",
+            )
         elif command == "/isi":
             self._fill_form(chat_id, self._resolve("applications", args))
         elif command == "/dilamar":
@@ -234,6 +266,8 @@ class BotRunner:
         if action == "prepare" and target:
             self._safe_answer(query_id, "Menyiapkan draft...")
             self._prepare(chat_id, target)
+        elif action == "lead" and target and len(parts) == 3:
+            self._handle_lead_button(query_id, target, parts[2])
         elif action == "fill" and target:
             self._safe_answer(query_id, "Membuka browser...")
             self._fill_form(chat_id, target)
@@ -248,6 +282,18 @@ class BotRunner:
             self._safe_answer(query_id, "Invalid request.")
 
     # ------------------------------------------------------------- actions
+
+    def _handle_lead_button(self, query_id: str, lead_id: str, status: str) -> None:
+        if self.lead_service is None or status not in {"INTERESTED", "IGNORED"}:
+            self._safe_answer(query_id, "Invalid request.")
+            return
+        if self.lead_service.set_status(lead_id, status):
+            self._safe_answer(
+                query_id,
+                "Ditandai minat. Lihat semua dengan /lead." if status == "INTERESTED" else "Diabaikan.",
+            )
+        else:
+            self._safe_answer(query_id, "Lead tidak ditemukan.")
 
     def _prepare(self, chat_id: int, job_id: str | None) -> None:
         if job_id is None:

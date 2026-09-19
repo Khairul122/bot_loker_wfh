@@ -90,7 +90,7 @@ INSERT OR IGNORE INTO filters (
   no_response_after_days
 ) VALUES (
   'default',
-  '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "fullstack", "mobile developer", "software engineer", "software developer", "web developer"]',
+  '["laravel", "flutter", "nestjs", "react", "python", "backend", "full stack", "fullstack", "mobile developer", "software engineer", "software developer", "web developer", "programmer"]',
   '["unpaid", "commission only", "equity only", "must relocate"]',
   0.65,
   14,
@@ -112,4 +112,23 @@ CREATE TABLE IF NOT EXISTS company_blocklist (
   reason TEXT,
   added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+CREATE TABLE IF NOT EXISTS leads (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  url TEXT NOT NULL,
+  budget TEXT,
+  posted_at TEXT,
+  fetched_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  score REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'NEW',
+  notified_at TEXT,
+  UNIQUE (source, external_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 
