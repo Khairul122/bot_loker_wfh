@@ -1,4 +1,4 @@
-﻿# Auto-Submit Risk Assessment
+# Auto-Submit Risk Assessment
 
 **Task:** 27 — Riset legal dan teknis auto-submit
 **Date:** 2026-09-19
@@ -76,4 +76,15 @@ The Lever terms reviewed contain restrictions on access and use, but no blanket 
 - Lever Terms of Service: https://www.lever.co/terms-of-service
 
 Sources accessed 2026-09-19; recheck terms and employer policy before production launch.
+
+## Update: Semi-Automatic Form Assist (Option B)
+
+**Decision (2026-09-19, owner):** production auto-submit stays **NO-GO**. Instead the project adopts a semi-automatic assistant (`src/bot_loker_wfh/form_assist.py`).
+
+- It opens the real Greenhouse/Lever form in a visible browser on the owner's computer, fills only mapped fields, and stops. It has no code path that clicks Submit.
+- CAPTCHA is never solved or bypassed; the report tells the owner it is present.
+- Required fields it cannot fill from reviewed data (dropdowns, work authorization, salary, custom questions) are listed for the owner. Reviewed text answers live in `data/answers.json` and are applied only when exactly one text field matches the label.
+- Targets are limited to the exact hosts `job-boards.greenhouse.io`, `boards.greenhouse.io`, `jobs.lever.co`, `jobs.eu.lever.co` over HTTPS. Any other site is opened manually.
+- Every form still requires explicit owner approval in Telegram before it is opened, and the owner performs the final submission and marks it with `/dilamar`.
+- Personal data (`data/applicant.json`) is local-only, is gitignored with `data/`, and is never logged.
 

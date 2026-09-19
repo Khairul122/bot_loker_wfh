@@ -140,12 +140,12 @@ def resolve_form_target(
     return ats, apply_url, cover_letter, title
 
 
-_UNFILLED_REQUIRED_JS = """
+_UNFILLED_REQUIRED_JS = r"""
 () => {
   const labelOf = (e) => {
     const own = e.labels && e.labels[0] ? e.labels[0].innerText : '';
-    const near = e.closest('li, .field, .application-question, .select__container, div')
-      ?.querySelector('.application-label, label')?.innerText || '';
+    const near = (e.closest('li, .field, .application-question')?.innerText || '')
+      .split(/\r?\n/)[0];
     return (own || e.getAttribute('aria-label') || near || '').replace(/[*✱]/g, '').trim();
   };
   const seen = new Set();
@@ -155,7 +155,7 @@ _UNFILLED_REQUIRED_JS = """
     .filter((e) => e.type === 'file' ? e.files.length === 0 : (e.value || '').trim() === '')
     .map(labelOf)
     .filter((label) => label && !seen.has(label) && seen.add(label))
-    .map((label) => label.replace(/\\s+/g, ' ').slice(0, 80));
+    .map((label) => label.replace(/\s+/g, ' ').slice(0, 80));
 }
 """
 
@@ -313,5 +313,8 @@ def open_and_fill(
                 page.wait_for_event("close", timeout=0)
             except Exception:
                 pass
-        browser.close()
+        try:
+            browser.close()
+        except Exception:
+            pass  # the user already closed the window
     return report

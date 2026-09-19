@@ -127,6 +127,26 @@ Applications are submitted **manually**: the bot prepares a draft and, after you
 3. After approval, open the apply link, send the application yourself, then run `/dilamar <application_id>`.
 4. Track the outcome with `/status <application_id> <INTERVIEW|OFFER|REJECTED_BY_COMPANY|NO_RESPONSE>`.
 
+### Semi-automatic form filling (`/isi`)
+
+After you approve an application, tap **Buka & isi form** (or `/isi <application_id>`). The bot opens the real application form in a visible browser on your computer, fills what it can, and **stops**. You review, solve any CAPTCHA, click Submit yourself, then send `/dilamar <application_id>`. The bot never clicks Submit and never solves CAPTCHA.
+
+Setup (once, on the computer that runs `run-bot`):
+
+```powershell
+python -m pip install -e ".[form]"
+python -m playwright install chromium
+Copy-Item resume/applicant.example.json data/applicant.json   # then edit: name, email, phone, resume_path, links
+```
+
+and set `FORM_ASSIST_ENABLED=true` in `.env`. Supported forms: Greenhouse (`job-boards.greenhouse.io`) and Lever (`jobs.lever.co`), i.e. jobs that came from your registered `add-company` boards. RemoteOK/Remotive links point to other sites and are not filled.
+
+What gets filled: first/last/full name, email, phone, resume upload, cover letter (uploaded as a text file on Greenhouse, "Additional information" on Lever), and LinkedIn/GitHub/website when set. Everything else is listed in Telegram as **Perlu Anda isi/pilih** (dropdowns, work authorization, salary, etc.).
+
+To pre-answer recurring text questions, create `data/answers.json` (see `resume/answers.example.json`): each key is part of the question label, and it is filled only when exactly one text field matches. Dropdowns and yes/no choices are never guessed.
+
+Because it needs a screen, this feature does not work when the bot runs on a headless VPS; there it replies that the feature is off. Keep `FORM_ASSIST_ENABLED=false` in the server's `.env`.
+
 Also available: `/lowongan` (candidates and pending drafts), `/fetch` (run a cycle now), `/laporan` (statistics), `/help`. IDs can be shortened to their first 8 characters.
 
 ### Deployment (VPS + Docker)
