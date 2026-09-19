@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS submission_attempts (
   attempt_number INTEGER NOT NULL,
   result TEXT NOT NULL,
   error_message TEXT,
+  confirmation_url TEXT,
+  confirmation_reference TEXT,
   attempted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   UNIQUE (application_id, attempt_number)
 );

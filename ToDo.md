@@ -506,13 +506,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Aktifkan submit nyata hanya setelah dry-run stabil dan guard idempotency lengkap.
 
 **Acceptance criteria:**
-- [ ] Submit hanya dimulai dari status `APPROVED` melalui compare-and-swap.
-- [ ] Success, failed, timeout, dan ambiguous dicatat di `submission_attempts`.
-- [ ] `SUBMISSION_AMBIGUOUS` tidak pernah retry otomatis.
-- [ ] Confirmation page/email/reference disimpan jika tersedia.
+- [x] Submit hanya dimulai dari status `APPROVED` melalui compare-and-swap.
+- [x] Success, failed, timeout, dan ambiguous dicatat di `submission_attempts`.
+- [x] `SUBMISSION_AMBIGUOUS` tidak pernah retry otomatis.
+- [x] Confirmation page/email/reference disimpan jika tersedia.
 
 **Verification:**
-- [ ] Test crash simulation sebelum submit, saat submit, dan setelah submit.
+- [x] Test crash simulation sebelum submit, saat submit, dan setelah submit.
 - [ ] Manual production test terbatas dengan approval pengguna.
 
 **Dependencies:** Task 28  

@@ -45,4 +45,14 @@ def _ensure_embedding_columns(connection: sqlite3.Connection) -> None:
     for column in ("embedding_model", "embedding_version"):
         if column not in columns:
             connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
-
+    attempt_columns = {
+        row[1]
+        for row in connection.execute(
+            "PRAGMA table_info(submission_attempts)"
+        ).fetchall()
+    }
+    for column in ("confirmation_url", "confirmation_reference"):
+        if column not in attempt_columns:
+            connection.execute(
+                f"ALTER TABLE submission_attempts ADD COLUMN {column} TEXT"
+            )
