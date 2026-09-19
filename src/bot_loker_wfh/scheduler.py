@@ -8,9 +8,9 @@ import time
 from collections.abc import Callable
 from time import perf_counter
 
-from .logging_utils import StructuredLogger, sanitize_error
-from .remoteok import RemoteOKFetcher
 from .greenhouse import GreenhouseFetcher
+from .lever import LeverFetcher
+from .logging_utils import StructuredLogger, sanitize_error
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 
@@ -72,4 +72,6 @@ def _default_fetchers(connection: sqlite3.Connection) -> dict[str, FetchFn]:
         "remoteok": RemoteOKFetcher(connection).fetch_and_store,
         "remotive": RemotiveFetcher(connection).fetch_and_store,
         "greenhouse": GreenhouseFetcher(connection).fetch_and_store,
+        "lever": LeverFetcher(connection).fetch_and_store,
     }
+

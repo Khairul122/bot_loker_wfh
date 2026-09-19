@@ -1,0 +1,45 @@
+{
+  "acme": [
+    {
+      "id": "abc-123",
+      "text": "Backend Engineer",
+      "createdAt": 1789722000000,
+      "hostedUrl": "https://jobs.lever.co/acme/abc-123",
+      "applyUrl": "https://jobs.lever.co/acme/abc-123/apply",
+      "categories": {
+        "location": "Remote - Worldwide",
+        "team": "Engineering",
+        "commitment": "Full-time"
+      },
+      "descriptionPlain": "Build Python APIs for a fully remote team.",
+      "description": "<p>Build Python APIs for a fully remote team.</p>",
+      "lists": [
+        {"text": "Responsibilities", "content": "<li>Own backend services</li>"}
+      ],
+      "salaryRange": {"min": 70000, "max": 90000, "currency": "USD", "interval": "year"}
+    },
+    {
+      "id": "abc-456",
+      "text": "Mobile Developer",
+      "createdAt": 1789635600000,
+      "hostedUrl": "https://jobs.lever.co/acme/abc-456",
+      "applyUrl": "https://jobs.lever.co/acme/abc-456/apply",
+      "categories": {"location": "Anywhere", "team": "Mobile", "commitment": "Full-time"},
+      "descriptionPlain": "Build Flutter applications remotely.",
+      "description": "<p>Build Flutter applications remotely.</p>",
+      "lists": []
+    }
+  ],
+  "betacorp": [
+    {"id": "beta-1", "text": "Full Stack Developer", "createdAt": 1789549200000, "hostedUrl": "https://jobs.lever.co/betacorp/beta-1", "applyUrl": "https://jobs.lever.co/betacorp/beta-1/apply", "categories": {"location": "Remote", "team": "Engineering"}, "descriptionPlain": "Build React and Node services remotely.", "description": "<p>Build React and Node services remotely.</p>", "lists": []}
+  ],
+  "deltatech": [
+    {"id": "delta-1", "text": "Laravel Engineer", "createdAt": 1789462800000, "hostedUrl": "https://jobs.lever.co/deltatech/delta-1", "applyUrl": "https://jobs.lever.co/deltatech/delta-1/apply", "categories": {"location": "Worldwide", "team": "Engineering"}, "descriptionPlain": "Build Laravel APIs remotely.", "description": "<p>Build Laravel APIs remotely.</p>", "lists": []}
+  ],
+  "omegacorp": [
+    {"id": "omega-1", "text": "DevOps Engineer", "createdAt": 1789376400000, "hostedUrl": "https://jobs.lever.co/omegacorp/omega-1", "applyUrl": "https://jobs.lever.co/omegacorp/omega-1/apply", "categories": {"location": "Anywhere", "team": "Platform"}, "descriptionPlain": "Support remote infrastructure.", "description": "<p>Support remote infrastructure.</p>", "lists": []}
+  ],
+  "sigmacom": [
+    {"id": "sigma-1", "text": "Python API Developer", "createdAt": 1789290000000, "hostedUrl": "https://jobs.lever.co/sigmacom/sigma-1", "applyUrl": "https://jobs.lever.co/sigmacom/sigma-1/apply", "categories": {"location": "Worldwide", "team": "Engineering"}, "descriptionPlain": "Build Python APIs remotely.", "description": "<p>Build Python APIs remotely.</p>", "lists": []}
+  ]
+}

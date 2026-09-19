@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS jobs (
+﻿CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
   source TEXT NOT NULL,
   external_id TEXT NOT NULL,
@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   posted_at TEXT,
   fetched_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   relevance_score REAL,
+  embedding_model TEXT,
+  embedding_version TEXT,
   status TEXT NOT NULL DEFAULT 'DISCOVERED',
   filtered_reason TEXT,
   UNIQUE (source, external_id),
@@ -108,3 +110,4 @@ CREATE TABLE IF NOT EXISTS company_blocklist (
   reason TEXT,
   added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+

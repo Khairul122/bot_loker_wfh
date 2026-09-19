@@ -19,6 +19,8 @@ COMPANIES = [
     ("Sigma Com", "sigmacom"),
 ]
 
+DETAIL_CONTENT = "<p>Build &amp; maintain Python &amp; APIs remotely.</p>"
+
 
 class GreenhouseFetcherTest(unittest.TestCase):
     def setUp(self):
@@ -30,10 +32,14 @@ class GreenhouseFetcherTest(unittest.TestCase):
     def tearDown(self):
         self.connection.close()
 
+    def _detail(self, ats_slug, job_id):
+        return {"content": DETAIL_CONTENT}
+
     def test_fetches_normalizes_and_persists_greenhouse_jobs(self):
         fetcher = GreenhouseFetcher(
             self.connection,
             fetch_company_jobs=lambda slug: self.payload.get(slug, []),
+            fetch_job_detail=self._detail,
         )
 
         inserted_count = fetcher.fetch_and_store()
@@ -46,16 +52,16 @@ class GreenhouseFetcherTest(unittest.TestCase):
 
         self.assertEqual(inserted_count, 6)
         self.assertEqual(len(rows), 6)
-        acme_first = rows[0]
-        self.assertEqual(acme_first[0], "greenhouse")
-        self.assertEqual(acme_first[1], "1001")
-        self.assertEqual(acme_first[2], "Senior Backend Engineer")
-        self.assertEqual(acme_first[3], "Acme Inc.")
-        self.assertEqual(acme_first[4], "Worldwide")
-        self.assertEqual(acme_first[5], "https://www.acme.com/jobs/senior-backend-engineer")
-        self.assertEqual(acme_first[6], "2026-09-18T09:00:00+00:00")
-        self.assertEqual(acme_first[7], "DISCOVERED")
-        self.assertEqual(acme_first[8:], (None, None, None))
+        first = rows[0]
+        self.assertEqual(first[0], "greenhouse")
+        self.assertEqual(first[1], "1001")
+        self.assertEqual(first[2], "Senior Backend Engineer")
+        self.assertEqual(first[3], "Acme Inc.")
+        self.assertEqual(first[4], "Worldwide")
+        self.assertEqual(first[5], "https://www.acme.com/jobs/senior-backend-engineer")
+        self.assertEqual(first[6], "2026-09-18T09:00:00+00:00")
+        self.assertEqual(first[7], "DISCOVERED")
+        self.assertEqual(first[8:], (None, None, None))
 
     def test_companies_ats_stores_greenhouse_slug(self):
         rows = self.connection.execute(
@@ -75,6 +81,7 @@ class GreenhouseFetcherTest(unittest.TestCase):
         fetcher = GreenhouseFetcher(
             self.connection,
             fetch_company_jobs=lambda slug: self.payload.get(slug, []),
+            fetch_job_detail=self._detail,
         )
 
         inserted_count = fetcher.fetch_and_store()
@@ -82,34 +89,40 @@ class GreenhouseFetcherTest(unittest.TestCase):
         self.assertEqual(inserted_count, 6)
 
     def test_html_description_is_stripped_and_entities_unescaped(self):
-        payload = {
-            "acme": [
-                {
-                    "id": 7001,
-                    "title": "Backend Engineer",
-                    "content": "<p>Build &amp; maintain Python &amp; APIs.</p>",
-                    "url": "https://www.acme.com/jobs/backend-engineer",
-                    "location": {"name": "Worldwide"},
-                    "updated_at": "2026-09-18T09:00:00Z",
-                }
-            ]
-        }
         fetcher = GreenhouseFetcher(
             self.connection,
-            fetch_company_jobs=lambda slug: payload.get(slug, []),
+            fetch_company_jobs=lambda slug: self.payload.get(slug, []),
+            fetch_job_detail=self._detail,
         )
 
         fetcher.fetch_and_store()
 
         description = self.connection.execute(
-            "SELECT description FROM jobs WHERE external_id = '7001'"
+            "SELECT description FROM jobs WHERE external_id = '1001'"
         ).fetchone()[0]
-        self.assertEqual(description, "Build & maintain Python & APIs.")
+        self.assertEqual(
+            description, "Build & maintain Python & APIs remotely."
+        )
+
+    def test_description_falls_back_to_title_when_detail_unavailable(self):
+        fetcher = GreenhouseFetcher(
+            self.connection,
+            fetch_company_jobs=lambda slug: self.payload.get(slug, []),
+            fetch_job_detail=lambda slug, job_id: {"content": None},
+        )
+
+        fetcher.fetch_and_store()
+
+        description = self.connection.execute(
+            "SELECT description FROM jobs WHERE external_id = '1001'"
+        ).fetchone()[0]
+        self.assertEqual(description, "Senior Backend Engineer at Acme Inc.")
 
     def test_second_fetch_with_same_data_does_not_insert_duplicate(self):
         fetcher = GreenhouseFetcher(
             self.connection,
             fetch_company_jobs=lambda slug: self.payload.get(slug, []),
+            fetch_job_detail=self._detail,
         )
 
         self.assertEqual(fetcher.fetch_and_store(), 6)
@@ -128,6 +141,7 @@ class GreenhouseFetcherTest(unittest.TestCase):
         fetcher = GreenhouseFetcher(
             self.connection,
             fetch_company_jobs=flaky_fetch,
+            fetch_job_detail=self._detail,
         )
 
         inserted_count = fetcher.fetch_and_store()
@@ -170,6 +184,7 @@ class GreenhouseFetcherTest(unittest.TestCase):
         fetcher = GreenhouseFetcher(
             self.connection,
             fetch_company_jobs=flaky_fetch,
+            fetch_job_detail=self._detail,
             max_retries=2,
             retry_delay_seconds=0,
         )

@@ -395,13 +395,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Ambil job dari daftar perusahaan Greenhouse yang dikonfigurasi.
 
 **Acceptance criteria:**
-- [ ] `companies_ats` menyimpan `greenhouse` dan `ats_slug`.
-- [ ] Fetch minimal 5 perusahaan dari fixture atau integration test terkendali.
-- [ ] Job tersimpan dengan source dan external ID benar.
+- [x] `companies_ats` menyimpan `greenhouse` dan `ats_slug`.
+- [x] Fetch minimal 5 perusahaan dari fixture atau integration test terkendali.
+- [x] Job tersimpan dengan source dan external ID benar.
 
 **Verification:**
-- [ ] Test fixture Greenhouse.
-- [ ] Manual integration test dengan perusahaan target.
+- [x] Test fixture Greenhouse.
+- [x] Manual integration test dengan perusahaan target.
 
 **Dependencies:** Checkpoint MVP Stabil  
 **Estimated scope:** M
@@ -411,13 +411,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Ambil job dari daftar perusahaan Lever yang dikonfigurasi.
 
 **Acceptance criteria:**
-- [ ] `companies_ats` menyimpan `lever` dan `ats_slug`.
-- [ ] Fetch minimal 5 perusahaan dari fixture atau integration test terkendali.
-- [ ] Job tersimpan dengan source dan external ID benar.
+- [x] `companies_ats` menyimpan `lever` dan `ats_slug`.
+- [x] Fetch minimal 5 perusahaan dari fixture atau integration test terkendali.
+- [x] Job tersimpan dengan source dan external ID benar.
 
 **Verification:**
-- [ ] Test fixture Lever.
-- [ ] Manual integration test dengan perusahaan target.
+- [x] Test fixture Lever.
+- [x] Manual integration test dengan perusahaan target.
 
 **Dependencies:** Checkpoint MVP Stabil  
 **Estimated scope:** M
@@ -427,13 +427,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Buat profil skill dan pengalaman yang disanitasi agar personalisasi tidak mengirim data pribadi sensitif.
 
 **Acceptance criteria:**
-- [ ] Ringkasan CV tidak berisi alamat, nomor telepon, tanggal lahir, atau identitas sensitif yang tidak diperlukan.
-- [ ] Ringkasan bisa diedit pengguna.
-- [ ] Prompt builder hanya memakai deskripsi lowongan dan ringkasan CV aman.
+- [x] Ringkasan CV tidak berisi alamat, nomor telepon, tanggal lahir, atau identitas sensitif yang tidak diperlukan.
+- [x] Ringkasan bisa diedit pengguna.
+- [x] Prompt builder hanya memakai deskripsi lowongan dan ringkasan CV aman.
 
 **Verification:**
 - [ ] Audit manual prompt untuk 5 lowongan.
-- [ ] Test sanitizer field sensitif.
+- [x] Test sanitizer field sensitif.
 
 **Dependencies:** Checkpoint MVP Stabil  
 **Estimated scope:** M
@@ -443,14 +443,14 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Buat draft cover letter yang spesifik terhadap lowongan dan tetap perlu review manual.
 
 **Acceptance criteria:**
-- [ ] Cover letter menyebut teknologi/tanggung jawab spesifik dari job description.
-- [ ] Output disimpan ke `applications.cover_letter`.
-- [ ] Tidak ada prompt atau output lengkap tercetak di log.
-- [ ] Kegagalan LLM tidak menghentikan fetch dan eligibility.
+- [x] Cover letter menyebut teknologi/tanggung jawab spesifik dari job description.
+- [x] Output disimpan ke `applications.cover_letter`.
+- [x] Tidak ada prompt atau output lengkap tercetak di log.
+- [x] Kegagalan LLM tidak menghentikan fetch dan eligibility.
 
 **Verification:**
 - [ ] Review manual 10 cover letter dari 10 lowongan berbeda.
-- [ ] Audit log setelah generate.
+- [x] Audit log setelah generate.
 
 **Dependencies:** Task 24  
 **Estimated scope:** M
@@ -460,13 +460,13 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Ganti atau lengkapi keyword matching dengan skor embedding antara job description dan profil skill.
 
 **Acceptance criteria:**
-- [ ] Model embedding dan versi dicatat.
-- [ ] Skor disimpan di `jobs.relevance_score`.
-- [ ] Threshold dapat diubah dari konfigurasi.
-- [ ] Ada test ranking minimal 10 pasangan lowongan relevan vs tidak relevan.
+- [x] Model embedding dan versi dicatat.
+- [x] Skor disimpan di `jobs.relevance_score`.
+- [x] Threshold dapat diubah dari konfigurasi.
+- [x] Ada test ranking minimal 10 pasangan lowongan relevan vs tidak relevan.
 
 **Verification:**
-- [ ] Hasil ranking sesuai ekspektasi pada dataset evaluasi kecil.
+- [x] Hasil ranking sesuai ekspektasi pada dataset evaluasi kecil.
 
 **Dependencies:** Task 24  
 **Estimated scope:** M
@@ -476,9 +476,9 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Validasi apakah auto-submit lewat Playwright aman, legal, dan stabil untuk target Greenhouse/Lever sebelum implementasi.
 
 **Acceptance criteria:**
-- [ ] Ada daftar form target yang diizinkan untuk automation.
-- [ ] Ada catatan risiko CAPTCHA, file upload, custom questions, dan ToS.
-- [ ] Ada keputusan go/no-go untuk auto-submit.
+- [x] Ada daftar form target yang diizinkan untuk automation.
+- [x] Ada catatan risiko CAPTCHA, file upload, custom questions, dan ToS.
+- [x] Ada keputusan go/no-go untuk auto-submit.
 
 **Verification:**
 - [ ] Review manual dokumen risiko sebelum coding auto-submit.
@@ -491,12 +491,12 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 **Deskripsi:** Buat prototype Playwright pada form test atau target aman tanpa mengirim lamaran nyata.
 
 **Acceptance criteria:**
-- [ ] Prototype bisa mengisi form tanpa klik final submit di mode dry-run.
-- [ ] Field mapping terdokumentasi.
-- [ ] Error form menghasilkan fallback manual.
+- [x] Prototype bisa mengisi form tanpa klik final submit di mode dry-run.
+- [x] Field mapping terdokumentasi.
+- [x] Error form menghasilkan fallback manual.
 
 **Verification:**
-- [ ] Dry-run pada minimal 3 Greenhouse dan 3 Lever target aman.
+- [x] Dry-run pada minimal 3 Greenhouse dan 3 Lever target aman.
 
 **Dependencies:** Task 27  
 **Estimated scope:** M
@@ -540,3 +540,4 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 - [x] Laporan sederhana dapat ditampilkan dari Telegram.
 - [x] Log tidak mengandung CV lengkap, cover letter lengkap, token, atau data pribadi sensitif.
 - [x] Backup dan restore database sudah diuji minimal sekali.
+

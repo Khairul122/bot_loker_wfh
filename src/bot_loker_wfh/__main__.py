@@ -1,4 +1,4 @@
-"""Safe local entrypoint for the application scaffold."""
+﻿"""Safe local entrypoint for the application scaffold."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from pathlib import Path
 from .backup import backup_database, restore_database
 from .config import Settings
 from .database import initialize_database
+from .greenhouse import GreenhouseFetcher
+from .lever import LeverFetcher
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 from .retention import FilteredOutRetention
@@ -30,6 +32,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "init-db",
             "fetch-remoteok",
             "fetch-remotive",
+            "fetch-greenhouse",
+            "fetch-lever",
             "fetch-once",
             "run-scheduler",
             "cleanup-retention",
@@ -61,6 +65,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         with sqlite3.connect(database_path) as connection:
             inserted_count = RemotiveFetcher(connection).fetch_and_store()
         print(f"remotive fetch complete inserted={inserted_count}")
+        return 0
+
+    if args.command == "fetch-greenhouse":
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            inserted_count = GreenhouseFetcher(connection).fetch_and_store()
+        print(f"greenhouse fetch complete inserted={inserted_count}")
         return 0
 
     if args.command == "fetch-once":
@@ -117,3 +128,4 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

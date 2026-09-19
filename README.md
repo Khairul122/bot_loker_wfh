@@ -1,4 +1,4 @@
-# Bot Loker WFH
+﻿# Bot Loker WFH
 
 Bot personal untuk membantu sourcing, filtering, review, dan tracking lowongan kerja remote internasional.
 
@@ -95,7 +95,7 @@ The bot supports multiple operational modes:
 ```powershell
 python -m bot_loker_wfh fetch-once
 ```
-This runs all configured fetchers (RemoteOK, Remotive) once and exits.
+This runs all configured fetchers once and exits.
 
 #### Periodic Scheduler (Production Mode)
 ```powershell
@@ -107,6 +107,8 @@ This runs the fetchers every 4 hours (minimum interval) until interrupted.
 ```powershell
 python -m bot_loker_wfh fetch-remoteok   # Fetch only from RemoteOK
 python -m bot_loker_wfh fetch-remotive   # Fetch only from Remotive
+python -m bot_loker_wfh fetch-greenhouse # Fetch only from Greenhouse
+python -m bot_loker_wfh fetch-lever      # Fetch only from Lever
 ```
 
 ### Telegram Interaction
@@ -248,3 +250,4 @@ Run the test suite after installing development dependencies:
 ```powershell
 python -m pytest
 ```
+

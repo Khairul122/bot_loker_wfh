@@ -16,7 +16,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 
-GREENHOUSE_API_BASE = "https://boards-api.greenhouse.io/api/v1/boards"
+GREENHOUSE_API_BASE = "https://boards-api.greenhouse.io/v1/boards"
 
 SOURCE = "greenhouse"
 
@@ -31,6 +31,7 @@ class GreenhouseFetcher:
         connection: sqlite3.Connection,
         *,
         fetch_company_jobs: Callable[[str], list[dict[str, Any]]] | None = None,
+        fetch_job_detail: Callable[[str, int], dict[str, Any]] | None = None,
         max_retries: int = 3,
         retry_delay_seconds: float = 1.0,
     ) -> None:
@@ -38,6 +39,7 @@ class GreenhouseFetcher:
             raise ValueError("max_retries must be non-negative")
         self.connection = connection
         self.fetch_company_jobs = fetch_company_jobs or _fetch_company_jobs
+        self.fetch_job_detail = fetch_job_detail or _fetch_job_detail
         self.max_retries = max_retries
         self.retry_delay_seconds = retry_delay_seconds
 
@@ -49,7 +51,7 @@ class GreenhouseFetcher:
                 jobs = self._fetch_with_retries(ats_slug)
             except Exception:
                 continue
-            for item in self._normalize_jobs(company_name, jobs):
+            for item in self._normalize_jobs(company_name, ats_slug, jobs):
                 if self._insert_job(item):
                     inserted_count += 1
         self.connection.commit()
@@ -78,13 +80,63 @@ class GreenhouseFetcher:
         raise AssertionError("unreachable")
 
     def _normalize_jobs(
-        self, company_name: str, payload: list[dict[str, Any]]
+        self, company_name: str, ats_slug: str, payload: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
         return [
-            _normalize_job(company_name, item)
+            self._normalize_job(company_name, ats_slug, item)
             for item in payload
             if _is_greenhouse_job(item)
         ]
+
+    def _normalize_job(
+        self, company_name: str, ats_slug: str, item: dict[str, Any]
+    ) -> dict[str, Any]:
+        source = "greenhouse"
+        external_id = str(item["id"])
+        title = str(item["title"]).strip()
+        raw_content = self._load_content(ats_slug, int(external_id))
+        text_content = re.sub(r"<[^>]+>", "", raw_content)
+        description = html.unescape(text_content).strip()
+        if not description:
+            description = f"{title} at {company_name}"
+        company = str(company_name).strip()
+        location = _extract_location(item.get("location"))
+        apply_url = str(item.get("absolute_url") or "").strip()
+        if not apply_url:
+            raise ValueError(f"Greenhouse job {external_id} has no apply URL")
+        posted_at = _normalize_timestamp(item.get("first_published"))
+        source_external_key = f"{source}:{external_id}"
+        canonical_value = "|".join(
+            (
+                _normalize_text(title),
+                _normalize_company(company),
+                _normalize_url(apply_url),
+            )
+        )
+        return {
+            "source": source,
+            "external_id": external_id,
+            "source_external_key": source_external_key,
+            "canonical_fingerprint": hashlib.sha256(
+                canonical_value.encode("utf-8")
+            ).hexdigest(),
+            "title": title,
+            "company": company,
+            "description": description,
+            "location": location,
+            "salary_min": None,
+            "salary_max": None,
+            "currency": None,
+            "apply_url": apply_url,
+            "posted_at": posted_at,
+        }
+
+    def _load_content(self, ats_slug: str, job_id: int) -> str:
+        try:
+            detail = self.fetch_job_detail(ats_slug, job_id)
+        except Exception:
+            return ""
+        return str(detail.get("content") or "")
 
     def _insert_job(self, normalized: dict[str, Any]) -> bool:
         try:
@@ -127,50 +179,20 @@ def _fetch_company_jobs(ats_slug: str) -> list[dict[str, Any]]:
         return json.load(response)
 
 
+def _fetch_job_detail(ats_slug: str, job_id: int) -> dict[str, Any]:
+    url = f"{GREENHOUSE_API_BASE}/{ats_slug}/jobs/{job_id}"
+    request = Request(
+        url,
+        headers={"User-Agent": "bot-loker-wfh/0.1"},
+    )
+    with urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
 def _is_greenhouse_job(item: Any) -> bool:
     return isinstance(item, dict) and bool(
-        item.get("id") and item.get("title") and item.get("url")
+        item.get("id") and item.get("title")
     )
-
-
-def _normalize_job(company_name: str, item: dict[str, Any]) -> dict[str, Any]:
-    source = "greenhouse"
-    external_id = str(item["id"])
-    title = str(item["title"]).strip()
-    raw_content = str(item.get("content") or "")
-    text_content = re.sub(r"<[^>]+>", "", raw_content)
-    description = html.unescape(text_content).strip()
-    apply_url = str(item.get("url") or "").strip()
-    if not apply_url:
-        raise ValueError(f"Greenhouse job {external_id} has no apply URL")
-    location = _extract_location(item.get("location"))
-    posted_at = _normalize_timestamp(item.get("updated_at"))
-    source_external_key = f"{source}:{external_id}"
-    company = str(company_name).strip()
-    canonical_value = "|".join(
-        (
-            _normalize_text(title),
-            _normalize_company(company),
-            _normalize_url(apply_url),
-        )
-    )
-    return {
-        "source": source,
-        "external_id": external_id,
-        "source_external_key": source_external_key,
-        "canonical_fingerprint": hashlib.sha256(
-            canonical_value.encode("utf-8")
-        ).hexdigest(),
-        "title": title,
-        "company": company,
-        "description": description,
-        "location": location,
-        "salary_min": None,
-        "salary_max": None,
-        "currency": None,
-        "apply_url": apply_url,
-        "posted_at": posted_at,
-    }
 
 
 def _extract_location(value: Any) -> str | None:

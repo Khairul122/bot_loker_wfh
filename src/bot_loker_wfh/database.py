@@ -1,4 +1,4 @@
-"""SQLite schema setup for the MVP."""
+﻿"""SQLite schema setup for the MVP."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     """Create the MVP schema and default filter configuration."""
     connection.execute("PRAGMA foreign_keys = ON")
     connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    _ensure_embedding_columns(connection)
     connection.commit()
 
 
@@ -34,3 +35,14 @@ def initialize_database(database_url: str) -> Path:
     with sqlite3.connect(database_path) as connection:
         apply_schema(connection)
     return database_path
+
+
+def _ensure_embedding_columns(connection: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
+    }
+    for column in ("embedding_model", "embedding_version"):
+        if column not in columns:
+            connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+
