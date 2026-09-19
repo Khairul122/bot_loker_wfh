@@ -267,7 +267,7 @@ class BotRunner:
             self._safe_answer(query_id, "Menyiapkan draft...")
             self._prepare(chat_id, target)
         elif action == "lead" and target and len(parts) == 3:
-            self._handle_lead_button(query_id, target, parts[2])
+            self._handle_lead_button(query, target, parts[2])
         elif action == "fill" and target:
             self._safe_answer(query_id, "Membuka browser...")
             self._fill_form(chat_id, target)
@@ -283,17 +283,33 @@ class BotRunner:
 
     # ------------------------------------------------------------- actions
 
-    def _handle_lead_button(self, query_id: str, lead_id: str, status: str) -> None:
+    def _handle_lead_button(
+        self, query: dict[str, Any], lead_id: str, status: str
+    ) -> None:
+        query_id = str(query["id"])
         if self.lead_service is None or status not in {"INTERESTED", "IGNORED"}:
             self._safe_answer(query_id, "Invalid request.")
             return
-        if self.lead_service.set_status(lead_id, status):
-            self._safe_answer(
-                query_id,
-                "Ditandai minat. Lihat semua dengan /lead." if status == "INTERESTED" else "Diabaikan.",
-            )
-        else:
+        if not self.lead_service.set_status(lead_id, status):
             self._safe_answer(query_id, "Lead tidak ditemukan.")
+            return
+        label = (
+            "MINAT - tersimpan, lihat semua dengan /lead"
+            if status == "INTERESTED"
+            else "DIABAIKAN"
+        )
+        self._safe_answer(query_id, "Ditandai minat." if status == "INTERESTED" else "Diabaikan.")
+        # Rewrite the card so the click is visible: status line, no more buttons.
+        message = query.get("message") or {}
+        if message.get("message_id") and message.get("text"):
+            try:
+                self.client.edit_message_text(
+                    int(message["chat"]["id"]),
+                    int(message["message_id"]),
+                    f"{message['text']}\n\n{'✅' if status == 'INTERESTED' else '🚫'} {label}",
+                )
+            except TelegramError:
+                self.logger.warning("edit_failed", status="error", error_code="network_error")
 
     def _prepare(self, chat_id: int, job_id: str | None) -> None:
         if job_id is None:

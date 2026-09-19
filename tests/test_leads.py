@@ -265,6 +265,29 @@ class BotLeadTest(unittest.TestCase):
         self.assertEqual(self.client.answers[-1][1], "Unauthorized chat.")
         self.assertEqual(self.lead_status(lead_id), "IGNORED")
 
+    def test_clicking_a_lead_button_rewrites_the_card_without_buttons(self):
+        self.leads.collect()
+        lead_id = self.leads.unnotified_ids(1)[0]
+        card = {
+            "update_id": 1,
+            "callback_query": {
+                "id": "q1",
+                "data": f"lead:{lead_id}:INTERESTED",
+                "message": {"chat": {"id": OWNER}, "message_id": 77, "text": "Proyek dicari developer | Laravel"},
+            },
+        }
+
+        self.runner.handle_update(card)
+
+        chat_id, message_id, text = self.client.edits[-1]
+        self.assertEqual((chat_id, message_id), (OWNER, 77))
+        self.assertTrue(text.startswith("Proyek dicari developer | Laravel"))
+        self.assertIn("MINAT", text)
+
+        card["callback_query"]["data"] = f"lead:{lead_id}:IGNORED"
+        self.runner.handle_update(card)
+        self.assertIn("DIABAIKAN", self.client.edits[-1][2])
+
     def test_lead_command_lists_and_help_mentions_it(self):
         self.runner.handle_update(message_update(OWNER, "/lead"))
         self.assertEqual(self.client.texts[-1][1], "Belum ada lead.")

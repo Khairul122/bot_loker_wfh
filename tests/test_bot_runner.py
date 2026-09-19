@@ -23,6 +23,10 @@ class FakeClient:
         self.messages = []
         self.answers = []
         self.batches = []
+        self.edits = []
+
+    def edit_message_text(self, chat_id, message_id, text):
+        self.edits.append((chat_id, message_id, text))
 
     def send_text(self, chat_id, text, keyboard=()):
         self.texts.append((chat_id, text))

@@ -66,6 +66,18 @@ class TelegramClient:
             ),
         )
 
+    def edit_message_text(self, chat_id: int, message_id: int, text: str) -> None:
+        """Replace a message's text; omitting reply_markup also removes its buttons."""
+        self._call(
+            "editMessageText",
+            {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text[:MAX_TEXT_LENGTH],
+                "disable_web_page_preview": True,
+            },
+        )
+
     def answer_callback(self, callback_query_id: str, text: str = "") -> None:
         self._call(
             "answerCallbackQuery",
