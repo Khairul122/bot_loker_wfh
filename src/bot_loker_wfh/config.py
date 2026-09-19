@@ -19,6 +19,9 @@ class Settings:
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-sonnet-5"
     fetch_interval_hours: float = 4.0
+    form_assist_enabled: bool = False
+    applicant_path: str = "data/applicant.json"
+    answers_path: str = "data/answers.json"
 
     @classmethod
     def from_environment(
@@ -41,6 +44,10 @@ class Settings:
             anthropic_api_key=source.get("ANTHROPIC_API_KEY") or None,
             anthropic_model=source.get("ANTHROPIC_MODEL") or "claude-sonnet-5",
             fetch_interval_hours=float(source.get("FETCH_INTERVAL_HOURS") or 4),
+            form_assist_enabled=source.get("FORM_ASSIST_ENABLED", "false").lower()
+            in {"1", "true", "yes", "on"},
+            applicant_path=source.get("APPLICANT_PATH") or "data/applicant.json",
+            answers_path=source.get("ANSWERS_PATH") or "data/answers.json",
         )
 
 

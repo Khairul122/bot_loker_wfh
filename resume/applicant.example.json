@@ -1,0 +1,10 @@
+{
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane@example.com",
+  "phone": "+62 812 0000 0000",
+  "resume_path": "resume/your-cv.pdf",
+  "linkedin": "https://www.linkedin.com/in/your-profile",
+  "github": "",
+  "website": ""
+}

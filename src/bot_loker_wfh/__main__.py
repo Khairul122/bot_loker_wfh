@@ -35,6 +35,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--ats", choices=("greenhouse", "lever"), help="ATS for add-company")
     parser.add_argument("--slug", help="ATS board slug for add-company")
     parser.add_argument("--name", help="Company display name for add-company")
+    parser.add_argument("--application-id", help="Application ID for fill-form")
     parser.add_argument(
         "command",
         choices=(
@@ -49,6 +50,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "run-bot",
             "process-jobs",
             "add-company",
+            "fill-form",
             "cleanup-retention",
             "backup-db",
             "restore-db",
@@ -143,6 +145,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run-bot":
         return _run_bot(settings)
 
+    if args.command == "fill-form":
+        if not args.application_id:
+            parser.error("fill-form requires --application-id")
+        return _fill_form(settings, args.application_id)
+
     if args.command == "cleanup-retention":
         database_path = initialize_database(settings.database_url)
         with sqlite3.connect(database_path) as connection:
@@ -174,6 +181,53 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"environment={settings.environment} "
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()}"
     )
+    return 0
+
+
+def _fill_form(settings: Settings, application_id: str) -> int:
+    """Open the application form in a visible browser, fill it, never submit."""
+    from .form_assist import (
+        FormAssistError,
+        load_answers,
+        load_applicant,
+        open_and_fill,
+    )
+
+    client = (
+        TelegramClient(settings.telegram_bot_token)
+        if settings.telegram_bot_token
+        else None
+    )
+
+    def tell(text: str) -> None:
+        print(text, flush=True)
+        if client is None:
+            return
+        for chat_id in sorted(settings.telegram_allowed_chat_ids):
+            try:
+                client.send_text(chat_id, text)
+            except Exception:
+                pass
+
+    database_path = initialize_database(settings.database_url)
+    connection = sqlite3.connect(database_path)
+    try:
+        applicant = load_applicant(settings.applicant_path)
+        answers = load_answers(settings.answers_path)
+        open_and_fill(
+            connection,
+            application_id,
+            applicant,
+            answers,
+            on_ready=lambda report: tell(
+                report.to_text().replace("<id>", application_id)
+            ),
+        )
+    except FormAssistError as error:
+        tell(f"Gagal membuka form: {error}")
+        return 1
+    finally:
+        connection.close()
     return 0
 
 
@@ -214,6 +268,7 @@ def _run_bot(settings: Settings) -> int:
         client=TelegramClient(settings.telegram_bot_token),
         allowed_chat_ids=settings.telegram_allowed_chat_ids,
         draft_service=DraftService(connection, profile, llm=llm),
+        form_assist_enabled=settings.form_assist_enabled,
         pipeline=JobPipeline(connection, profile),
         scheduler=scheduler,
         interval_seconds=int(settings.fetch_interval_hours * 3600),

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
+import subprocess
+import sys
 import time
 from collections.abc import Callable
 from typing import Any
 
 from .drafts import DraftService
+from .form_assist import FormAssistError, resolve_form_target
 from .logging_utils import StructuredLogger, sanitize_error
 from .pipeline import JobPipeline
 from .scheduler import JobScheduler
@@ -58,7 +62,11 @@ class BotRunner:
         logger: logging.Logger | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
+        form_assist_enabled: bool = False,
+        spawn: Callable[..., Any] = subprocess.Popen,
     ) -> None:
+        self.form_assist_enabled = form_assist_enabled
+        self.spawn = spawn
         self.connection = connection
         self.client = client
         self.allowed_chat_ids = allowed_chat_ids
@@ -202,6 +210,8 @@ class BotRunner:
                 "approve" if command == "/setuju" else "reject",
                 self._resolve("applications", args),
             )
+        elif command == "/isi":
+            self._fill_form(chat_id, self._resolve("applications", args))
         elif command == "/dilamar":
             self._mark_applied(chat_id, self._resolve("applications", args))
         elif command == "/fetch":
@@ -224,6 +234,9 @@ class BotRunner:
         if action == "prepare" and target:
             self._safe_answer(query_id, "Menyiapkan draft...")
             self._prepare(chat_id, target)
+        elif action == "fill" and target:
+            self._safe_answer(query_id, "Membuka browser...")
+            self._fill_form(chat_id, target)
         elif action in {"approve", "reject"}:
             result = self.approvals.handle(
                 TelegramRequest(chat_id=chat_id, callback_data=data)
@@ -292,6 +305,43 @@ class BotRunner:
             f"Setelah terkirim, ketik:\n/dilamar {application_id}",
         )
 
+    def _fill_form(self, chat_id: int, application_id: str | None) -> None:
+        if not self.form_assist_enabled:
+            self._safe_send(
+                chat_id,
+                "Fitur isi form aktif hanya jika bot berjalan di laptop Anda "
+                "dengan FORM_ASSIST_ENABLED=true.",
+            )
+            return
+        if application_id is None:
+            self._safe_send(chat_id, "Application tidak ditemukan.")
+            return
+        status = self.connection.execute(
+            "SELECT status FROM applications WHERE id = ?", (application_id,)
+        ).fetchone()
+        if status is None or status[0] != "APPROVED":
+            self._safe_send(chat_id, "Setujui lamaran dulu (harus berstatus APPROVED).")
+            return
+        try:
+            resolve_form_target(self.connection, application_id)
+        except FormAssistError as error:
+            self._safe_send(chat_id, str(error))
+            return
+        try:
+            self.spawn(
+                [
+                    sys.executable, "-m", "bot_loker_wfh",
+                    "fill-form", "--application-id", application_id,
+                ],
+                cwd=os.getcwd(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            self._safe_send(chat_id, "Gagal menjalankan pengisi form.")
+            return
+        self._safe_send(chat_id, "Membuka browser di laptop Anda, mohon tunggu...")
+
     def _mark_applied(self, chat_id: int, application_id: str | None) -> None:
         if application_id is None:
             self._safe_send(chat_id, "Application tidak ditemukan.")
@@ -349,9 +399,17 @@ class BotRunner:
 
     # ------------------------------------------------------------- sending
 
-    def _safe_send(self, chat_id: int, text: str) -> None:
+    def _safe_send(
+        self,
+        chat_id: int,
+        text: str,
+        keyboard: tuple[tuple[tuple[str, str], ...], ...] = (),
+    ) -> None:
         try:
-            self.client.send_text(chat_id, text)
+            if keyboard:
+                self.client.send_text(chat_id, text, keyboard)
+            else:
+                self.client.send_text(chat_id, text)
         except TelegramError:
             self.logger.warning("send_failed", status="error", error_code="network_error")
 
