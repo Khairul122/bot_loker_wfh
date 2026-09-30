@@ -32,7 +32,7 @@ Analisis kode pada branch saat ini (Python 3.11, tanpa dependency runtime, SQLit
 | Pengisian form | `form_assist.py` | Playwright membuka Chromium baru, mengisi field lewat selector tetap (`#first_name`, `input[name='email']`), mencocokkan `answers.json` berdasarkan label. | Hanya host Greenhouse dan Lever. Dropdown dan pertanyaan kustom tidak diisi. Browser baru, tanpa sesi login pengguna. |
 | Pemicu form | `bot.py` (`_fill_form`), `__main__.py` (`fill-form`) | Telegram `/isi` menjalankan subprocess `fill-form` di mesin yang sama. | Butuh layar. Tidak jalan di VPS. |
 | Submission | `submission.py` | `SubmissionService` punya guard compare-and-swap `APPROVED -> SUBMITTING` dan status `SUBMISSION_AMBIGUOUS`. | Belum dipakai di produksi. Keputusan NO-GO auto-submit di `docs/auto-submit-risk-assessment.md`. |
-| Test | `tests/` | 29 file test, termasuk `test_form_assist.py` dan `test_cover_letter.py`. | Belum ada test untuk provider OpenAI-compatible atau klien MCP. |
+| Test | `tests/` | 27 file test, termasuk `test_form_assist.py` dan `test_cover_letter.py`. | Belum ada test untuk provider OpenAI-compatible atau klien MCP. |
 
 Kesimpulan analisis: arsitektur sudah memisahkan provider LLM (callable) dan pengisi form (fungsi `fill_page`). Dua titik ini menjadi tempat integrasi. Perubahan tidak perlu menyentuh fetcher, eligibility, atau state machine.
 
