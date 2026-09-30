@@ -41,8 +41,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--target-db", help="Target SQLite path for restore-db")
     parser.add_argument("--ats", choices=("greenhouse", "lever"), help="ATS for add-company")
     parser.add_argument("--slug", help="ATS board slug for add-company")
-    parser.add_argument("--name", help="Company display name for add-company")
+    parser.add_argument("--name", help="Company display name for add-company / add-ats")
+    parser.add_argument("--host", help="ATS host name for add-ats / set-ats-mode")
+    parser.add_argument("--mode", choices=("auto_fill", "assist"), help="Mode for add-ats / set-ats-mode")
+    parser.add_argument("--open-button", help="Open button label for add-ats")
     parser.add_argument("--application-id", help="Application ID for fill-form")
+    parser.add_argument("--force-assist", action="store_true", help="Force assist mode for fill-form")
+    parser.add_argument("--next-page", action="store_true", help="Fill next page for multi-page form")
     parser.add_argument(
         "command",
         choices=(
@@ -64,6 +69,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "cleanup-retention",
             "backup-db",
             "restore-db",
+            "check-llm",
+            "check-browser",
+            "add-ats",
+            "set-ats-mode",
+            "list-ats",
         ),
         default="start",
         nargs="?",
@@ -177,7 +187,93 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "fill-form":
         if not args.application_id:
             parser.error("fill-form requires --application-id")
-        return _fill_form(settings, args.application_id)
+        return _fill_form(
+            settings,
+            args.application_id,
+            force_assist=getattr(args, "force_assist", False),
+            next_page=getattr(args, "next_page", False),
+        )
+
+    if args.command == "check-llm":
+        from .llm import OpenAICompatibleProvider, LLMError
+        if settings.llm_provider != "9router":
+            print(f"LLM provider saat ini: {settings.llm_provider}")
+            return 0
+        prov = OpenAICompatibleProvider(
+            settings.ninerouter_base_url,
+            settings.ninerouter_api_key or "sk-dummy",
+            settings.ninerouter_model or "loker-draft",
+        )
+        try:
+            models = prov.list_models()
+            print(f"9Router terhubung. {len(models)} model tersedia.")
+            test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
+            print(f"Uji model '{test_res.model}': {test_res.text[:50]}")
+            return 0
+        except LLMError as err:
+            if err.code == "unauthorized":
+                print("API key 9Router ditolak (401)")
+                return 1
+            print(f"9Router error: {err}")
+            return 1
+        except Exception as err:
+            print(f"Koneksi 9Router gagal: {err}")
+            return 1
+
+    if args.command == "check-browser":
+        from .browser_mcp import McpBrowserClient
+        client = McpBrowserClient(command=settings.browser_mcp_command)
+        try:
+            client.start()
+            print(f"BrowserMCP berhasil start dengan perintah: {settings.browser_mcp_command}")
+            client.stop()
+            return 0
+        except Exception as err:
+            print(f"BrowserMCP gagal: {err}")
+            return 1
+
+    if args.command == "add-ats":
+        if not (args.name and args.host):
+            parser.error("add-ats requires --name and --host")
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO ats_registry (id, ats_name, host, mode, open_button_label) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
+                    args.name,
+                    args.host,
+                    args.mode or "assist",
+                    args.open_button,
+                ),
+            )
+            connection.commit()
+        print(f"ATS terdaftar: {args.name} ({args.host}) mode={args.mode or 'assist'}")
+        return 0
+
+    if args.command == "set-ats-mode":
+        if not (args.host and args.mode):
+            parser.error("set-ats-mode requires --host and --mode")
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "UPDATE ats_registry SET mode = ? WHERE host = ?",
+                (args.mode, args.host),
+            )
+            connection.commit()
+        print(f"Mode ATS untuk {args.host} diubah menjadi {args.mode}")
+        return 0
+
+    if args.command == "list-ats":
+        database_path = initialize_database(settings.database_url)
+        with sqlite3.connect(database_path) as connection:
+            rows = connection.execute(
+                "SELECT ats_name, host, mode, open_button_label, active FROM ats_registry ORDER BY ats_name"
+            ).fetchall()
+        for r in rows:
+            print(f"- {r[0]} | host: {r[1]} | mode: {r[2]} | open_button: {r[3] or '-'} | active: {bool(r[4])}")
+        return 0
 
     if args.command == "cleanup-retention":
         database_path = initialize_database(settings.database_url)
@@ -220,7 +316,12 @@ def _lead_service(connection, profile, settings: Settings) -> LeadService:
     return LeadService(connection, profile, fetchers=fetchers)
 
 
-def _fill_form(settings: Settings, application_id: str) -> int:
+def _fill_form(
+    settings: Settings,
+    application_id: str,
+    force_assist: bool = False,
+    next_page: bool = False,
+) -> int:
     """Open the application form in a visible browser, fill it, never submit."""
     from .form_assist import (
         FormAssistError,
@@ -228,6 +329,8 @@ def _fill_form(settings: Settings, application_id: str) -> int:
         load_applicant,
         open_and_fill,
     )
+    from .form_agent.agent import FormAgent
+    from .llm import create_llm_from_settings
 
     client = (
         TelegramClient(settings.telegram_bot_token)
@@ -248,19 +351,42 @@ def _fill_form(settings: Settings, application_id: str) -> int:
     database_path = initialize_database(settings.database_url)
     connection = sqlite3.connect(database_path)
     try:
-        applicant = load_applicant(settings.applicant_path)
-        answers = load_answers(settings.answers_path)
-        open_and_fill(
-            connection,
-            application_id,
-            applicant,
-            answers,
-            on_ready=lambda report: tell(
-                report.to_text().replace("<id>", application_id)
-            ),
-        )
+        if settings.form_engine == "browsermcp":
+            router = create_llm_from_settings(settings, str(database_path))
+            agent = FormAgent(
+                connection,
+                router=router,
+                browser_command=settings.browser_mcp_command,
+                min_confidence=settings.form_min_confidence,
+                max_actions=settings.form_max_actions,
+                max_tool_calls=settings.form_max_tool_calls,
+                timeout_seconds=settings.form_timeout_seconds,
+                applicant_path=settings.applicant_path,
+                answers_path=settings.answers_path,
+                db_path=str(database_path),
+            )
+            page_num = 2 if next_page else 1
+            report_text = agent.run_session(
+                application_id, page_number=page_num, force_assist=force_assist
+            )
+            tell(report_text)
+        else:
+            applicant = load_applicant(settings.applicant_path)
+            answers = load_answers(settings.answers_path)
+            open_and_fill(
+                connection,
+                application_id,
+                applicant,
+                answers,
+                on_ready=lambda report: tell(
+                    report.to_text().replace("<id>", application_id)
+                ),
+            )
     except FormAssistError as error:
         tell(f"Gagal membuka form: {error}")
+        return 1
+    except Exception as error:
+        tell(f"Error pengisian form: {error}")
         return 1
     finally:
         connection.close()
@@ -284,11 +410,7 @@ def _run_bot(settings: Settings) -> int:
         return 1
 
     database_path = initialize_database(settings.database_url)
-    llm = (
-        AnthropicProvider(settings.anthropic_api_key, settings.anthropic_model)
-        if settings.anthropic_api_key
-        else None
-    )
+    llm = create_llm_from_settings(settings, str(database_path))
     connection = sqlite3.connect(database_path)
     scheduler = (
         JobScheduler(
@@ -313,7 +435,7 @@ def _run_bot(settings: Settings) -> int:
     print(
         "bot running "
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()} "
-        f"llm={'anthropic' if llm else 'template'}"
+        f"llm={settings.llm_provider}"
     )
     try:
         runner.run_forever()

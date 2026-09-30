@@ -31,8 +31,21 @@ class FilteredOutRetention:
             ")",
             (cutoff,),
         )
+        rowcount = cursor.rowcount
+
+        # Retention 180 days for llm_calls and form_field_events
+        cutoff_180 = (self.now - timedelta(days=180)).isoformat()
+        self.connection.execute(
+            "DELETE FROM llm_calls WHERE created_at < ?", (cutoff_180,)
+        )
+        self.connection.execute(
+            "DELETE FROM form_field_events WHERE session_id IN ("
+            "  SELECT id FROM form_sessions WHERE started_at < ?"
+            ")",
+            (cutoff_180,),
+        )
         self.connection.commit()
-        return cursor.rowcount
+        return rowcount
 
 
 def _as_utc(value: datetime) -> datetime:

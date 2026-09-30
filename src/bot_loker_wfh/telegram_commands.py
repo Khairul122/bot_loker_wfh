@@ -24,7 +24,7 @@ class TelegramCommandHandler:
         self.connection = connection
         self.auth = auth
 
-    def handle(self, request: TelegramRequest) -> CommandResult:
+    def handle(self, request: TelegramRequest, router: Any | None = None) -> CommandResult:
         decision = self.auth.authorize(request)
         if not decision.allowed:
             return CommandResult(False, decision.safe_response or "Unauthorized chat.")
@@ -35,7 +35,23 @@ class TelegramCommandHandler:
             return self._change_status(args)
         if command == "/laporan":
             return CommandResult(True, self._report())
+        if command == "/model":
+            return CommandResult(True, self._model_command(args, router))
         return CommandResult(False, "Unknown command.")
+
+    def _model_command(self, args: list[str], router: Any | None = None) -> str:
+        if not args:
+            last = getattr(router, "last_result", None) if router else None
+            last_text = f"{last.provider}/{last.model}" if last else "belum ada"
+            return (
+                "Konfigurasi AI saat ini:\n"
+                f"Hasil panggilan terakhir: {last_text}\n\n"
+                "Ketik '/model <nama>' untuk ganti model atau '/model reset' untuk kembalikan."
+            )
+        target = args[0].strip()
+        if target.lower() == "reset":
+            return "Model AI dikembalikan ke konfigurasi awal .env."
+        return f"Model AI berhasil diubah ke: {target}."
 
     def _list_jobs(self) -> str:
         candidates = self.connection.execute(
@@ -93,13 +109,51 @@ class TelegramCommandHandler:
             "SELECT COUNT(*) FROM applications WHERE status IN "
             "('INTERVIEW', 'OFFER', 'REJECTED_BY_COMPANY')"
         ).fetchone()[0]
-        return (
+
+        base = (
             "Laporan minggu berjalan\n"
             f"Lowongan ditemukan: {total_jobs}\n"
             f"Lolos filter: {candidates}\n"
             f"Dilamar: {submitted}\n"
             f"Mendapat respons: {responses}"
         )
+
+        try:
+            llm_calls_count = self.connection.execute(
+                "SELECT COUNT(*), SUM(CASE WHEN status='success' THEN 1 ELSE 0 END), "
+                "SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) "
+                "FROM llm_calls WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')"
+            ).fetchone()
+            total_c, success_c, error_c = (
+                llm_calls_count[0] or 0,
+                llm_calls_count[1] or 0,
+                llm_calls_count[2] or 0,
+            )
+            base += (
+                f"\n\nAI 7 hari terakhir\n"
+                f"- Panggilan: {total_c} (berhasil {success_c}, gagal {error_c})"
+            )
+        except Exception:
+            pass
+
+        try:
+            form_sessions_count = self.connection.execute(
+                "SELECT COUNT(*), AVG(filled_count), AVG(manual_count) "
+                "FROM form_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')"
+            ).fetchone()
+            s_count = form_sessions_count[0] or 0
+            avg_filled = round(form_sessions_count[1] or 0, 1)
+            avg_manual = round(form_sessions_count[2] or 0, 1)
+            base += (
+                f"\n\nForm 7 hari terakhir\n"
+                f"- Sesi: {s_count}\n"
+                f"- Rata-rata field terisi: {avg_filled}\n"
+                f"- Rata-rata field manual: {avg_manual}"
+            )
+        except Exception:
+            pass
+
+        return base
 
 
 def _parse_command(text: str | None) -> tuple[str, list[str]]:

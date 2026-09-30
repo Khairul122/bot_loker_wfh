@@ -35,7 +35,9 @@ HELP_TEXT = (
     "/siapkan <job_id> - buat draft lamaran untuk lowongan\n"
     "/setuju <application_id> - setujui lamaran\n"
     "/tolak <application_id> - tolak lamaran\n"
-    "/isi <application_id> - buka form lamaran di browser & isi otomatis (tidak dikirim)\n"
+    "/isi <application_id> [paksa] - buka form lamaran di browser & isi otomatis (tidak dikirim)\n"
+    "/isilanjut <application_id> - isi halaman berikutnya pada form multi-halaman\n"
+    "/model [nama|reset] - lihat atau ganti model AI aktif\n"
     "/dilamar <application_id> - tandai sudah dikirim manual\n"
     "/lead - proyek freelance & peluang jual source code\n"
     "/status <application_id> <status> - ubah status manual\n"
@@ -227,8 +229,9 @@ class BotRunner:
         command, args = _split_command(text)
         if command in {"/start", "/help"}:
             self._safe_send(chat_id, HELP_TEXT)
-        elif command in {"/lowongan", "/status", "/laporan"}:
-            self._safe_send(chat_id, self.commands.handle(request).message)
+        elif command in {"/lowongan", "/status", "/laporan", "/model"}:
+            router = getattr(self.draft_service, "llm", None)
+            self._safe_send(chat_id, self.commands.handle(request, router=router).message)
         elif command == "/siapkan":
             self._prepare(chat_id, self._resolve("jobs", args))
         elif command in {"/setuju", "/tolak"}:
@@ -243,7 +246,11 @@ class BotRunner:
                 self.lead_service.list_text() if self.lead_service else "Fitur lead belum aktif.",
             )
         elif command == "/isi":
-            self._fill_form(chat_id, self._resolve("applications", args))
+            is_paksa = any(a.lower() == "paksa" for a in args)
+            clean_args = [a for a in args if a.lower() != "paksa"]
+            self._fill_form(chat_id, self._resolve("applications", clean_args), force_assist=is_paksa)
+        elif command == "/isilanjut":
+            self._fill_form(chat_id, self._resolve("applications", args), next_page=True)
         elif command == "/dilamar":
             self._mark_applied(chat_id, self._resolve("applications", args))
         elif command == "/fetch":
@@ -271,6 +278,11 @@ class BotRunner:
         elif action == "fill" and target:
             self._safe_answer(query_id, "Membuka browser...")
             self._fill_form(chat_id, target)
+        elif action == "fillnext" and target:
+            self._safe_answer(query_id, "Mengisi halaman berikutnya...")
+            self._fill_form(chat_id, target, next_page=True)
+        elif action == "fillbad":
+            self._safe_answer(query_id, "Catatan umpan balik disimpan.")
         elif action in {"approve", "reject"}:
             result = self.approvals.handle(
                 TelegramRequest(chat_id=chat_id, callback_data=data)
@@ -367,7 +379,13 @@ class BotRunner:
             f"Setelah terkirim, ketik:\n/dilamar {application_id}",
         )
 
-    def _fill_form(self, chat_id: int, application_id: str | None) -> None:
+    def _fill_form(
+        self,
+        chat_id: int,
+        application_id: str | None,
+        force_assist: bool = False,
+        next_page: bool = False,
+    ) -> None:
         if not self.form_assist_enabled:
             self._safe_send(
                 chat_id,
@@ -387,14 +405,24 @@ class BotRunner:
         try:
             resolve_form_target(self.connection, application_id)
         except FormAssistError as error:
-            self._safe_send(chat_id, str(error))
-            return
+            if not force_assist:
+                self._safe_send(chat_id, str(error))
+                return
         try:
+            cmd = [
+                sys.executable,
+                "-m",
+                "bot_loker_wfh",
+                "fill-form",
+                "--application-id",
+                application_id,
+            ]
+            if force_assist:
+                cmd.append("--force-assist")
+            if next_page:
+                cmd.append("--next-page")
             self.spawn(
-                [
-                    sys.executable, "-m", "bot_loker_wfh",
-                    "fill-form", "--application-id", application_id,
-                ],
+                cmd,
                 cwd=os.getcwd(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

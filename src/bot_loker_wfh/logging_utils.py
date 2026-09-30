@@ -21,6 +21,20 @@ ALLOWED_FIELDS = frozenset(
         "inserted_count",
         "error_code",
         "attempt",
+        "task",
+        "provider",
+        "model",
+        "from_model",
+        "to_model",
+        "engine",
+        "host",
+        "mode",
+        "session_id",
+        "rule",
+        "field_class",
+        "filled_count",
+        "manual_count",
+        "tool_calls",
     }
 )
 

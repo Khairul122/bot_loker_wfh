@@ -82,7 +82,7 @@ class DraftService:
         if job_status != "CANDIDATE":
             return DraftResult("failed", error_code="job_not_candidate")
 
-        method = {"value": "template"}
+        method = {"value": "template", "provider": None, "model": None}
 
         def provider(prompt: str) -> str:
             if self.llm is not None:
@@ -90,6 +90,10 @@ class DraftService:
                     letter = str(self.llm(prompt) or "").strip()
                     if letter:
                         method["value"] = "llm"
+                        last_res = getattr(self.llm, "last_result", None)
+                        if last_res:
+                            method["provider"] = getattr(last_res, "provider", None)
+                            method["model"] = getattr(last_res, "model", None)
                         return letter
                 except Exception as error:
                     self.logger.warning(
@@ -111,8 +115,13 @@ class DraftService:
             return DraftResult("failed", error_code=result.error_code)
         if result.status == "created":
             self.connection.execute(
-                "UPDATE applications SET method = ? WHERE id = ?",
-                (method["value"], result.application_id),
+                "UPDATE applications SET method = ?, llm_provider = ?, llm_model = ? WHERE id = ?",
+                (
+                    method["value"],
+                    method["provider"],
+                    method["model"],
+                    result.application_id,
+                ),
             )
             self.connection.commit()
 

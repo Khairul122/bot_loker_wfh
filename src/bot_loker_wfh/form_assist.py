@@ -96,8 +96,8 @@ def load_answers(path: str | Path) -> dict[str, str]:
     return {str(key): str(value) for key, value in data.items() if str(value).strip()}
 
 
-def ats_for_url(url: str) -> str | None:
-    """Return the ATS name only for exact allowlisted https hosts."""
+def ats_for_url(url: str, connection: sqlite3.Connection | None = None) -> str | None:
+    """Return the ATS name for allowlisted hosts or ats_registry entries."""
     parsed = urlparse(url)
     if parsed.scheme != "https":
         return None
@@ -105,6 +105,13 @@ def ats_for_url(url: str) -> str | None:
         return "greenhouse"
     if parsed.hostname in LEVER_HOSTS:
         return "lever"
+    if connection is not None and parsed.hostname:
+        row = connection.execute(
+            "SELECT ats_name FROM ats_registry WHERE host = ? AND active = 1",
+            (parsed.hostname,),
+        ).fetchone()
+        if row is not None:
+            return str(row[0]).lower()
     return None
 
 
@@ -131,7 +138,7 @@ def resolve_form_target(
         if slug_row is not None:
             url = f"https://job-boards.greenhouse.io/{slug_row[0]}/jobs/{external_id}"
             return "greenhouse", url, cover_letter, title
-    ats = ats_for_url(apply_url)
+    ats = ats_for_url(apply_url, connection=connection)
     if ats is None:
         raise FormAssistError(
             "Situs lamaran ini belum didukung untuk pengisian otomatis. "
