@@ -24,7 +24,7 @@ from .leads import (
     TelegramChannelFetcher,
 )
 from .lever import LeverFetcher
-from .llm import AnthropicProvider
+from .llm import AnthropicProvider, create_llm_from_settings
 from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
