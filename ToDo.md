@@ -1,6 +1,6 @@
 ﻿# ToDo: Bot Auto-Apply Kerja WFH Internasional
 
-Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah memperbaiki spesifikasi yang masih ambigu, lalu membangun MVP yang aman: sourcing lowongan, deduplication, eligibility, review Telegram, dan tracking manual. Auto-submit, LLM, embedding, dan dashboard ditunda sampai fondasi stabil.
+Dokumen ini mengubah PRD v2 (sekarang `docs/PRD-v2-mvp.md`) menjadi daftar kerja berurutan. Fokus awal adalah memperbaiki spesifikasi yang masih ambigu, lalu membangun MVP yang aman: sourcing lowongan, deduplication, eligibility, review Telegram, dan tracking manual. Auto-submit, LLM, embedding, dan dashboard ditunda sampai fondasi stabil.
 
 ## Prinsip Eksekusi
 

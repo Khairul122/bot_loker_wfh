@@ -1,608 +1,582 @@
-# PRD: Bot Auto-Apply Kerja WFH Internasional
+# PRD: Integrasi 9Router dan BrowserMCP untuk Bot Loker WFH
 
-**Versi:** 2.0
-**Tanggal:** 18 September 2026
+**Versi:** 3.0
+**Tanggal:** 30 September 2026
 **Pemilik Proyek:** Khairul
 **Status:** Draft untuk pengembangan
-**Riwayat Revisi:** v1.0 rilis awal. v2.0 menambahkan aturan eligibility, lifecycle status, skema data detail, mekanisme idempotent, privasi LLM, dan acceptance criteria per fase.
+**Dokumen sebelumnya:** PRD v2 (MVP) diarsipkan di `docs/PRD-v2-mvp.md`. Semua aturan v2 tentang eligibility, lifecycle status, idempotency, dan privasi tetap berlaku kecuali diubah di dokumen ini.
 
 ---
 
-## 1. Latar Belakang
+## 1. Ringkasan
 
-Mencari kerja remote internasional secara manual memakan waktu banyak. Setiap lowongan butuh riset perusahaan, penyesuaian CV, penulisan cover letter, dan pengisian form yang berbeda-beda di tiap platform. Proses ini lambat kalau dikerjakan satu per satu.
+Bot Loker WFH sudah berjalan. Bot mengambil lowongan remote, menyaring, membuat draft cover letter, meminta approval lewat Telegram, lalu membuka form Greenhouse atau Lever dengan Playwright.
 
-Sistem ini dibangun untuk mengotomasi sebagian besar proses tersebut. Bot mengambil lowongan dari sumber yang punya API resmi, menyaring lowongan yang relevan, membuat cover letter yang disesuaikan, dan mengisi form lamaran secara otomatis atau semi-otomatis dengan persetujuan pengguna.
+PRD ini menambah dua kemampuan:
 
-## 2. Tujuan
+1. **LLM Gateway lewat 9Router.** Bot memanggil satu endpoint OpenAI-compatible milik 9Router. 9Router meneruskan request ke puluhan provider AI dan pindah otomatis ke model cadangan saat kuota habis atau provider error.
+2. **Pengisian form lewat BrowserMCP.** Bot mengendalikan Chrome milik pengguna melalui server MCP BrowserMCP. LLM membaca struktur form, lalu bot mengisi field satu per satu. Bot tetap berhenti sebelum tombol Submit.
 
-Bot ini punya empat tujuan utama.
+Hasil yang dituju: draft lamaran tidak bergantung pada satu API key, dan form dari ATS di luar Greenhouse dan Lever bisa terisi sebagian besar secara otomatis.
 
-Pertama, mengurangi waktu yang dihabiskan untuk mencari dan menyaring lowongan remote yang cocok dengan skill pengguna.
+## 2. Kondisi Proyek Saat Ini
 
-Kedua, meningkatkan jumlah lamaran berkualitas yang terkirim per minggu tanpa menurunkan kualitas tiap lamaran.
+Analisis kode pada branch saat ini (Python 3.11, tanpa dependency runtime, SQLite, Telegram long polling).
 
-Ketiga, mencatat histori lamaran secara terstruktur supaya tidak ada lowongan yang dilamar dua kali dan progres tiap lamaran bisa dipantau.
-
-Keempat, menjaga proses tetap aman dari risiko pemblokiran akun di platform yang melarang otomasi, dan aman secara data pribadi.
-
-## 3. Non-Tujuan
-
-Bot ini tidak dirancang untuk mengotomasi penuh LinkedIn Easy Apply atau Indeed Apply, karena kedua platform tersebut melarang automation tools dalam kebijakan mereka dan berisiko memblokir akun pengguna secara permanen.
-
-Bot ini tidak menjamin lowongan yang dilamar akan direspons atau menghasilkan interview. Tanggung jawab bot berhenti pada pengiriman lamaran yang relevan dan berkualitas.
-
-Bot ini tidak melakukan negosiasi gaji atau komunikasi lanjutan dengan recruiter setelah lamaran terkirim.
-
-Bot ini tidak menangani proses visa atau sponsorship kerja. Bot hanya menyaring lowongan berdasarkan indikasi kebutuhan otorisasi kerja yang tertulis di deskripsi lowongan.
-
-## 4. Target Pengguna
-
-Pengguna utama adalah pengguna tunggal, yaitu pemilik proyek sendiri, seorang developer dengan stack Laravel, Flutter, NestJS, React, dan Python, yang mencari kerja remote internasional di bidang software engineering.
-
-Sistem dirancang untuk penggunaan personal terlebih dahulu. Kalau ke depan mau dikembangkan jadi produk untuk banyak pengguna, arsitektur perlu disesuaikan lagi di fase berikutnya, terutama di bagian skema data yang saat ini mengasumsikan satu pengguna per instance sistem.
-
-## 5. Aturan Eligibility Lowongan
-
-Sebuah lowongan hanya boleh masuk ke tahap personalisasi dan lamaran kalau memenuhi semua kriteria berikut. Kriteria ini dievaluasi berurutan, dan lowongan yang gagal di satu kriteria langsung ditandai `FILTERED_OUT` dengan alasan spesifik, tanpa perlu evaluasi kriteria berikutnya.
-
-| No | Kriteria | Aturan | Aksi Jika Tidak Terpenuhi |
+| Area | File | Kondisi sekarang | Batasan |
 |---|---|---|---|
-| 1 | Duplikasi | Kombinasi `source` + `external_id` belum pernah ada, dan `canonical_fingerprint` lowongan belum pernah ada di database | Ditolak, tidak diproses ulang, tidak dicatat sebagai row baru; detail aturan dedup ada di Bagian 8.1 |
-| 2 | Tipe remote | Deskripsi mengandung indikasi remote penuh: "remote", "worldwide", "anywhere", "fully remote". Lowongan hybrid atau remote terbatas ke kota tertentu ditolak | Status `FILTERED_OUT`, alasan "not fully remote" |
-| 3 | Batasan region/otorisasi kerja | Deskripsi tidak mengandung batasan yang mengecualikan pengguna, misalnya "must be based in US", "EU timezone only", "must have US work authorization" | Status `FILTERED_OUT`, alasan "region restricted" |
-| 4 | Kecocokan role | Judul atau deskripsi mengandung minimal satu kata kunci dari daftar role yang dikonfigurasi pengguna, misalnya "backend", "full stack", "mobile developer" | Status `FILTERED_OUT`, alasan "role mismatch" |
-| 5 | Kata kunci larangan | Deskripsi tidak mengandung kata kunci di exclusion list, misalnya "unpaid", "commission only", "equity only", "must relocate" | Status `FILTERED_OUT`, alasan "excluded keyword: [kata kunci]" |
-| 6 | Company blocklist | Nama perusahaan tidak ada di tabel `company_blocklist` | Status `FILTERED_OUT`, alasan "company blocked" |
-| 7 | Usia lowongan | Tanggal posting tidak lebih lama dari 14 hari sejak diambil sistem, supaya tidak melamar lowongan yang sudah basi | Status `FILTERED_OUT`, alasan "posting too old" |
-| 8 | Skor relevansi | Skor kecocokan embedding antara deskripsi lowongan dan profil skill pengguna minimal 0.65 dari skala 0 sampai 1 | Status `FILTERED_OUT`, alasan "low relevance score: [nilai]" |
+| Provider LLM | `src/bot_loker_wfh/llm.py` | `AnthropicProvider` memanggil `api.anthropic.com/v1/messages` dengan `urllib`. Interface: callable `prompt -> str`. | Satu provider, satu model, tanpa fallback antar model. |
+| Konfigurasi LLM | `config.py`, `.env.example` | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`. | Tidak ada pilihan provider lain. |
+| Draft cover letter | `drafts.py`, `cover_letter.py`, `prompt_builder.py` | LLM dipakai jika ada key. Jika gagal, bot memakai template deterministik. `applications.method` berisi `llm` atau `template`. | Model yang dipakai tidak tercatat. |
+| Privasi prompt | `cv_profile.py` | `SafeCvProfile` menyaring email, telepon, alamat, NIK sebelum masuk prompt. | Sudah baik. Wajib dipertahankan. |
+| Pengisian form | `form_assist.py` | Playwright membuka Chromium baru, mengisi field lewat selector tetap (`#first_name`, `input[name='email']`), mencocokkan `answers.json` berdasarkan label. | Hanya host Greenhouse dan Lever. Dropdown dan pertanyaan kustom tidak diisi. Browser baru, tanpa sesi login pengguna. |
+| Pemicu form | `bot.py` (`_fill_form`), `__main__.py` (`fill-form`) | Telegram `/isi` menjalankan subprocess `fill-form` di mesin yang sama. | Butuh layar. Tidak jalan di VPS. |
+| Submission | `submission.py` | `SubmissionService` punya guard compare-and-swap `APPROVED -> SUBMITTING` dan status `SUBMISSION_AMBIGUOUS`. | Belum dipakai di produksi. Keputusan NO-GO auto-submit di `docs/auto-submit-risk-assessment.md`. |
+| Test | `tests/` | 29 file test, termasuk `test_form_assist.py` dan `test_cover_letter.py`. | Belum ada test untuk provider OpenAI-compatible atau klien MCP. |
 
-Lowongan yang lolos semua kriteria berubah status menjadi `CANDIDATE`. Ambang batas di atas, seperti usia lowongan 14 hari dan skor 0.65, disimpan di tabel `filters` dan bisa diubah pengguna tanpa mengubah kode. Default role keywords mencakup `laravel`, `flutter`, `nestjs`, `react`, `python`, `backend`, `full stack`, dan `mobile developer`.
+Kesimpulan analisis: arsitektur sudah memisahkan provider LLM (callable) dan pengisi form (fungsi `fill_page`). Dua titik ini menjadi tempat integrasi. Perubahan tidak perlu menyentuh fetcher, eligibility, atau state machine.
 
-Pada MVP, data eligibility yang tidak cukup untuk mengambil keputusan deterministik, seperti `posted_at` atau `relevance_score` yang kosong/tidak valid, langsung diberi status `FILTERED_OUT` dengan reason code `posting date unavailable` atau `relevance score unavailable`. Status `REVIEW_REQUIRED` belum digunakan karena belum memiliki transisi pada lifecycle job; alur review manual untuk kasus ambigu dapat ditambahkan setelah MVP.
+## 3. Masalah yang Diselesaikan
 
-## 6. Ruang Lingkup Fitur
+**M1. Draft gagal saat satu provider bermasalah.** Jika Anthropic mengembalikan 429 atau 5xx, bot langsung jatuh ke template. Kualitas draft turun.
 
-### 6.1 Pengambilan Lowongan (Job Sourcing)
+**M2. Biaya dan kuota terkunci pada satu akun.** Pengguna sudah punya langganan lain (Claude Code, Copilot, GLM, Kimi, tier gratis). Bot belum bisa memakainya.
 
-Bot mengambil data lowongan dari sumber berikut secara berkala.
+**M3. Form di luar Greenhouse dan Lever tidak terisi.** Lowongan dari Ashby, Workable, SmartRecruiters, Kalibrr, dan halaman karier perusahaan harus diisi manual dari awal.
 
-| Sumber | Jenis Akses | Catatan |
+**M4. Field kustom tidak terisi.** Selector tetap tidak mengenali dropdown, radio button, dan pertanyaan terbuka seperti "Why do you want to join us?". Pengguna tetap mengisi 5 sampai 15 field per lamaran.
+
+**M5. Browser Playwright tidak memakai sesi pengguna.** Form yang meminta login (misalnya Kalibrr atau Workable dengan akun kandidat) tidak bisa dibuka.
+
+## 4. Tujuan
+
+| ID | Tujuan | Ukuran keberhasilan |
 |---|---|---|
-| RemoteOK | Public API, JSON, tanpa API key | Wajib mencantumkan atribusi sumber |
-| Remotive | Public API, JSON, tanpa API key | Update lowongan tiap beberapa jam |
-| We Work Remotely | RSS/scraping ringan | Format lebih terbatas, perlu parsing HTML |
-| Greenhouse Job Board API | Public API per perusahaan | Satu integrasi berlaku untuk semua perusahaan yang pakai Greenhouse |
-| Lever Postings API | Public API per perusahaan | Sama seperti Greenhouse, reusable antar perusahaan |
+| G1 | Bot memakai model AI apa pun yang terdaftar di 9Router. | Model bisa diganti lewat `.env` atau `/model` tanpa ubah kode. |
+| G2 | Draft cover letter tetap dibuat oleh LLM saat provider utama gagal. | Rasio draft `template` karena error LLM di bawah 5% per minggu. |
+| G3 | Bot mengisi form di Chrome pengguna lewat BrowserMCP. | Minimal 80% field wajib (selain upload file dan CAPTCHA) terisi pada ATS yang didukung. |
+| G4 | Pertanyaan kustom dijawab dari data yang sudah direview atau dari draft LLM yang ditandai. | Waktu isi form manual turun dari rata-rata 8 menit menjadi di bawah 3 menit per lamaran. |
+| G5 | Keamanan dan privasi v2 tetap utuh. | Nol kejadian klik Submit otomatis. Nol data pribadi di prompt LLM dan log. |
 
-Daftar perusahaan target untuk Greenhouse dan Lever disimpan di tabel `companies_ats`, bisa ditambah manual seiring waktu.
+## 5. Non-Tujuan
 
-### 6.2 Penyaringan dan Skoring
+- Bot **tidak** menekan tombol Submit, Apply, atau Kirim. Keputusan NO-GO di `docs/auto-submit-risk-assessment.md` tetap berlaku.
+- Bot **tidak** menyelesaikan atau menghindari CAPTCHA.
+- Bot **tidak** mengotomasi LinkedIn Easy Apply atau Indeed Apply.
+- Bot **tidak** menjalankan 9Router atau BrowserMCP di dalam container Docker VPS pada versi ini. Keduanya berjalan di laptop pengguna.
+- Bot **tidak** mengirim data pribadi (nama, email, telepon, alamat, file CV) ke LLM.
+- PRD ini tidak membangun dashboard web.
 
-Lowongan disaring sesuai aturan di Bagian 5. Skor relevansi dihitung dengan membandingkan embedding deskripsi lowongan terhadap ringkasan skill dan pengalaman pengguna.
+## 6. Pengguna dan Skenario
 
-### 6.3 Personalisasi Lamaran
+Pengguna tunggal: developer fullstack (Laravel, React, Flutter, NestJS, Python) yang mencari kerja remote internasional dan Indonesia. Pengguna menjalankan bot di laptop Windows atau Linux dengan Chrome terpasang.
 
-Mulai Fase 2, untuk tiap lowongan berstatus `CANDIDATE`, sistem membuat draft cover letter dan ringkasan CV yang disesuaikan dengan deskripsi lowongan menggunakan LLM API. Aturan penggunaan data untuk LLM diatur di Bagian 11.
+**Skenario S1: Draft dengan fallback model.**
+Pengguna menekan **Siapkan draft**. Bot mengirim prompt ke 9Router dengan model combo `loker-draft`. Model pertama kena rate limit. 9Router pindah ke model kedua. Draft masuk Telegram dengan label `llm:9router:glm/glm-5.1`.
 
-Pada Fase 1, sistem tidak memanggil LLM. Pengguna menyiapkan cover letter dan CV summary secara manual menggunakan template lokal dan informasi lowongan yang dikirim Telegram. Application baru dibuat setelah kedua materi tersebut tersedia dan lolos validasi field wajib.
+**Skenario S2: Isi form Ashby lewat BrowserMCP.**
+Pengguna menyetujui lamaran lalu menekan **Buka & isi form**. Chrome pengguna membuka tab baru ke `jobs.ashbyhq.com`. Bot membaca snapshot halaman, meminta LLM memetakan 14 field, lalu mengisi 11 field. Telegram menerima laporan: 11 terisi, 1 upload CV manual, 2 pertanyaan demografis dilewati. Pengguna mengecek, upload CV, menekan Submit, lalu mengetik `/dilamar <id>`.
 
-Draft ini menyertakan referensi konkret terhadap teknologi atau tanggung jawab yang disebut di deskripsi lowongan, bukan template generik yang sama untuk semua lamaran.
+**Skenario S3: 9Router mati.**
+9Router tidak berjalan. Bot mencatat `llm_unreachable`, mencoba provider cadangan (Anthropic langsung jika key ada), lalu template. Telegram menampilkan peringatan satu kali per jam.
 
-Bahasa cover letter otomatis mengikuti bahasa lowongan, default bahasa Inggris untuk lowongan internasional.
+## 7. Gambaran Solusi
 
-### 6.4 Review dan Persetujuan
+### 7.1 Diagram Komponen
 
-Sebelum lamaran dikirim, sistem mengirim ringkasan lowongan beserta draft cover letter dan CV summary ke pengguna lewat bot Telegram, dengan status `PENDING_APPROVAL`. Pada Fase 1, draft tersebut adalah materi manual pengguna; pada Fase 2 dan seterusnya, draft dapat berasal dari LLM tetapi tetap wajib direview.
-
-Pengguna bisa menyetujui, meminta revisi, atau menolak lamaran tersebut langsung dari chat Telegram. Mekanisme detail approval dijelaskan di Bagian 10.
-
-Mode ini wajib aktif di awal penggunaan sistem. Mode auto-submit tanpa review manual hanya boleh diaktifkan setelah pengguna yakin kualitas draft konsisten baik, dan tetap dibatasi hanya untuk lowongan dari sumber yang formulirnya sudah diverifikasi aman diisi otomatis.
-
-### 6.5 Pengiriman Lamaran
-
-Untuk lowongan dari Greenhouse dan Lever, sistem mengisi form lamaran secara otomatis menggunakan Playwright, karena struktur form di kedua ATS ini konsisten antar perusahaan.
-
-Untuk lowongan dari sumber lain yang formulirnya tidak konsisten atau butuh input custom, sistem memberikan link lowongan dan draft materi ke pengguna untuk dilamar manual.
-
-Mekanisme submission wajib idempotent, dijelaskan detail di Bagian 10.
-
-### 6.6 Pencatatan dan Tracking
-
-Setiap perubahan status lamaran dicatat di tabel `application_status_history` sebagai audit trail lengkap. Detail skema ada di Bagian 8.
-
-### 6.7 Laporan Berkala
-
-Sistem mengirim ringkasan mingguan ke pengguna: jumlah lowongan ditemukan, jumlah yang lolos filter, jumlah yang dilamar, dan jumlah yang mendapat respons.
-
-## 7. Lifecycle Status Job dan Lamaran
-
-Job dan application memiliki state machine terpisah. Transisi di luar daftar masing-masing dianggap invalid dan harus ditolak oleh sistem, bukan diam-diam diizinkan.
-
-### 7.1 Lifecycle Job
-
-```text
-DISCOVERED
-   |
-   v
-[evaluasi eligibility, Bagian 5]
-   |
-   +--(gagal)--> FILTERED_OUT [terminal]
-   |
-   +--(lolos)--> CANDIDATE
+```
+Telegram  <-->  BotRunner (bot.py)
+                   |
+      +------------+-------------------+
+      |                                |
+ DraftService                    FormAgent (baru)
+      |                                |
+ LLMRouter (baru)  <-------------------+  (pemetaan field, jawaban kustom)
+      |                                |
+  +---+-----------+               McpBrowserClient (baru, stdio)
+  |               |                    |
+NineRouterProvider  AnthropicProvider  npx @browsermcp/mcp
+  |                                    |
+9Router :20128/v1                 Ekstensi BrowserMCP di Chrome pengguna
+  |
+Provider AI (Claude Code, Copilot, GLM, Kimi, tier gratis, dan lain-lain)
 ```
 
-`jobs.status` hanya menggunakan `DISCOVERED`, `CANDIDATE`, dan `FILTERED_OUT`. Status `CANDIDATE` berarti lowongan lolos eligibility; status ini belum berarti pengguna sudah membuat atau menyetujui lamaran.
+### 7.2 Prinsip Desain
 
-### 7.2 Lifecycle Application
+1. **Interface lama tetap.** Provider LLM tetap callable `prompt -> str` agar `DraftService` dan test lama tidak berubah.
+2. **LLM hanya merencanakan, kode yang mengeksekusi.** LLM mengembalikan rencana pengisian dalam JSON. Kode Python memvalidasi rencana, mengganti placeholder dengan data pribadi lokal, lalu memanggil tool BrowserMCP. LLM tidak pernah memanggil tool browser secara langsung.
+3. **Data pribadi tidak keluar dari laptop.** LLM menerima label field dan menjawab dengan kunci seperti `{{applicant.email}}`. Nilai asli diisi oleh kode.
+4. **Default aman.** Fitur baru mati secara default. Engine form lama (Playwright) tetap ada sebagai pilihan.
+5. **Tanpa dependency wajib baru.** Klien 9Router memakai `urllib` seperti `llm.py`. Paket `mcp` masuk sebagai optional extra `[agent]`.
 
-Application dibuat untuk job berstatus `CANDIDATE` setelah materi lamaran siap diproses. Pada Fase 1, pengguna menekan aksi `Siapkan draft` pada notifikasi candidate, mengisi cover letter dan CV summary berdasarkan template lokal, lalu mengirimkannya kembali melalui alur Telegram. Sistem memvalidasi kedua field tersebut sebelum membuat application berstatus `DRAFT_READY`. Application tidak menggunakan status `DISCOVERED`, `CANDIDATE`, atau `FILTERED_OUT`.
+## 8. Fitur A: LLM Gateway lewat 9Router
 
-```text
-DRAFT_READY  (cover letter & CV summary sudah tersedia)
-   |
-   v
-PENDING_APPROVAL  (dikirim ke Telegram)
-   |
-   +--(pengguna tolak)--> REJECTED_BY_USER [terminal]
-   |
-   +--(pengguna tarik)--> WITHDRAWN [terminal]
-   |
-   v
-APPROVED
-   |
-   +--(pengguna tarik)--> WITHDRAWN [terminal]
-   |
-   v
-SUBMITTING  (lock state, compare-and-swap dari APPROVED)
-   |
-   +--(gagal sebelum submit)--> SUBMIT_FAILED --> (retry manual) --> APPROVED
-   |
-   +--(hasil tidak dapat diverifikasi)--> SUBMISSION_AMBIGUOUS
-   |
-   v
-SUBMITTED
-   |
-   +--> VIEWED (opsional, kalau ATS beri sinyal)
-   |
-   +--> INTERVIEW --> OFFER [terminal]
-   |             \--> REJECTED_BY_COMPANY [terminal]
-   |
-   +--> REJECTED_BY_COMPANY [terminal]
-   |
-   +--> NO_RESPONSE [terminal, auto-set setelah 21 hari tanpa update]
-   |
-   +--(pengguna tarik lamaran)--> WITHDRAWN [terminal]
+### 8.1 Tentang 9Router
+
+9Router adalah proxy AI open-source yang berjalan lokal. Setelah `npm install -g 9router` dan `9router`, dashboard terbuka di `http://localhost:20128/dashboard`. 9Router menyediakan endpoint OpenAI-compatible:
+
+- `POST /v1/chat/completions`
+- `GET /v1/models`
+
+Autentikasi memakai API key dari dashboard dalam header `Authorization: Bearer <key>`. Nama model berformat `provider/model`, contoh `cc/claude-opus-4-7` atau `glm/glm-5.1`. Pengguna bisa membuat **combo**: daftar model berurutan yang dipakai bergantian saat kuota habis atau error.
+
+### 8.2 Kebutuhan Fungsional
+
+| ID | Kebutuhan | Prioritas |
+|---|---|---|
+| A-FR1 | Buat `OpenAICompatibleProvider` di `llm.py`. Kelas ini mengirim `messages` ke `{base_url}/chat/completions` dan mengembalikan `choices[0].message.content`. | P0 |
+| A-FR2 | Provider menerima `base_url`, `api_key`, `model`, `max_tokens`, `temperature`, `timeout`. Tanpa library pihak ketiga. | P0 |
+| A-FR3 | Tambah `LLM_PROVIDER` dengan nilai `template`, `anthropic`, atau `9router`. Nilai default `template` jika tidak ada key, sama seperti perilaku sekarang. | P0 |
+| A-FR4 | Buat `LLMRouter` yang mencoba daftar provider berurutan: `9router` (model utama), `9router` (model cadangan di `NINEROUTER_FALLBACK_MODELS`), `anthropic` jika key ada. Template tetap ditangani `DraftService`. | P0 |
+| A-FR5 | Error 401 dan 403 tidak di-retry dan langsung menandai provider `misconfigured`. Error 429, 5xx, dan timeout pindah ke model berikutnya. | P0 |
+| A-FR6 | Catat provider dan model yang berhasil ke `applications.llm_provider` dan `applications.llm_model`. Nilai `method` menjadi `llm` atau `template` seperti sekarang. | P0 |
+| A-FR7 | Command CLI `check-llm` memanggil `GET /v1/models`, mencetak jumlah model, dan mengirim satu prompt uji berisi 10 token. | P1 |
+| A-FR8 | Telegram `/model` menampilkan provider aktif, model utama, dan status terakhir. `/model <nama>` mengganti model utama untuk sesi berjalan (tidak menulis ke `.env`). | P1 |
+| A-FR9 | Routing per tugas: `LLM_MODEL_DRAFT` untuk cover letter, `LLM_MODEL_FORM` untuk pemetaan form, `LLM_MODEL_ANSWER` untuk jawaban pertanyaan terbuka. Jika kosong, semua memakai `NINEROUTER_MODEL`. | P1 |
+| A-FR10 | Simpan metrik tiap panggilan di tabel `llm_calls`: tugas, provider, model, latensi, token, status, kode error. Isi prompt dan jawaban **tidak** disimpan. | P1 |
+| A-FR11 | Mode `json` untuk tugas form: kirim `response_format: {"type": "json_object"}`. Jika model menolak parameter itu (HTTP 400), kirim ulang tanpa parameter dan parse JSON dari teks. | P1 |
+
+### 8.3 Kontrak Request
+
+```http
+POST http://localhost:20128/v1/chat/completions
+Authorization: Bearer <NINEROUTER_API_KEY>
+Content-Type: application/json
+
+{
+  "model": "loker-draft",
+  "messages": [
+    {"role": "system", "content": "You write concise, truthful cover letters..."},
+    {"role": "user", "content": "JOB DESCRIPTION: ...\n\nCANDIDATE SUMMARY: ..."}
+  ],
+  "max_tokens": 800,
+  "temperature": 0.4,
+  "stream": false
+}
 ```
 
-### 7.3 Tabel Transisi Job
+Isi `user` tetap berasal dari `build_cover_letter_prompt` dan `SafeCvProfile.to_summary()`. Tidak ada field baru yang masuk ke prompt.
 
-| Dari | Ke | Trigger | Pemicu |
+### 8.4 Konfigurasi `.env` Baru
+
+```env
+# template | anthropic | 9router
+LLM_PROVIDER=9router
+NINEROUTER_BASE_URL=http://localhost:20128/v1
+NINEROUTER_API_KEY=
+# Nama model atau nama combo dari dashboard 9Router
+NINEROUTER_MODEL=loker-draft
+# Opsional, dipisah koma, dicoba berurutan jika model utama gagal
+NINEROUTER_FALLBACK_MODELS=glm/glm-5.1,kr/claude-sonnet-4.5
+LLM_TIMEOUT_SECONDS=60
+LLM_MODEL_DRAFT=
+LLM_MODEL_FORM=
+LLM_MODEL_ANSWER=
+```
+
+Di Docker, `localhost` menunjuk ke container. Pengguna yang menjalankan bot di Docker dan 9Router di host memakai `http://host.docker.internal:20128/v1` dan menambah `extra_hosts` di `docker-compose.yml`.
+
+### 8.5 Acceptance Criteria Fitur A
+
+- [ ] Dengan `LLM_PROVIDER=9router` dan 9Router aktif, `/siapkan <job_id>` menghasilkan draft dengan `method=llm` dan `llm_provider=9router`.
+- [ ] Jika model utama mengembalikan 429, draft dibuat oleh model cadangan pertama. Test memakai server HTTP palsu lokal.
+- [ ] Jika 9Router mati dan Anthropic key kosong, draft memakai template dan log berisi `llm_fallback_to_template` dengan `error_code=network_error`.
+- [ ] Error 401 tidak memicu retry. Test menghitung satu request saja.
+- [ ] Log dan tabel `llm_calls` tidak berisi prompt, cover letter, atau API key. Test memeriksa isi log.
+- [ ] Semua test lama di `test_cover_letter.py` dan `test_bot_pipeline.py` tetap lulus tanpa perubahan.
+
+## 9. Fitur B: Pengisian Form lewat BrowserMCP
+
+### 9.1 Tentang BrowserMCP
+
+BrowserMCP terdiri dari dua bagian:
+
+1. **Server MCP** (`@browsermcp/mcp`, dijalankan dengan `npx @browsermcp/mcp@latest`). Server berkomunikasi lewat stdio.
+2. **Ekstensi Chrome.** Pengguna menekan **Connect** pada tab yang ingin dikendalikan. Otomasi berjalan di profil Chrome asli pengguna, termasuk sesi login.
+
+Tool yang tersedia:
+
+| Tool | Fungsi | Dipakai bot |
+|---|---|---|
+| `browser_navigate` | Buka URL | Ya |
+| `browser_snapshot` | Ambil accessibility snapshot halaman beserta `ref` tiap elemen | Ya |
+| `browser_type` | Ketik teks ke elemen (`element`, `ref`, `text`, `submit`) | Ya, `submit` selalu `false` |
+| `browser_select_option` | Pilih opsi dropdown | Ya |
+| `browser_click` | Klik elemen | Terbatas: checkbox, radio, tombol "Apply" pembuka form, tab form |
+| `browser_hover` | Hover elemen | Tidak |
+| `browser_press_key` | Tekan tombol keyboard | Terbatas: `Tab`, `Escape`. `Enter` diblokir |
+| `browser_wait` | Tunggu beberapa detik | Ya |
+| `browser_go_back`, `browser_go_forward` | Navigasi riwayat | Tidak |
+| `browser_screenshot` | Screenshot | Tidak (risiko data pribadi) |
+| `browser_get_console_logs` | Log konsol | Tidak |
+
+**Batasan penting:** BrowserMCP tidak punya tool upload file. Upload CV tetap dilakukan pengguna, atau lewat engine Playwright lama.
+
+### 9.2 Alur Pengisian
+
+```
+/isi <application_id>
+  1. Cek status APPROVED dan host target ada di registry (Bagian 9.5)
+  2. Start McpBrowserClient (stdio) -> list_tools, verifikasi 8 tool wajib ada
+  3. browser_navigate(url)
+  4. browser_snapshot -> FormExtractor mengubah snapshot jadi daftar field:
+       {ref, label, role, required, options, current_value}
+  5. Klasifikasi field (Bagian 9.3)
+  6. FormPlanner mengirim label dan opsi (tanpa data pribadi) ke LLM -> rencana JSON
+  7. PolicyGuard memvalidasi rencana (Bagian 9.4)
+  8. Executor mengganti placeholder dengan nilai lokal, lalu memanggil
+       browser_type / browser_select_option / browser_click satu per satu
+  9. browser_snapshot ulang -> verifikasi nilai tiap field
+ 10. Jika form multi-halaman: berhenti, laporkan, pengguna menekan Next sendiri,
+       lalu /isi-lanjut <id> mengulang langkah 4 sampai 9
+ 11. Kirim FillReport ke Telegram. Tab tetap terbuka. Bot tidak submit.
+```
+
+### 9.3 Klasifikasi Field dan Sumber Nilai
+
+| Kelas | Contoh label | Sumber nilai | Aksi |
 |---|---|---|---|
-| DISCOVERED | CANDIDATE | Lolos semua kriteria eligibility | Sistem |
-| DISCOVERED | FILTERED_OUT | Gagal salah satu kriteria eligibility | Sistem |
+| Identitas | First name, Email, Phone | `data/applicant.json` | Isi otomatis |
+| Tautan | LinkedIn, GitHub, Portfolio | `data/applicant.json` | Isi otomatis |
+| Jawaban tersimpan | Work authorization, Notice period | `data/answers.json` (format baru, Bagian 9.6) | Isi otomatis |
+| Cover letter | Cover letter, Additional information | `applications.cover_letter` | Isi otomatis |
+| Pertanyaan terbuka | "Why do you want to work here?" | Draft LLM dari deskripsi lowongan dan `SafeCvProfile` | Isi, tandai **Dijawab AI, wajib cek** |
+| Sensitif | Gender, Race, Veteran, Disability, EEO | Tidak ada | Selalu dilewati |
+| Legal dan persetujuan | Privacy consent, "I certify...", data processing | Tidak ada | Selalu dilewati, diserahkan ke pengguna |
+| Gaji | Expected salary, Current salary | `answers.json` jika ada | Isi hanya jika jawaban ada. Tidak pernah dari LLM |
+| Upload | Resume, CV | Tidak didukung BrowserMCP | Masuk daftar manual |
+| CAPTCHA | hCaptcha, reCAPTCHA, Turnstile | Tidak ada | Berhenti dan laporkan |
 
-### 7.4 Tabel Transisi Application
+Klasifikasi Sensitif, Legal, dan CAPTCHA memakai daftar kata kunci di kode, **bukan** LLM. LLM tidak bisa membatalkan klasifikasi ini.
 
-| Dari | Ke | Trigger | Pemicu |
+### 9.4 Kontrak Rencana dari LLM dan PolicyGuard
+
+LLM menerima daftar field seperti ini:
+
+```json
+{
+  "job_title": "Senior Backend Engineer",
+  "fields": [
+    {"ref": "e12", "label": "Email", "role": "textbox", "required": true},
+    {"ref": "e19", "label": "Years of experience with Python", "role": "combobox",
+     "options": ["0-1", "2-4", "5+"], "required": true}
+  ],
+  "available_keys": ["applicant.first_name", "applicant.email", "answers.notice_period",
+                     "profile.years_python", "application.cover_letter"]
+}
+```
+
+LLM wajib mengembalikan JSON:
+
+```json
+{
+  "actions": [
+    {"ref": "e12", "action": "type", "value": "{{applicant.email}}", "confidence": 0.98},
+    {"ref": "e19", "action": "select", "value": "5+", "source": "profile.years_python",
+     "confidence": 0.8}
+  ],
+  "skipped": [{"ref": "e30", "reason": "needs_user"}]
+}
+```
+
+PolicyGuard menolak aksi jika salah satu syarat berikut terpenuhi:
+
+1. `ref` tidak ada di snapshot terakhir.
+2. Aksi `click` mengarah ke elemen dengan nama yang cocok dengan pola submit: `submit`, `apply`, `send`, `kirim`, `lamar`, `finish`, `complete`, `confirm`. Pengecualian hanya untuk tombol pembuka form yang terdaftar di registry ATS.
+3. Aksi `type` dengan `submit=true`, atau aksi `press_key` dengan `Enter`.
+4. Field berkelas Sensitif, Legal, CAPTCHA, atau Upload.
+5. `value` berisi teks bebas untuk field Identitas. Field Identitas hanya boleh berisi placeholder.
+6. Nilai `select` tidak ada di daftar `options`.
+7. `confidence` di bawah `FORM_MIN_CONFIDENCE` (default 0.7).
+8. Jumlah tool call melewati `FORM_MAX_TOOL_CALLS` (default 60) atau durasi melewati `FORM_TIMEOUT_SECONDS` (default 300).
+
+Aksi yang ditolak masuk daftar **Perlu Anda isi/pilih** di laporan Telegram.
+
+### 9.5 Registry ATS
+
+Registry menggantikan konstanta `GREENHOUSE_HOSTS` dan `LEVER_HOSTS`. Registry disimpan di tabel `ats_registry` agar bisa ditambah tanpa ubah kode.
+
+| ATS | Host | Mode awal | Catatan |
 |---|---|---|---|
-| DRAFT_READY | PENDING_APPROVAL | Notifikasi berisi draft manual atau draft LLM terkirim ke Telegram | Sistem |
-| PENDING_APPROVAL | APPROVED | Pengguna klik approve | Pengguna |
-| PENDING_APPROVAL | REJECTED_BY_USER | Pengguna klik reject | Pengguna |
-| PENDING_APPROVAL / APPROVED | WITHDRAWN | Pengguna tarik lamaran sebelum submit | Pengguna |
-| APPROVED | SUBMITTING | Worker submission mulai proses, compare-and-swap status | Sistem |
-| SUBMITTING | SUBMITTED | Form berhasil terkirim dan terverifikasi | Sistem |
-| SUBMITTING | SUBMIT_FAILED | Error terjadi sebelum tombol submit final diklik | Sistem |
-| SUBMITTING | SUBMISSION_AMBIGUOUS | Tombol submit mungkin sudah diklik tetapi hasil belum terverifikasi | Sistem |
-| SUBMIT_FAILED | APPROVED | Pengguna mengonfirmasi retry setelah verifikasi manual | Pengguna |
-| SUBMISSION_AMBIGUOUS | SUBMITTED | Pengguna memverifikasi email, confirmation page, atau bukti submission lain | Pengguna |
-| SUBMISSION_AMBIGUOUS | SUBMIT_FAILED | Pengguna memverifikasi bahwa submission tidak terjadi dan mengizinkan retry | Pengguna |
-| SUBMISSION_AMBIGUOUS | APPROVED | Pengguna memverifikasi bahwa submission tidak terjadi dan memilih retry setelah review | Pengguna |
-| SUBMITTED | VIEWED | Sinyal dari ATS bahwa lamaran dibuka recruiter | Sistem (kalau tersedia) |
-| SUBMITTED / VIEWED | INTERVIEW | Update manual dari pengguna | Pengguna |
-| SUBMITTED / VIEWED | REJECTED_BY_COMPANY | Update manual dari pengguna | Pengguna |
-| SUBMITTED / VIEWED | NO_RESPONSE | Tidak ada update selama 21 hari sejak `submitted_at` | Sistem terjadwal |
-| INTERVIEW | OFFER | Update manual dari pengguna | Pengguna |
-| INTERVIEW | REJECTED_BY_COMPANY | Update manual dari pengguna | Pengguna |
+| Greenhouse | `job-boards.greenhouse.io`, `boards.greenhouse.io` | `auto_fill` | Sudah diuji dengan Playwright |
+| Lever | `jobs.lever.co`, `jobs.eu.lever.co` | `auto_fill` | Upload CV memicu parser yang menimpa field. Isi field setelah pengguna upload |
+| Ashby | `jobs.ashbyhq.com` | `auto_fill` setelah uji dry-run 3 form | Form satu halaman |
+| Workable | `apply.workable.com` | `auto_fill` setelah uji dry-run 3 form | Ada tombol "Apply" pembuka form |
+| SmartRecruiters | `jobs.smartrecruiters.com` | `assist` | Form multi-halaman |
+| Kalibrr | `www.kalibrr.com` | `assist` | Butuh login kandidat di Chrome pengguna |
+| Host lain | apa saja | `assist` | Butuh konfirmasi `/isi <id> paksa` |
 
-Status `FILTERED_OUT` adalah terminal pada lifecycle job. Status `REJECTED_BY_USER`, `OFFER`, `REJECTED_BY_COMPANY`, `NO_RESPONSE`, dan `WITHDRAWN` adalah status terminal pada lifecycle application. `SUBMISSION_AMBIGUOUS` bukan status terminal karena harus diselesaikan melalui verifikasi pengguna, tetapi worker tidak boleh memproses submission dari status ini. Tidak ada transisi keluar dari status terminal, kecuali koreksi manual oleh pengguna lewat perintah database langsung untuk kasus human error, bukan lewat alur normal bot.
+Mode `auto_fill` mengisi semua aksi yang lolos PolicyGuard. Mode `assist` hanya mengisi Identitas, Tautan, dan Cover letter, lalu melaporkan sisanya.
 
-## 8. Skema Data
+### 9.6 Format Baru `data/answers.json`
 
-Skema di bawah pakai notasi mirip SQL supaya jelas tipe data dan constraint-nya, walaupun implementasi akhir boleh pakai ORM.
+Format lama (label ke teks) tetap didukung. Format baru menambah tipe dan opsi:
 
-### 8.1 Tabel `jobs`
+```json
+{
+  "version": 2,
+  "answers": [
+    {"key": "work_authorization", "match": ["legally authorized", "work authorization"],
+     "type": "choice", "value": "Yes"},
+    {"key": "notice_period", "match": ["notice period", "start date"],
+     "type": "text", "value": "2 weeks"},
+    {"key": "years_python", "match": ["years of experience with python"],
+     "type": "number", "value": "5"},
+    {"key": "expected_salary", "match": ["expected salary", "salary expectation"],
+     "type": "text", "value": "Negotiable"}
+  ]
+}
+```
+
+LLM hanya melihat `key` dan `type`. Nilai untuk kelas Gaji dan Legal tidak pernah dikirim ke LLM.
+
+### 9.7 Kebutuhan Fungsional
+
+| ID | Kebutuhan | Prioritas |
+|---|---|---|
+| B-FR1 | Buat `McpBrowserClient` di modul baru `browser_mcp.py`. Klien menjalankan `BROWSER_MCP_COMMAND` lewat stdio dan memanggil tool dengan timeout per panggilan. | P0 |
+| B-FR2 | Saat start, klien memanggil `list_tools` dan gagal dengan pesan jelas jika tool wajib tidak ada. | P0 |
+| B-FR3 | Jika ekstensi belum terhubung, kirim pesan Telegram: "Buka Chrome, klik ikon BrowserMCP, tekan Connect, lalu ulangi /isi." | P0 |
+| B-FR4 | Buat `FormExtractor` yang mengubah snapshot menjadi daftar field. Parser diuji dengan minimal 6 fixture snapshot (2 Greenhouse, 2 Lever, 1 Ashby, 1 Workable). | P0 |
+| B-FR5 | Buat `FormPlanner` yang memanggil `LLMRouter` dengan tugas `form` dan mengembalikan rencana tervalidasi skema. | P0 |
+| B-FR6 | Buat `PolicyGuard` sesuai Bagian 9.4. Guard berupa fungsi murni dan diuji tanpa browser. | P0 |
+| B-FR7 | Buat `Executor` yang menjalankan aksi, mengganti placeholder secara lokal, lalu memverifikasi nilai dengan snapshot ulang. | P0 |
+| B-FR8 | Tambah `FORM_ENGINE` dengan nilai `playwright` (default, perilaku sekarang) atau `browsermcp`. | P0 |
+| B-FR9 | `FillReport` ditambah daftar **Dijawab AI, wajib cek** dan **Dilewati (sensitif/legal)**. | P0 |
+| B-FR10 | Tambah command Telegram `/isi-lanjut <id>` untuk halaman berikutnya pada form multi-halaman. | P1 |
+| B-FR11 | Pertanyaan terbuka dijawab LLM maksimal 120 kata, dalam bahasa yang sama dengan pertanyaan, hanya dari deskripsi lowongan dan `SafeCvProfile`. | P1 |
+| B-FR12 | Opsi `FORM_AI_ANSWERS=off` mematikan pengisian pertanyaan terbuka. Default `review`: diisi dan ditandai. | P1 |
+| B-FR13 | Simpan ringkasan sesi di `form_sessions` dan status tiap field di `form_field_events` tanpa nilai field. | P1 |
+| B-FR14 | Command CLI `check-browser` memeriksa `npx`, menjalankan server, dan melaporkan status koneksi ekstensi. | P2 |
+
+### 9.8 Konfigurasi `.env` Baru
+
+```env
+# playwright | browsermcp
+FORM_ENGINE=browsermcp
+BROWSER_MCP_COMMAND=npx -y @browsermcp/mcp@latest
+FORM_MIN_CONFIDENCE=0.7
+FORM_MAX_TOOL_CALLS=60
+FORM_TIMEOUT_SECONDS=300
+# off | review
+FORM_AI_ANSWERS=review
+```
+
+`FORM_ASSIST_ENABLED=true` tetap wajib. Tanpa itu `/isi` menolak seperti sekarang.
+
+### 9.9 Acceptance Criteria Fitur B
+
+- [ ] Dengan `FORM_ENGINE=playwright`, semua test lama di `test_form_assist.py` lulus tanpa perubahan.
+- [ ] Dengan `FORM_ENGINE=browsermcp`, form Greenhouse uji terisi minimal sebanyak field yang diisi engine Playwright (first name, last name, email, phone, cover letter, LinkedIn).
+- [ ] Pada 3 form Ashby dan 3 form Workable dalam dry-run, minimal 80% field wajib non-upload terisi dengan benar.
+- [ ] Test PolicyGuard membuktikan rencana berisi klik tombol "Submit application" ditolak.
+- [ ] Test membuktikan `browser_type` tidak pernah dipanggil dengan `submit=true` dan `browser_press_key` tidak pernah dipanggil dengan `Enter`.
+- [ ] Test memakai klien MCP palsu memastikan prompt ke LLM tidak berisi email, nomor telepon, atau nama dari `applicant.json`.
+- [ ] Field Gender, Race, Veteran, dan Disability tidak pernah terisi di semua fixture.
+- [ ] Jika snapshot mengandung iframe hCaptcha atau reCAPTCHA, laporan memuat "Ada CAPTCHA" dan tidak ada aksi setelah deteksi.
+- [ ] Jika ekstensi belum Connect, pengguna menerima pesan B-FR3 dalam 20 detik.
+
+## 10. Perubahan Data
+
+Migrasi baru `migrations/002_llm_and_form_agent.sql`:
 
 ```sql
-CREATE TABLE jobs (
-  id UUID PRIMARY KEY,
-  source VARCHAR(50) NOT NULL,              -- 'remoteok' | 'remotive' | 'wwr' | 'greenhouse' | 'lever'
-  external_id VARCHAR(255) NOT NULL,        -- id asli dari sumber
-  source_external_key VARCHAR(320) NOT NULL, -- hash(source + ':' + external_id), untuk dedup per sumber
-  canonical_fingerprint VARCHAR(64) NOT NULL,-- hash(normalized_title + normalized_company + normalized_apply_host_or_path), untuk dedup lintas sumber
-  title VARCHAR(255) NOT NULL,
-  company VARCHAR(255) NOT NULL,
-  description TEXT NOT NULL,
-  location VARCHAR(255),
-  salary_min INT,
-  salary_max INT,
-  currency VARCHAR(10),
-  apply_url TEXT NOT NULL,
-  posted_at TIMESTAMP,
-  fetched_at TIMESTAMP NOT NULL DEFAULT now(),
-  relevance_score DECIMAL(4,3),
-  status VARCHAR(30) NOT NULL DEFAULT 'DISCOVERED',
-  filtered_reason TEXT,
-  UNIQUE (source, external_id),
-  UNIQUE (source_external_key),
-  UNIQUE (canonical_fingerprint)
+ALTER TABLE applications ADD COLUMN llm_provider TEXT;
+ALTER TABLE applications ADD COLUMN llm_model TEXT;
+
+CREATE TABLE IF NOT EXISTS llm_calls (
+  id TEXT PRIMARY KEY,
+  task TEXT NOT NULL,              -- draft | form | answer | health
+  provider TEXT NOT NULL,          -- 9router | anthropic
+  model TEXT NOT NULL,
+  status TEXT NOT NULL,            -- success | error
+  error_code TEXT,
+  latency_ms INTEGER,
+  prompt_tokens INTEGER,
+  completion_tokens INTEGER,
+  application_id TEXT REFERENCES applications(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
-CREATE INDEX idx_jobs_status ON jobs(status);
-CREATE INDEX idx_jobs_posted_at ON jobs(posted_at);
+
+CREATE TABLE IF NOT EXISTS ats_registry (
+  id TEXT PRIMARY KEY,
+  ats_name TEXT NOT NULL,
+  host TEXT NOT NULL UNIQUE,
+  mode TEXT NOT NULL,              -- auto_fill | assist
+  open_button_label TEXT,
+  verified_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS form_sessions (
+  id TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES applications(id),
+  engine TEXT NOT NULL,            -- playwright | browsermcp
+  host TEXT NOT NULL,
+  page_number INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL,            -- filled | partial | captcha | error | timeout
+  filled_count INTEGER NOT NULL DEFAULT 0,
+  manual_count INTEGER NOT NULL DEFAULT 0,
+  ai_answer_count INTEGER NOT NULL DEFAULT 0,
+  tool_calls INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT,
+  started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  finished_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS form_field_events (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES form_sessions(id),
+  label TEXT NOT NULL,
+  field_class TEXT NOT NULL,
+  action TEXT NOT NULL,            -- filled | skipped | rejected | failed
+  source TEXT,                     -- applicant | answers | cover_letter | llm
+  reason TEXT
+);
 ```
 
-Constraint `UNIQUE (source, external_id)` dan `UNIQUE (source_external_key)` mencegah lowongan yang sama diambil dua kali dari sumber yang sama. Constraint `UNIQUE (canonical_fingerprint)` mencegah lowongan yang sama diambil ulang ketika muncul di sumber berbeda dengan `external_id` berbeda.
+Tidak ada kolom yang menyimpan nilai field, isi prompt, atau jawaban LLM. Label field dipotong 80 karakter seperti `_UNFILLED_REQUIRED_JS` sekarang.
 
-Normalisasi `canonical_fingerprint` dilakukan sebelum hashing dengan aturan berikut.
+Status application tidak berubah. Pengisian form tidak mengubah status. Status berubah ke `SUBMITTED` hanya lewat `/dilamar`.
 
-| Field | Aturan Normalisasi |
+## 11. Dampak pada Kode
+
+| File | Perubahan |
 |---|---|
-| `title` | lowercase, trim spasi, hapus punctuation umum, samakan sinonim umum seperti "sr" menjadi "senior", hapus suffix lokasi seperti "- remote" |
-| `company` | lowercase, trim spasi, hapus suffix legal umum seperti "inc", "llc", "ltd", "pt", dan punctuation |
-| `apply_url` | ambil host dan path utama tanpa query string, UTM, fragment, dan trailing slash; kalau URL ATS memuat job id stabil, job id tersebut dipertahankan |
-
-`canonical_fingerprint` dihitung dari `normalized_title + '|' + normalized_company + '|' + normalized_apply_host_or_path`. `source` tidak boleh masuk ke `canonical_fingerprint`, karena kunci ini memang dipakai untuk dedup lintas sumber.
-
-Jika `canonical_fingerprint` sama persis, sistem menganggap lowongan duplikat dan tidak membuat row `jobs` baru. Jika fingerprint tidak sama tetapi title dan company sangat mirip, sistem tidak melakukan auto-merge pada MVP; lowongan tetap disimpan sebagai row terpisah agar tidak membuang lowongan yang sebenarnya berbeda. Review manual untuk near-duplicate bisa ditambahkan di fase berikutnya.
-
-Contoh expected result dedup:
-
-| Kasus | Input | Expected Result |
-|---|---|---|
-| Fetch ulang sumber sama | RemoteOK `external_id=123` diambil dua kali | Run kedua tidak membuat row baru karena `source_external_key` sama |
-| Duplikat lintas sumber | RemoteOK dan Remotive memuat `Backend Developer` di `Acme` dengan apply URL canonical sama | Hanya satu row `jobs` dibuat karena `canonical_fingerprint` sama |
-| Job berbeda di perusahaan sama | `Backend Developer` dan `Mobile Developer` di `Acme` | Dua row dibuat karena normalized title berbeda |
-| Judul mirip tapi URL beda | `Senior Backend Engineer` di `Acme` dengan apply URL Greenhouse berbeda | Dua row dibuat, karena fingerprint tidak sama dan MVP tidak auto-merge near-duplicate |
-| Query tracking berbeda | URL sama dengan parameter `?utm_source=remoteok` dan `?utm_source=remotive` | Dianggap duplikat karena query tracking dihapus saat normalisasi |
-
-### 8.2 Tabel `applications`
-
-Aturan bisnis MVP adalah **satu application untuk satu job**. Dua job berbeda dari perusahaan yang sama tetap boleh memiliki application terpisah, karena posisi, deskripsi, pertanyaan form, dan materi lamaran bisa berbeda. Sistem tidak menerapkan batas satu application per perusahaan atau cooldown berbasis waktu pada MVP. Aturan tersebut dapat ditambahkan kemudian sebagai konfigurasi pengguna jika data pengalaman menunjukkan kebutuhan.
-
-```sql
-CREATE TABLE applications (
-  id UUID PRIMARY KEY,
-  job_id UUID NOT NULL REFERENCES jobs(id),
-  idempotency_key VARCHAR(64) NOT NULL,     -- hash(job_id + user_id)
-  status VARCHAR(30) NOT NULL DEFAULT 'DRAFT_READY',
-  cover_letter TEXT NOT NULL,
-  cv_summary TEXT NOT NULL,
-  method VARCHAR(20),                       -- 'auto' | 'manual'
-  retry_count INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP NOT NULL DEFAULT now(),
-  approved_at TIMESTAMP,
-  submitted_at TIMESTAMP,
-  last_status_check_at TIMESTAMP,
-  notes TEXT,
-  UNIQUE (job_id),           -- satu job hanya boleh punya satu application
-  UNIQUE (idempotency_key)
-);
-CREATE INDEX idx_applications_status ON applications(status);
-```
-
-Karena `job_id` unique, sistem tidak bisa membuat dua record application untuk lowongan yang sama, walaupun ada dua proses yang berjalan bersamaan mencoba insert di waktu yang sama. Constraint ini menjadi jaring pengaman idempotency di level database, bukan cuma di level kode aplikasi. Record application hanya dibuat setelah job berstatus `CANDIDATE` dan `cover_letter` serta `cv_summary` tidak kosong, sehingga status job dan status application tidak saling menggantikan.
-
-Contoh expected result aturan duplicate application:
-
-| Kasus | Input | Expected Result |
-|---|---|---|
-| Job sama diproses dua kali | Dua worker membuat application untuk `job_id` yang sama | Hanya satu row dibuat; insert kedua ditolak oleh `UNIQUE (job_id)` dan worker mengambil row yang sudah ada |
-| Perusahaan sama, posisi berbeda | `Backend Developer` dan `Mobile Developer` di perusahaan yang sama | Dua application boleh dibuat karena `job_id` berbeda |
-| Company name berbeda, job sama | Dua proses menerima data untuk `job_id` yang sama dengan variasi penulisan nama perusahaan | Tetap satu application karena dedup application memakai `job_id`, bukan string nama perusahaan |
-
-### 8.3 Tabel `submission_attempts`
-
-```sql
-CREATE TABLE submission_attempts (
-  id UUID PRIMARY KEY,
-  application_id UUID NOT NULL REFERENCES applications(id),
-  attempt_number INT NOT NULL,
-  result VARCHAR(20) NOT NULL,              -- 'success' | 'failed' | 'timeout' | 'ambiguous'
-  error_message TEXT,
-  attempted_at TIMESTAMP NOT NULL DEFAULT now(),
-  UNIQUE (application_id, attempt_number)
-);
-```
-
-Setiap percobaan submission, berhasil atau gagal, dicatat sebagai row baru dengan `attempt_number` incremental. Ini memberi jejak audit lengkap kalau ada kasus dispute atau debug.
-
-### 8.4 Tabel `application_status_history`
-
-```sql
-CREATE TABLE application_status_history (
-  id UUID PRIMARY KEY,
-  application_id UUID NOT NULL REFERENCES applications(id),
-  from_status VARCHAR(30),
-  to_status VARCHAR(30) NOT NULL,
-  changed_by VARCHAR(20) NOT NULL,          -- 'system' | 'user'
-  changed_at TIMESTAMP NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_status_history_application ON application_status_history(application_id);
-```
-
-Tabel ini append-only. Tidak ada update atau delete terhadap row yang sudah ada, supaya histori transisi status tidak pernah hilang.
-
-### 8.5 Tabel `filters`
-
-```sql
-CREATE TABLE filters (
-  id UUID PRIMARY KEY,
-  role_keywords TEXT[] NOT NULL,
-  exclusion_keywords TEXT[] NOT NULL,
-  min_relevance_score DECIMAL(4,3) NOT NULL DEFAULT 0.65,
-  max_posting_age_days INT NOT NULL DEFAULT 14,
-  no_response_after_days INT NOT NULL DEFAULT 21,
-  updated_at TIMESTAMP NOT NULL DEFAULT now()
-);
-```
-
-### 8.6 Tabel `companies_ats`
-
-```sql
-CREATE TABLE companies_ats (
-  id UUID PRIMARY KEY,
-  company_name VARCHAR(255) NOT NULL,
-  ats_type VARCHAR(20) NOT NULL,            -- 'greenhouse' | 'lever'
-  ats_slug VARCHAR(255) NOT NULL,           -- identifier perusahaan di ATS tsb
-  active BOOLEAN NOT NULL DEFAULT true,
-  UNIQUE (ats_type, ats_slug)
-);
-```
-
-### 8.7 Tabel `company_blocklist`
-
-```sql
-CREATE TABLE company_blocklist (
-  id UUID PRIMARY KEY,
-  company_name VARCHAR(255) NOT NULL UNIQUE,
-  reason TEXT,
-  added_at TIMESTAMP NOT NULL DEFAULT now()
-);
-```
-
-## 9. Arsitektur Sistem
-
-### 9.1 Diagram Alur
-
-```
-[Job Sources: RemoteOK, Remotive, WWR, Greenhouse, Lever]
-                |
-                v
-        [Scheduler / Cron Job]
-                |
-                v
-        [Fetcher & Parser Service] --> tabel jobs (status DISCOVERED)
-                |
-                v
-        [Eligibility Engine, Bagian 5]  <-- tabel filters, company_blocklist
-                |
-                v
-        [Draft Preparation: template manual Fase 1 / LLM Fase 2]  --> tabel applications (status DRAFT_READY)
-                |
-                v
-        [Telegram Bot: Review & Approval]  --> status PENDING_APPROVAL / APPROVED
-                |
-        +-------+-------+
-        |               |
-        v               v
-[Auto-Submit via     [Manual Apply
- Playwright,          oleh pengguna]
- Bagian 10]
-        |               |
-        +-------+-------+
-                v
-        [application_status_history]
-                |
-                v
-        [Laporan Mingguan]
-```
-
-### 9.2 Komponen dan Tech Stack
-
-| Komponen | Teknologi | Alasan Pemilihan |
-|---|---|---|
-| Bahasa utama | Python | Ekosistem automation, scraping, dan LLM SDK paling lengkap |
-| Browser automation | Playwright | Stabil untuk form dinamis, bisa headless di server |
-| Scheduler | APScheduler atau Celery + Redis | Menjalankan fetch dan proses apply secara berkala |
-| Database | PostgreSQL (produksi) atau SQLite (versi ringan) | Menyimpan histori lamaran dan konfigurasi filter, mendukung constraint unique untuk idempotency |
-| LLM Provider | Claude API | Membuat cover letter dan ringkasan CV yang disesuaikan |
-| Notifikasi dan kontrol | Bot Telegram (python-telegram-bot) | Review cepat lewat chat, tidak perlu buka dashboard tiap saat |
-| Dashboard opsional | NestJS + React | Untuk versi lanjutan, menampilkan statistik dan histori lamaran |
-| Deployment | VPS kecil dengan Docker | Berjalan terus-menerus tanpa tergantung laptop pengguna menyala |
-| Logging dan monitoring | Log file terstruktur, opsional integrasi Sentry | Memudahkan debug kalau ada form yang gagal terisi, tanpa mencetak data sensitif |
-
-## 10. Mekanisme Approval dan Submission yang Idempotent
-
-Bagian ini mendefinisikan aturan supaya tidak ada application yang diproses atau dikirim dua kali untuk job yang sama, baik karena bug, race condition, maupun retry setelah error. Dua job berbeda dari perusahaan yang sama bukan duplicate menurut aturan MVP dan boleh diproses terpisah.
-
-### 10.1 Idempotency Key
-
-Setiap application punya `idempotency_key` yang dihitung dari hash `job_id` ditambah identitas pengguna, dibuat sekali saat record application pertama kali dibuat setelah job berstatus `CANDIDATE` dan application berstatus `DRAFT_READY`. Key ini tidak pernah berubah sepanjang lifecycle application tersebut, dan disimpan sebagai kolom unique di database. Karena MVP adalah single-user, identitas pengguna tetap disimpan dalam formula agar model data tidak mengunci evolusi multi-user di masa depan.
-
-### 10.2 Guard Sebelum Submission
-
-Sebelum proses submission dijalankan, sistem wajib memverifikasi status application saat ini persis `APPROVED`. Kalau status bukan `APPROVED`, misalnya karena sudah `SUBMITTING` atau `SUBMITTED` dari proses lain, submission dibatalkan tanpa error, dianggap sudah tertangani.
-
-### 10.3 Compare-and-Swap saat Mulai Submission
-
-Perubahan status dari `APPROVED` ke `SUBMITTING` dilakukan dalam satu statement update atomik: `UPDATE applications SET status = 'SUBMITTING' WHERE id = ? AND status = 'APPROVED'`. Kalau jumlah row yang terupdate nol, berarti proses lain sudah mengambil lamaran ini duluan, dan proses saat ini berhenti tanpa lanjut submit. Mekanisme ini mencegah dua worker mengisi form yang sama secara bersamaan.
-
-### 10.4 Pencatatan Setiap Percobaan
-
-Setiap kali proses submission dijalankan, baik berhasil maupun gagal, dicatat sebagai row baru di `submission_attempts` dengan `attempt_number` yang naik. Attempt kedua untuk application yang sama tidak boleh dimulai kalau attempt sebelumnya berstatus `success`.
-
-### 10.5 Penanganan Kegagalan Ambigu
-
-Kalau koneksi terputus setelah tombol submit diklik tetapi sebelum sistem sempat memverifikasi halaman konfirmasi, hasil dicatat sebagai `ambiguous`, bukan `failed`. Status application diset `SUBMISSION_AMBIGUOUS` dan sistem mengirim notifikasi kepada pengguna untuk memeriksa email konfirmasi, confirmation page, atau bukti submission lain secara manual.
-
-Tidak ada retry otomatis dari `SUBMISSION_AMBIGUOUS`, termasuk setelah worker restart atau server crash. Pengguna wajib memilih salah satu hasil berikut melalui alur verifikasi:
-
-1. Jika ada bukti lamaran sudah terkirim, ubah status menjadi `SUBMITTED` dan simpan catatan/reference submission jika tersedia.
-2. Jika terbukti lamaran belum terkirim dan pengguna mengizinkan percobaan ulang, ubah status menjadi `APPROVED`, lalu worker boleh memulai submission baru melalui compare-and-swap.
-3. Jika submission belum bisa dipastikan, status tetap `SUBMISSION_AMBIGUOUS` dan worker tidak melakukan apa pun.
-
-Retry otomatis hanya diizinkan untuk kegagalan yang jelas terjadi sebelum tombol submit diklik, misalnya gagal memuat halaman form. Sistem tidak dapat menjamin bahwa restart setelah tombol submit diklik tidak menghasilkan duplicate submission; jaminan yang diwajibkan adalah tidak melakukan retry otomatis pada hasil yang ambigu.
-
-### 10.6 Idempotency di Sisi Telegram
-
-Setiap tombol approve atau reject di Telegram membawa `callback_data` berisi `application_id` beserta status yang diharapkan saat tombol dibuat, misalnya `PENDING_APPROVAL`. Kalau pengguna menekan tombol yang sama dua kali, atau menekan tombol dari pesan lama setelah status sudah berubah, permintaan kedua ditolak karena status di database sudah tidak cocok dengan status yang diharapkan pada `callback_data`.
-
-## 11. Privasi Data dan Penggunaan LLM
-
-Data yang dikirim ke LLM provider dibatasi hanya deskripsi lowongan dan ringkasan poin pengalaman kerja, skill, dan proyek dari pengguna. Data pribadi sensitif seperti alamat rumah, nomor telepon, dan tanggal lahir tidak pernah disertakan dalam prompt.
-
-Ringkasan CV yang dipakai untuk personalisasi disimpan sebagai field terpisah dari dokumen CV asli, berisi hanya poin yang relevan untuk pencocokan kerja.
-
-Prompt ke LLM tidak menyertakan riwayat lamaran ke perusahaan lain, supaya tidak ada informasi yang bocor antar proses atau antar lowongan.
-
-Pengguna disarankan mengaktifkan pengaturan di akun LLM provider yang menyatakan data API tidak dipakai untuk melatih model, sebelum sistem dipakai secara rutin.
-
-Log aplikasi tidak boleh mencetak isi cover letter lengkap atau isi CV dalam bentuk plaintext yang gampang diakses. Log cukup mencatat metadata seperti `job_id`, status, dan waktu kejadian.
-
-Data CV, ringkasan skill, dan hasil generate LLM disimpan di database dengan akses terbatas hanya untuk pengguna sistem, idealnya lewat koneksi yang terenkripsi dan kredensial yang tidak dibagikan.
-
-Data lowongan berstatus `FILTERED_OUT` dihapus otomatis setelah 90 hari untuk mengurangi penyimpanan data yang tidak lagi diperlukan.
+| `src/bot_loker_wfh/llm.py` | Tambah `OpenAICompatibleProvider`, `LLMRouter`, `LLMError` dengan kode error standar. |
+| `src/bot_loker_wfh/config.py` | Tambah field Settings untuk Bagian 8.4 dan 9.8. |
+| `src/bot_loker_wfh/__main__.py` | Pilih provider dari `LLM_PROVIDER`. Tambah `check-llm`, `check-browser`. `fill-form` memilih engine. |
+| `src/bot_loker_wfh/drafts.py`, `cover_letter.py` | Simpan `llm_provider` dan `llm_model`. |
+| `src/bot_loker_wfh/form_assist.py` | Pindahkan logika Playwright ke `form_engines/playwright_engine.py`. `ats_for_url` membaca `ats_registry`. |
+| `src/bot_loker_wfh/browser_mcp.py` (baru) | `McpBrowserClient`. |
+| `src/bot_loker_wfh/form_agent/` (baru) | `extractor.py`, `classifier.py`, `planner.py`, `policy.py`, `executor.py`. |
+| `src/bot_loker_wfh/bot.py` | `/model`, `/isi-lanjut`, laporan baru. |
+| `src/bot_loker_wfh/logging_utils.py` | Tambah field allowlist: `provider`, `model`, `engine`, `tool_calls`. |
+| `pyproject.toml` | Extra baru `agent = ["mcp>=1.0"]`. |
+| `.env.example`, `README.md` | Dokumentasi konfigurasi dan setup. |
+| `tests/` | `test_llm_router.py`, `test_openai_provider.py`, `test_browser_mcp_client.py`, `test_form_policy.py`, `test_form_extractor.py`, `test_form_planner.py`, fixture snapshot. |
 
 ## 12. Kebutuhan Non-Fungsional
 
-Sistem harus bisa memproses minimal 200 lowongan baru per hari tanpa penurunan performa berarti.
-
-Waktu antar pengambilan lowongan diatur minimal empat jam sekali, supaya tidak membebani API sumber data dan tetap dalam batas wajar penggunaan.
-
-Kredensial API dan token bot disimpan di environment variable, tidak pernah ditulis langsung di kode.
-
-Sistem harus punya mekanisme retry otomatis untuk kegagalan jaringan sementara pada tahap fetch, dengan batasan retry hanya untuk kegagalan sebelum submission final, sesuai Bagian 10.5.
-
-Semua data pribadi pengguna disimpan lokal di server milik pengguna sendiri, tidak dikirim ke pihak ketiga selain LLM provider untuk keperluan generate teks, sesuai batasan di Bagian 11.
+| Kategori | Kebutuhan |
+|---|---|
+| Performa | Draft cover letter lewat 9Router selesai di bawah 30 detik pada p95. Satu halaman form selesai diisi di bawah 90 detik pada p95. |
+| Keandalan | Kegagalan 9Router atau BrowserMCP tidak menghentikan loop `run_forever`. Setiap error berakhir dengan pesan Telegram. |
+| Keamanan | API key 9Router hanya dari `.env`. Tidak muncul di log, argumen command line, atau pesan Telegram. |
+| Privasi | Prompt LLM hanya berisi deskripsi lowongan, `SafeCvProfile`, label field, opsi dropdown, dan nama kunci jawaban. |
+| Keterlihatan | Semua event memakai `StructuredLogger` dengan `run_id`. Event baru: `llm_call`, `llm_fallback`, `form_session_start`, `form_action_rejected`, `form_session_end`. |
+| Testabilitas | Semua test berjalan tanpa jaringan, tanpa 9Router, dan tanpa Chrome. Provider dan klien MCP bisa diganti objek palsu. |
+| Kompatibilitas | Windows 10/11 dan Linux. Node.js 18 atau lebih baru untuk 9Router dan BrowserMCP. Python tetap 3.11. |
 
 ## 13. Risiko dan Mitigasi
 
 | Risiko | Dampak | Mitigasi |
 |---|---|---|
-| Akun terblokir karena automation di platform yang melarang | Kehilangan akses ke LinkedIn atau Indeed | Tidak mengotomasi platform tersebut, fokus ke sumber dengan API resmi |
-| Cover letter generik terdeteksi recruiter | Tingkat respons rendah, reputasi menurun | Review manual di awal, validasi kualitas sebelum aktifkan auto-submit |
-| Form ATS berubah struktur | Bot gagal isi form otomatis | Logging error jelas, fallback ke notifikasi manual saat submit gagal |
-| Submission dobel untuk job yang sama | Terlihat tidak profesional, berpotensi diskualifikasi | Idempotency key, unique constraint di `job_id`, compare-and-swap status, Bagian 10 |
-| Rate limit dari API sumber lowongan | Data lowongan tidak update tepat waktu | Interval fetch wajar, cache hasil fetch terakhir |
-| Kebocoran data pribadi lewat prompt LLM | Data sensitif tersimpan di pihak ketiga | Batasan data yang dikirim ke LLM, sesuai Bagian 11 |
-| Status lamaran tidak konsisten karena race condition | Laporan salah, keputusan approval keliru | Guard status dan compare-and-swap, Bagian 10.2 dan 10.3 |
+| LLM mengarang jawaban (misalnya pengalaman palsu) | Lamaran tidak jujur | Pertanyaan terbuka hanya dari `SafeCvProfile`. Label **Dijawab AI, wajib cek**. Opsi `FORM_AI_ANSWERS=off`. |
+| LLM menyuruh klik Submit | Lamaran terkirim tanpa review | PolicyGuard berbasis kode menolak pola submit. `Enter` dan `submit=true` diblokir di level klien. |
+| Model di 9Router tidak mendukung JSON mode | Rencana form gagal di-parse | Retry tanpa `response_format`. Jika parse gagal dua kali, jatuh ke mode `assist`. |
+| Provider gratis di 9Router mencatat prompt | Kebocoran konten | Prompt tidak berisi data pribadi. Pengguna memilih combo sendiri. README menjelaskan risiko ini. |
+| Syarat layanan provider langganan (misalnya Claude Code, Copilot) melarang pemakaian lewat proxy | Akun provider diblokir | Pengguna bertanggung jawab memilih provider. README merekomendasikan provider berbasis API key resmi untuk pemakaian rutin. |
+| Format snapshot BrowserMCP berubah antar versi | Extractor gagal | Kunci versi di `BROWSER_MCP_COMMAND` (misalnya `@browsermcp/mcp@0.1.3`). Fixture test per versi. |
+| BrowserMCP bekerja di profil Chrome asli | Bot bisa menyentuh tab lain atau akun pengguna | Navigasi hanya ke host di registry. Tidak ada `go_back`, `screenshot`, atau `console_logs`. |
+| Tidak ada tool upload file | CV tidak terlampir | Upload selalu masuk daftar manual. Engine Playwright tetap tersedia. |
+| Form multi-halaman | Pengisian berhenti di halaman pertama | `/isi-lanjut`. Pengguna yang menekan Next. |
+| Syarat layanan ATS | Risiko hukum | Keputusan NO-GO auto-submit tetap. Pengguna yang submit. Registry hanya berisi host yang sudah diuji. |
 
-## 14. Rencana Pengembangan dan Acceptance Criteria
+## 14. Rencana Fase dan Acceptance Criteria
 
-### Fase 1: MVP (target 1-2 minggu)
+### Fase 1: 9Router Provider (estimasi 3 sampai 4 hari)
 
-Cakupan: fetcher RemoteOK dan Remotive, eligibility engine dasar berbasis keyword, tabel `jobs` dan `applications` dengan constraint unique, bot Telegram untuk notifikasi, penyiapan draft manual, dan approval manual, penyimpanan di SQLite. Belum ada auto-submit maupun LLM. Cover letter dan CV summary wajib diisi pengguna melalui template lokal sebelum application dibuat.
+Lingkup: A-FR1 sampai A-FR7, migrasi kolom `llm_provider` dan `llm_model`.
 
-Acceptance criteria:
+Selesai jika:
+- [ ] Semua acceptance criteria Bagian 8.5 terpenuhi.
+- [ ] `python -m bot_loker_wfh check-llm` berhasil pada 9Router lokal.
+- [ ] README punya bagian "Menghubungkan 9Router".
 
-Sistem berhasil fetch minimal 50 lowongan baru dari RemoteOK dan Remotive dalam satu kali run scheduler, tanpa error dan tanpa duplikat berdasarkan `source_external_key` maupun `canonical_fingerprint`.
+### Fase 2: Routing Tugas dan Observabilitas LLM (estimasi 2 hari)
 
-Fetch yang dijalankan dua kali berturut-turut terhadap sumber yang sama tidak menghasilkan row baru di tabel `jobs` untuk lowongan yang sudah ada, dibuktikan lewat query count sebelum dan sesudah.
+Lingkup: A-FR8 sampai A-FR11, tabel `llm_calls`, `/laporan` menampilkan jumlah panggilan per model dan rasio fallback.
 
-Eligibility engine memisahkan status `CANDIDATE` dan `FILTERED_OUT` sesuai kriteria Bagian 5, diverifikasi manual terhadap minimal 20 sample lowongan dengan hasil yang sesuai ekspektasi.
+Selesai jika:
+- [ ] `/model` menampilkan model aktif dan status terakhir.
+- [ ] `/laporan` menampilkan rasio draft LLM dibanding template 7 hari terakhir.
 
-Bot Telegram mengirim notifikasi candidate dengan aksi `Siapkan draft`. Setelah pengguna mengirim cover letter dan CV summary yang tidak kosong, sistem membuat application `DRAFT_READY`, mengirim materi untuk review, lalu mengubahnya ke `PENDING_APPROVAL`. Tombol approve/reject berhasil mengubah status application sesuai tabel transisi Bagian 7.4.
+### Fase 3: Klien BrowserMCP dan Pengisian Deterministik (estimasi 5 sampai 7 hari)
 
-Percobaan insert dua application dengan `job_id` yang sama menghasilkan error constraint, bukan dua row baru. Percobaan membuat application dengan `cover_letter` atau `cv_summary` kosong ditolak oleh validasi aplikasi.
+Lingkup: B-FR1 sampai B-FR4, B-FR6 sampai B-FR9, registry ATS, tanpa LLM. Field diisi hanya dari kelas Identitas, Tautan, Jawaban tersimpan, dan Cover letter berdasarkan kecocokan label.
 
-Job berbeda dari perusahaan yang sama dapat memiliki dua application, sedangkan dua proses untuk job yang sama hanya menghasilkan satu application.
+Selesai jika:
+- [ ] Hasil pada Greenhouse dan Lever setara engine Playwright.
+- [ ] Semua test PolicyGuard lulus.
+- [ ] Dry-run 3 Ashby dan 3 Workable tercatat di `docs/browsermcp-dry-run.md`.
 
-### Fase 2: Personalisasi dan Integrasi ATS (target 2-3 minggu setelah Fase 1)
+### Fase 4: FormPlanner dengan LLM (estimasi 5 hari)
 
-Cakupan: integrasi Greenhouse dan Lever API, LLM untuk generate cover letter dan ringkasan CV otomatis, skoring relevansi berbasis embedding menggantikan keyword sederhana, penerapan batasan privasi data di Bagian 11.
+Lingkup: B-FR5, B-FR10 sampai B-FR13, format baru `answers.json`.
 
-Acceptance criteria:
+Selesai jika:
+- [ ] Semua acceptance criteria Bagian 9.9 terpenuhi.
+- [ ] Rata-rata waktu isi manual per lamaran di bawah 3 menit pada 10 lamaran nyata (dicatat pengguna).
 
-Sistem berhasil generate cover letter untuk minimal 10 lowongan berbeda, dan hasil perbandingan manual menunjukkan tiap cover letter mengandung referensi spesifik ke lowongan masing-masing, bukan template yang sama diulang.
+### Fase 5: Hardening (estimasi 2 sampai 3 hari)
 
-Integrasi Greenhouse dan Lever berhasil mengambil data lowongan dari minimal 5 perusahaan berbeda per masing-masing ATS, tersimpan dengan `ats_type` dan `ats_slug` yang benar di tabel `companies_ats`.
+Lingkup: B-FR14, penguncian versi BrowserMCP, dokumentasi risiko di `docs/auto-submit-risk-assessment.md`, uji Windows.
 
-Skor relevansi embedding terbukti mengurutkan dengan benar lewat pengujian: lowongan yang jelas relevan terhadap profil pengguna mendapat skor lebih tinggi dibanding lowongan yang jelas tidak relevan, diuji dengan minimal 10 pasang perbandingan.
-
-Audit manual terhadap log file setelah satu siklus penuh berjalan tidak menemukan isi cover letter atau isi CV tercetak dalam bentuk plaintext.
-
-### Fase 3: Auto-Submit dan Dashboard (target setelah Fase 2 stabil)
-
-Cakupan: auto-submit form lewat Playwright untuk ATS yang sudah diverifikasi aman, dashboard NestJS dan React untuk statistik dan histori lamaran, migrasi database dari SQLite ke PostgreSQL, job terjadwal untuk transisi status `NO_RESPONSE`.
-
-Acceptance criteria:
-
-Auto-submit berhasil mengisi dan mengirim form di minimal 3 perusahaan Greenhouse dan 3 perusahaan Lever secara berurutan, dengan tiap application berakhir di status `SUBMITTED` dan tepat satu row `success` di `submission_attempts`.
-
-Simulasi crash setelah tombol submit diklik, diikuti restart proses, menghasilkan status `SUBMISSION_AMBIGUOUS`, tidak melakukan retry otomatis, dan mengirim notifikasi verifikasi kepada pengguna. Submission kedua hanya boleh dimulai setelah pengguna memverifikasi submission belum terjadi dan mengubah status sesuai tabel transisi Bagian 7.4.
-
-Data statistik yang ditampilkan dashboard cocok dengan hasil query langsung ke database, diverifikasi dengan membandingkan angka di dashboard dan hasil query untuk minimal tiga metrik: total dilamar, total interview, total respons.
-
-Job terjadwal berhasil mengubah status application menjadi `NO_RESPONSE` tepat setelah 21 hari sejak `submitted_at` tanpa update manual, diuji dengan data `submitted_at` yang dimundurkan secara sengaja untuk simulasi.
+Selesai jika:
+- [ ] `check-browser` berjalan di Windows dan Linux.
+- [ ] Dokumen risiko diperbarui dengan bagian BrowserMCP dan 9Router.
 
 ## 15. Metrik Keberhasilan
 
-Jumlah lowongan relevan yang ditemukan per minggu meningkat dibanding pencarian manual.
+Diukur dari tabel `applications`, `llm_calls`, dan `form_sessions` selama 4 minggu setelah Fase 4.
 
-Waktu yang dihabiskan pengguna untuk proses apply per lowongan turun signifikan, dari yang tadinya bisa 20-30 menit manual menjadi di bawah 5 menit dengan review lewat Telegram.
+| Metrik | Baseline sekarang | Target |
+|---|---|---|
+| Draft dibuat LLM (bukan template) | Tergantung ada tidaknya Anthropic key | 95% atau lebih |
+| Draft jatuh ke template karena error LLM | Belum diukur | Di bawah 5% |
+| Field wajib non-upload terisi otomatis | Hanya Greenhouse dan Lever, sekitar 6 field standar | 80% atau lebih pada ATS `auto_fill` |
+| ATS yang didukung | 2 | 6 (4 `auto_fill`, 2 `assist`) |
+| Waktu isi form manual per lamaran | Sekitar 8 menit (estimasi pengguna) | Di bawah 3 menit |
+| Klik Submit oleh bot | 0 | 0 |
+| Data pribadi di prompt atau log | 0 | 0 |
 
-Tingkat respons dari perusahaan tidak menurun dibanding rata-rata lamaran manual pengguna sebelumnya, untuk memastikan otomasi tidak menurunkan kualitas.
+## 16. Pertanyaan Terbuka
 
-Tidak ada insiden pemblokiran akun di platform manapun, dan tidak ada insiden submission dobel untuk job yang sama, selama sistem berjalan.
+1. Apakah bot tetap berjalan di VPS Docker? Jika ya, perlu mode worker lokal yang mengambil tugas form dari VPS. Usulan: tunda ke PRD berikutnya dan jalankan `run-bot` di laptop saat butuh `/isi`.
+2. Model combo mana yang dipakai untuk tugas `form`? Tugas ini butuh model yang stabil mengeluarkan JSON. Usulan: uji 3 model di Fase 4 dan catat tingkat keberhasilan parse.
+3. Apakah jawaban AI untuk pertanyaan terbuka perlu approval Telegram sebelum diketik? Usulan awal: tidak, cukup label **wajib cek** karena pengguna tetap review sebelum Submit.
+4. Apakah Kalibrr dan Dealls perlu mode `auto_fill`? Keduanya butuh login. Usulan: tetap `assist` sampai ada 3 dry-run berhasil.
+5. Apakah Playwright tetap dipakai untuk upload CV dalam mode hibrida? Keduanya tidak bisa berbagi tab yang sama tanpa CDP. Usulan: tidak, upload tetap manual.
 
-## 16. Panduan Pengembangan
+## 17. Lampiran
 
-Setiap fitur dikerjakan dengan checklist to-do sebelum dianggap selesai: implementasi fungsi utama, penanganan error, logging tanpa data sensitif, dan pengujian manual dengan minimal lima lowongan nyata.
+### 17.1 Setup Pengguna (Ringkas)
 
-Kode mengikuti standar clean code: satu fungsi satu tanggung jawab, penamaan variabel jelas, tidak ada nilai hardcoded untuk kredensial atau konfigurasi yang bisa berubah.
+```bash
+# 9Router
+npm install -g 9router
+9router                      # dashboard di http://localhost:20128/dashboard
+# Di dashboard: hubungkan provider, buat combo "loker-draft", buat API key
 
-Setiap perubahan status wajib lewat fungsi transisi terpusat yang memvalidasi tabel transisi job di Bagian 7.3 atau tabel transisi application di Bagian 7.4, tidak boleh ada update status langsung dari tempat lain di kode.
+# BrowserMCP
+# 1. Pasang ekstensi BrowserMCP di Chrome
+# 2. Buka tab kosong, klik ikon ekstensi, tekan Connect
 
-Setiap integrasi API baru didokumentasikan di file terpisah, mencatat endpoint yang dipakai, format response, dan batasan penggunaan.
-
----
-
-**Lampiran A: Contoh Struktur Data Lowongan dari RemoteOK**
-
-```json
-{
-  "id": "123456",
-  "company": "Nama Perusahaan",
-  "position": "Backend Developer",
-  "description": "Deskripsi lowongan...",
-  "location": "Worldwide",
-  "tags": ["python", "remote", "backend"],
-  "apply_url": "https://remoteok.com/l/123456"
-}
+# Bot
+python -m pip install -e ".[agent]"
+python -m bot_loker_wfh check-llm
+python -m bot_loker_wfh check-browser
+python -m bot_loker_wfh run-bot
 ```
 
-**Lampiran B: Contoh Perintah Bot Telegram**
+### 17.2 Referensi
 
-`/lowongan` menampilkan daftar lowongan berstatus `CANDIDATE` serta application berstatus `DRAFT_READY` atau `PENDING_APPROVAL` hari ini.
+- 9Router: https://github.com/decolua/9router
+- BrowserMCP: https://browsermcp.io dan https://github.com/BrowserMCP/mcp
+- Paket npm BrowserMCP: https://www.npmjs.com/package/@browsermcp/mcp
+- Model Context Protocol Python SDK: https://github.com/modelcontextprotocol/python-sdk
+- Keputusan auto-submit: `docs/auto-submit-risk-assessment.md`
+- PRD MVP: `docs/PRD-v2-mvp.md`
 
-`/siapkan [job_id]` memulai penyiapan draft manual untuk job `CANDIDATE` dan mengirim template cover letter serta CV summary kepada pengguna.
-
-`/draft [job_id]` menerima atau memperbarui cover letter dan CV summary manual. Application hanya dibuat atau dipindahkan ke `DRAFT_READY` jika kedua field tidak kosong.
-
-`/setuju [id]` mengubah status application dari `PENDING_APPROVAL` ke `APPROVED`.
-
-`/tolak [id]` mengubah status ke `REJECTED_BY_USER`.
-
-`/status [id] [status_baru]` mengubah status lamaran secara manual, dicatat sebagai `changed_by = 'user'` di `application_status_history`.
-
-`/laporan` menampilkan ringkasan statistik minggu berjalan.
-
-**Lampiran C: Contoh Alasan Eligibility yang Tercatat**
-
-```json
-{
-  "job_id": "uuid-lowongan",
-  "status": "FILTERED_OUT",
-  "filtered_reason": "excluded keyword: unpaid"
-}
-```
+Semua referensi diakses 30 September 2026. Cek ulang nama tool, port, dan format model sebelum Fase 1 dan Fase 3 dimulai.
