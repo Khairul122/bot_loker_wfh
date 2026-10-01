@@ -7,7 +7,8 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-from bot_loker_wfh.browser_mcp import McpBrowserClient
+from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
+from bot_loker_wfh.cv_profile import load_profile
 from bot_loker_wfh.form_agent.answers_v2 import AnswersStore
 from bot_loker_wfh.form_agent.classifier import FieldClassifier
 from bot_loker_wfh.form_agent.executor import Executor, ValueResolver
@@ -29,8 +30,10 @@ class FormAgent:
         max_actions: int = 60,
         max_tool_calls: int = 80,
         timeout_seconds: float = 300.0,
+        connect_timeout_seconds: float = 20.0,
         applicant_path: str = "data/applicant.json",
         answers_path: str = "data/answers.json",
+        profile_path: str = "data/profile.json",
         db_path: str | None = None,
         custom_client: Any | None = None,
     ):
@@ -41,8 +44,10 @@ class FormAgent:
         self.max_actions = max_actions
         self.max_tool_calls = max_tool_calls
         self.timeout_seconds = timeout_seconds
+        self.connect_timeout_seconds = connect_timeout_seconds
         self.applicant_path = applicant_path
         self.answers_path = answers_path
+        self.profile_path = profile_path
         self.db_path = db_path
         self.custom_client = custom_client
 
@@ -115,6 +120,16 @@ class FormAgent:
                 )
 
         try:
+            # Tunggu ekstensi terhubung
+            if hasattr(client, "wait_for_extension"):
+                try:
+                    client.wait_for_extension(self.connect_timeout_seconds)
+                except McpNotConnectedError:
+                    return (
+                        "Ekstensi BrowserMCP belum terhubung. "
+                        "Buka Chrome, klik ikon BrowserMCP, tekan Connect, lalu ulangi /isi."
+                    )
+
             # 3. Buka halaman
             if page_number == 1:
                 client.call_tool("browser_navigate", {"url": apply_url})
@@ -128,7 +143,10 @@ class FormAgent:
                             open_button_label.lower() in f.label.lower()
                             or f.role == "button"
                         ) and open_button_label.lower() in f.label.lower():
-                            client.call_tool("browser_click", {"ref": f.ref})
+                            client.call_tool(
+                                "browser_click",
+                                {"element": open_button_label, "ref": f.ref},
+                            )
                             time.sleep(2.0)
                             break
 
@@ -149,12 +167,18 @@ class FormAgent:
                 self.applicant_path, self.answers_path, cover_letter
             )
 
+            candidate_summary = ""
+            try:
+                candidate_summary = load_profile(self.profile_path).to_summary()
+            except Exception:
+                candidate_summary = ""
+
             plan_res = planner.plan(
                 fields,
                 job_title=title,
                 company=company,
                 job_summary=description,
-                candidate_summary=resolver.cover_letter,
+                candidate_summary=candidate_summary,
                 mode=mode,
                 available_keys=resolver.get_available_keys(),
             )
@@ -168,7 +192,7 @@ class FormAgent:
                     ans_text = planner.generate_answer(
                         lbl,
                         job_summary=description,
-                        candidate_summary=resolver.cover_letter,
+                        candidate_summary=candidate_summary,
                     )
                     final_actions.append(
                         act.__class__(

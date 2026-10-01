@@ -1,0 +1,10 @@
+- Page URL: https://apply.workable.com/techcorp/j/404/
+- Page Title: DevOps Engineer
+- Page Snapshot
+```yaml
+- textbox "First Name*" [ref=wk1]
+- textbox "Last Name*" [ref=wk2]
+- textbox "Email*" [ref=wk3]
+- textbox "Phone" [ref=wk4]
+- button "Submit application" [ref=wk5]
+```

@@ -1,0 +1,13 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "isError": true,
+    "content": [
+      {
+        "type": "text",
+        "text": "Tool browser_type requires 'element' and 'ref' arguments"
+      }
+    ]
+  }
+}

@@ -221,7 +221,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
     if args.command == "check-browser":
+        import socket
         from .browser_mcp import McpBrowserClient
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1.0)
+        port_in_use = False
+        try:
+            sock.connect(("127.0.0.1", 9009))
+            port_in_use = True
+        except Exception:
+            port_in_use = False
+        finally:
+            sock.close()
+
+        if port_in_use:
+            print("PERINGATAN: Port 9009 sudah digunakan (mungkin oleh instance BrowserMCP lain, Cursor, atau Claude Desktop).")
+
         client = McpBrowserClient(command=settings.browser_mcp_command)
         try:
             client.start()
@@ -435,7 +451,8 @@ def _run_bot(settings: Settings) -> int:
     print(
         "bot running "
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()} "
-        f"llm={settings.llm_provider}"
+        f"llm={settings.llm_provider} "
+        f"form_engine={settings.form_engine}"
     )
     try:
         runner.run_forever()

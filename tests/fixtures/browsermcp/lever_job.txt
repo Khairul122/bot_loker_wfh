@@ -1,0 +1,14 @@
+- Page URL: https://jobs.lever.co/techcorp/202
+- Page Title: Backend Engineer Application
+- Page Snapshot
+```yaml
+- button "Apply for this job" [ref=lv1]
+- textbox "Full Name*" [ref=lv2]
+- textbox "Email*" [ref=lv3]
+- textbox "Phone*" [ref=lv4]
+- textbox "Current company" [ref=lv5]
+- textbox "LinkedIn URL" [ref=lv6]
+- textbox "GitHub URL" [ref=lv7]
+- textarea "Additional Information" [ref=lv8]
+- button "Submit application" [ref=lv9]
+```

@@ -97,3 +97,36 @@ class TestFormAgent(unittest.TestCase):
         text = builder.build_report_text(rec)
         self.assertIn("Form Acme Corp - Software Engineer", text)
         self.assertIn("Form TIDAK dikirim.", text)
+
+    def test_extractor_with_browsermcp_fixtures(self):
+        from pathlib import Path
+        fixtures_dir = Path("tests/fixtures/browsermcp")
+        extractor = FormExtractor()
+
+        for fname in ["greenhouse_job.txt", "lever_job.txt", "ashby_job.txt", "workable_job.txt"]:
+            fpath = fixtures_dir / fname
+            if fpath.exists():
+                text = fpath.read_text(encoding="utf-8")
+                fields = extractor.extract(text)
+                self.assertGreater(len(fields), 0, f"Failed to extract fields from {fname}")
+
+    def test_candidate_summary_used_in_prompt(self):
+        from unittest.mock import MagicMock
+        from bot_loker_wfh.form_agent.planner import FormPlanner
+
+        router = MagicMock()
+        router.complete.return_value = MagicMock(text="Sample answer")
+        planner = FormPlanner(router, None)
+
+        planner.generate_answer(
+            "Why do you want to work here?",
+            job_summary="Software company",
+            candidate_summary="Python developer with 5 years experience",
+        )
+
+        call_args = router.complete.call_args[0]
+        messages = call_args[1]
+        user_msg = messages[1]["content"]
+
+        self.assertIn("Python developer with 5 years experience", user_msg)
+        self.assertNotIn("Cover Letter", user_msg)

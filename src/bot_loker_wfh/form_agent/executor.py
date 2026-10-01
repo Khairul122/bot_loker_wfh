@@ -147,11 +147,18 @@ class Executor:
 
             time.sleep(0.3)  # 300 ms pacing between actions
 
+            element_name = field.label or field.role or "field"
+
             try:
                 if act.action in {"type", "answer"}:
                     self.client.call_tool(
                         "browser_type",
-                        {"ref": act.ref, "text": resolved_val, "submit": False},
+                        {
+                            "element": element_name,
+                            "ref": act.ref,
+                            "text": resolved_val,
+                            "submit": False,
+                        },
                     )
                     act_type = "ai_answered" if act.action == "answer" else "filled"
                     events.append(
@@ -169,7 +176,11 @@ class Executor:
                 elif act.action == "select":
                     self.client.call_tool(
                         "browser_select_option",
-                        {"ref": act.ref, "values": [resolved_val]},
+                        {
+                            "element": element_name,
+                            "ref": act.ref,
+                            "values": [resolved_val],
+                        },
                     )
                     events.append(
                         ExecutionEvent(
@@ -184,7 +195,10 @@ class Executor:
                         )
                     )
                 elif act.action == "check":
-                    self.client.call_tool("browser_click", {"ref": act.ref})
+                    self.client.call_tool(
+                        "browser_click",
+                        {"element": element_name, "ref": act.ref},
+                    )
                     events.append(
                         ExecutionEvent(
                             ref=act.ref,
@@ -204,7 +218,7 @@ class Executor:
                         label=field.label,
                         role=field.role,
                         field_class=field.field_class,
-                        action="error",
+                        action="failed",
                         source=act.source,
                         reason=str(err),
                         confidence=act.confidence,

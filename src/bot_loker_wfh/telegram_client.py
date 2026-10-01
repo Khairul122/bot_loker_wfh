@@ -84,6 +84,14 @@ class TelegramClient:
             {"callback_query_id": callback_query_id, "text": text[:200]},
         )
 
+    def delete_message(self, chat_id: int, message_id: int) -> bool:
+        """Delete a message by ID. Returns True if deleted, False otherwise."""
+        try:
+            self._call("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
+            return True
+        except Exception:
+            return False
+
     def _call(self, method: str, payload: dict[str, Any]) -> Any:
         request = Request(
             f"{API_BASE}/bot{self._token}/{method}",

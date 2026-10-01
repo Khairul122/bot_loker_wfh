@@ -5,7 +5,11 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-from bot_loker_wfh.browser_mcp import McpBrowserClient, McpClientError
+from bot_loker_wfh.browser_mcp import (
+    McpBrowserClient,
+    McpClientError,
+    McpNotConnectedError,
+)
 
 
 class TestBrowserMCP(unittest.TestCase):
@@ -19,7 +23,7 @@ class TestBrowserMCP(unittest.TestCase):
         client = McpBrowserClient()
         mock_send = MagicMock(return_value={"result": {"status": "ok"}})
         with patch.object(client, "_send_request", mock_send):
-            client.call_tool("browser_type", {"ref": "e1", "text": "test", "submit": True})
+            client.call_tool("browser_type", {"element": "input", "ref": "e1", "text": "test", "submit": True})
 
         msg_params = mock_send.call_args[0][1]
         self.assertFalse(msg_params["arguments"]["submit"])
@@ -46,3 +50,29 @@ class TestBrowserMCP(unittest.TestCase):
         with patch.object(client, "_send_request", mock_send):
             client.call_tool("browser_navigate", {"url": "https://jobs.lever.co/company/job-1"})
             mock_send.assert_called_once()
+
+    def test_is_error_raises_mcp_not_connected_error(self):
+        client = McpBrowserClient()
+        mock_res = {
+            "result": {
+                "isError": True,
+                "content": [{"type": "text", "text": "No connection to browser extension"}],
+            }
+        }
+        with patch.object(client, "_send_request", return_value=mock_res):
+            with self.assertRaises(McpNotConnectedError):
+                client.call_tool("browser_snapshot", {})
+
+    def test_wait_for_extension_retry(self):
+        client = McpBrowserClient()
+        err_res = {
+            "result": {
+                "isError": True,
+                "content": [{"type": "text", "text": "No connection to browser extension"}],
+            }
+        }
+        ok_res = {"result": {"content": [{"type": "text", "text": "Snapshot ok"}]}}
+
+        with patch.object(client, "_send_request", side_effect=[err_res, ok_res]):
+            success = client.wait_for_extension(timeout=5.0)
+            self.assertTrue(success)

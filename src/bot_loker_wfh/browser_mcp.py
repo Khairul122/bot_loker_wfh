@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import collections
 import json
+import os
+import queue
+import shlex
+import shutil
 import subprocess
+import threading
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -20,9 +26,16 @@ ALLOWED_TOOLS = frozenset(
     }
 )
 ALLOWED_KEYS = frozenset({"Tab", "Escape"})
+ELEMENT_REQUIRING_TOOLS = frozenset(
+    {"browser_type", "browser_click", "browser_select_option"}
+)
 
 
 class McpClientError(RuntimeError):
+    pass
+
+
+class McpNotConnectedError(McpClientError):
     pass
 
 
@@ -44,11 +57,26 @@ class McpBrowserClient:
         self.tool_call_count = 0
         self.process: subprocess.Popen[str] | None = None
         self._request_id = 0
+        self._stdout_queue: queue.Queue[str] = queue.Queue()
+        self._stderr_buffer: collections.deque[str] = collections.deque(maxlen=20)
+        self._threads: list[threading.Thread] = []
 
     def start(self) -> None:
         if self.process is not None:
             return
-        args = self.command.split()
+
+        # shlex parsing for Windows vs POSIX
+        args = shlex.split(self.command, posix=(os.name != "nt"))
+        if not args:
+            raise McpClientError("Command BrowserMCP kosong")
+
+        executable = shutil.which(args[0])
+        if not executable:
+            raise McpClientError(
+                f"Node.js/npx tidak ditemukan ('{args[0]}'). Pasang Node.js 18+."
+            )
+        args[0] = executable
+
         try:
             self.process = subprocess.Popen(
                 args,
@@ -56,12 +84,20 @@ class McpBrowserClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                encoding="utf-8",
                 bufsize=1,
             )
         except Exception as err:
             raise McpClientError(f"Failed to start MCP process: {err}") from err
 
-        # Perform JSON-RPC initialize handshakes if process is active
+        # Background reader threads for stdout and stderr to prevent deadlocks
+        stdout_t = threading.Thread(target=self._read_stdout, daemon=True)
+        stderr_t = threading.Thread(target=self._read_stderr, daemon=True)
+        stdout_t.start()
+        stderr_t.start()
+        self._threads.extend([stdout_t, stderr_t])
+
+        # Perform JSON-RPC initialize handshakes with up to 60s timeout
         init_res = self._send_request(
             "initialize",
             {
@@ -69,9 +105,25 @@ class McpBrowserClient:
                 "capabilities": {},
                 "clientInfo": {"name": "bot-loker-wfh", "version": "0.1.0"},
             },
+            timeout=60.0,
         )
         if not init_res:
             raise McpClientError("MCP server failed to initialize")
+
+        # Send notifications/initialized per MCP specification
+        self._send_notification("notifications/initialized", {})
+
+    def _read_stdout(self) -> None:
+        if not self.process or not self.process.stdout:
+            return
+        for line in self.process.stdout:
+            self._stdout_queue.put(line)
+
+    def _read_stderr(self) -> None:
+        if not self.process or not self.process.stderr:
+            return
+        for line in self.process.stderr:
+            self._stderr_buffer.append(line.rstrip())
 
     def stop(self) -> None:
         if self.process:
@@ -79,8 +131,30 @@ class McpBrowserClient:
                 self.process.terminate()
                 self.process.wait(timeout=2)
             except Exception:
-                pass
+                try:
+                    self.process.kill()
+                except Exception:
+                    pass
             self.process = None
+
+    def wait_for_extension(self, timeout: float = 20.0) -> bool:
+        """Poll browser_snapshot repeatedly until Chrome extension is connected."""
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < timeout:
+            try:
+                res = self.call_tool("browser_snapshot", {})
+                if res is not None:
+                    return True
+            except McpNotConnectedError:
+                time.sleep(1.0)
+            except Exception as err:
+                if "No connection to browser extension" in str(err):
+                    time.sleep(1.0)
+                else:
+                    raise
+        raise McpNotConnectedError(
+            "Ekstensi BrowserMCP belum terhubung setelah menunggu."
+        )
 
     def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         if name not in ALLOWED_TOOLS:
@@ -89,9 +163,14 @@ class McpBrowserClient:
         if self.tool_call_count >= self.max_tool_calls:
             raise McpClientError("Maximum tool call limit reached")
 
-        self.tool_call_count += 1
+        # Enforce element and ref requirement for targeting tools
+        if name in ELEMENT_REQUIRING_TOOLS:
+            if not args.get("element") or not args.get("ref"):
+                raise McpClientError(
+                    f"Tool {name} requires 'element' and 'ref' arguments"
+                )
 
-        # Enforce safety constraints
+        self.tool_call_count += 1
         sanitized_args = dict(args)
 
         if name == "browser_type":
@@ -114,14 +193,46 @@ class McpBrowserClient:
         )
 
         if "error" in res:
-            raise McpClientError(f"MCP tool error: {res['error']}")
+            err_msg = res["error"].get("message", str(res["error"]))
+            raise McpClientError(f"MCP tool error: {err_msg}")
 
-        return res.get("result", {})
+        result_payload = res.get("result", {})
+        if isinstance(result_payload, dict) and result_payload.get("isError"):
+            content_list = result_payload.get("content", [])
+            err_text = ""
+            if content_list and isinstance(content_list, list):
+                first_item = content_list[0]
+                if isinstance(first_item, dict):
+                    err_text = first_item.get("text", "")
+            if not err_text:
+                err_text = "BrowserMCP returned isError without text"
 
-    def _send_request(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        if not self.process or not self.process.stdin or not self.process.stdout:
-            # Fallback mock/fake mode for offline tests
-            return {"result": {}}
+            if "no connection to browser extension" in err_text.lower():
+                raise McpNotConnectedError(err_text)
+            raise McpClientError(err_text)
+
+        return result_payload
+
+    def _send_notification(self, method: str, params: dict[str, Any]) -> None:
+        if not self.process or not self.process.stdin:
+            return
+        msg = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }
+        json_line = json.dumps(msg) + "\n"
+        try:
+            self.process.stdin.write(json_line)
+            self.process.stdin.flush()
+        except Exception:
+            pass
+
+    def _send_request(
+        self, method: str, params: dict[str, Any], timeout: float | None = None
+    ) -> dict[str, Any]:
+        if not self.process or not self.process.stdin:
+            raise McpClientError("MCP process not running")
 
         self._request_id += 1
         req_id = self._request_id
@@ -137,15 +248,31 @@ class McpBrowserClient:
             self.process.stdin.write(json_line)
             self.process.stdin.flush()
         except Exception as err:
-            raise McpClientError(f"Writing to MCP stdin failed: {err}") from err
+            recent_err = " | ".join(list(self._stderr_buffer)[-5:])
+            raise McpClientError(
+                f"Writing to MCP stdin failed: {err}. Stderr: {recent_err}"
+            ) from err
 
+        wait_timeout = timeout or self.timeout
         start_time = time.monotonic()
+
         while True:
-            if time.monotonic() - start_time > 15.0:
-                raise McpClientError("MCP request timeout")
-            line = self.process.stdout.readline()
-            if not line:
-                raise McpClientError("MCP process stdout closed unexpectedly")
+            elapsed = time.monotonic() - start_time
+            remaining = wait_timeout - elapsed
+            if remaining <= 0:
+                recent_err = " | ".join(list(self._stderr_buffer)[-5:])
+                raise McpClientError(f"MCP request timeout. Stderr: {recent_err}")
+
+            try:
+                line = self._stdout_queue.get(timeout=min(remaining, 1.0))
+            except queue.Empty:
+                if self.process.poll() is not None:
+                    recent_err = " | ".join(list(self._stderr_buffer)[-5:])
+                    raise McpClientError(
+                        f"MCP process terminated unexpectedly (code {self.process.returncode}). Stderr: {recent_err}"
+                    )
+                continue
+
             try:
                 res = json.loads(line)
                 if isinstance(res, dict) and res.get("id") == req_id:

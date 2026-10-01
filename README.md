@@ -95,6 +95,21 @@ Structured events use JSON with an event name, generated `run_id`, source, statu
    python -m bot_loker_wfh add-company --ats lever --slug binance --name Binance
    ```
 
+### Form Agent & BrowserMCP Setup
+
+Untuk mengaktifkan pengisian form semi-otomatis lewat BrowserMCP:
+
+1. Di `.env`:
+   ```env
+   FORM_ASSIST_ENABLED=true
+   FORM_ENGINE=browsermcp
+   BROWSER_MCP_COMMAND=npx -y @browsermcp/mcp@0.1.3
+   ```
+2. Pastikan Node.js 18+ terpasang di komputer.
+3. Jalankan `py -3.14 -m bot_loker_wfh check-browser` untuk memverifikasi kesiapan.
+4. Pasang dan buka ekstensi Chrome BrowserMCP.
+5. Saat menerima notifikasi lowongan yang disetujui di Telegram, kirim perintah `/isi <id>` untuk membuka dan mengisi form di Chrome lokal.
+
 ### Running the Bot
 
 ```powershell

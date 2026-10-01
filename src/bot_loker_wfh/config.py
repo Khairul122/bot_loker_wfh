@@ -42,6 +42,7 @@ class Settings:
     form_max_actions: int = 60
     form_max_tool_calls: int = 80
     form_timeout_seconds: float = 300.0
+    form_connect_timeout_seconds: float = 20.0
     form_ai_answers: str = "review"
 
     @classmethod
@@ -109,6 +110,7 @@ class Settings:
             form_max_actions=int(source.get("FORM_MAX_ACTIONS") or 60),
             form_max_tool_calls=int(source.get("FORM_MAX_TOOL_CALLS") or 80),
             form_timeout_seconds=float(source.get("FORM_TIMEOUT_SECONDS") or 300.0),
+            form_connect_timeout_seconds=float(source.get("FORM_CONNECT_TIMEOUT_SECONDS") or 20.0),
             form_ai_answers=source.get("FORM_AI_ANSWERS", "review"),
         )
 

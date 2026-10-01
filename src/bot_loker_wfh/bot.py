@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from .drafts import DraftService
@@ -39,6 +40,7 @@ HELP_TEXT = (
     "/isilanjut <application_id> - isi halaman berikutnya pada form multi-halaman\n"
     "/model [nama|reset] - lihat atau ganti model AI aktif\n"
     "/dilamar <application_id> - tandai sudah dikirim manual\n"
+    "/clear - bersihkan pesan-pesan obrolan terakhir\n"
     "/lead - proyek freelance & peluang jual source code\n"
     "/status <application_id> <status> - ubah status manual\n"
     "/fetch - ambil lowongan baru sekarang\n"
@@ -255,6 +257,8 @@ class BotRunner:
             self._mark_applied(chat_id, self._resolve("applications", args))
         elif command == "/fetch":
             self._manual_fetch(chat_id)
+        elif command in {"/clear", "/clearchat"}:
+            self._clear_chat(chat_id, message.get("message_id"))
         else:
             self._safe_send(chat_id, "Perintah tidak dikenal. Ketik /help.")
 
@@ -421,16 +425,34 @@ class BotRunner:
                 cmd.append("--force-assist")
             if next_page:
                 cmd.append("--next-page")
+            log_dir = Path("data/logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = (log_dir / "fill-form.log").open("a", encoding="utf-8")
+
             self.spawn(
                 cmd,
                 cwd=os.getcwd(),
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=log_file,
             )
         except OSError:
             self._safe_send(chat_id, "Gagal menjalankan pengisi form.")
             return
         self._safe_send(chat_id, "Membuka browser di laptop Anda, mohon tunggu...")
+
+    def _clear_chat(self, chat_id: int, current_message_id: int | None) -> None:
+        if current_message_id is None:
+            self._safe_send(chat_id, "Gagal membersihkan riwayat obrolan.")
+            return
+        deleted = 0
+        for m_id in range(current_message_id, max(1, current_message_id - 50), -1):
+            if hasattr(self.client, "delete_message") and self.client.delete_message(chat_id, m_id):
+                deleted += 1
+        self._safe_send(
+            chat_id,
+            f"🧹 {deleted} pesan terakhir telah dibersihkan.\n"
+            "Tip: Untuk menghapus semua riwayat secara permanen, gunakan menu titik tiga (⋮) > 'Hapus riwayat' / 'Clear history' pada aplikasi Telegram Anda.",
+        )
 
     def _mark_applied(self, chat_id: int, application_id: str | None) -> None:
         if application_id is None:

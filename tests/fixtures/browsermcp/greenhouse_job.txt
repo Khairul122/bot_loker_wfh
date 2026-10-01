@@ -1,0 +1,15 @@
+- Page URL: https://job-boards.greenhouse.io/acme/jobs/101
+- Page Title: Software Engineer Apply
+- Page Snapshot
+```yaml
+- textbox "First Name*" [ref=s1e12]
+- textbox "Last Name*" [ref=s1e13]
+- textbox "Email*" [ref=s1e14]
+- textbox "Phone" [ref=s1e15]
+- file "Attach Resume/CV*" [ref=s1e16]
+- combobox "Country*" [ref=s1e20]:
+  - option "Indonesia" [ref=s1e21]
+  - option "United States" [ref=s1e22]
+- checkbox "I agree to the privacy policy*" [ref=s1e30]
+- button "Submit application" [ref=s1e40]
+```

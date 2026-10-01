@@ -1,0 +1,12 @@
+- Page URL: https://jobs.ashbyhq.com/techcorp/303
+- Page Title: Frontend Developer
+- Page Snapshot
+```yaml
+- textbox "Full Name*" [ref=ash1]
+- textbox "Email Address*" [ref=ash2]
+- textbox "Phone Number" [ref=ash3]
+- combobox "How did you hear about us?*" [ref=ash4]:
+  - option "LinkedIn" [ref=ash5]
+  - option "Friend" [ref=ash6]
+- button "Submit Application" [ref=ash7]
+```
