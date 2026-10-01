@@ -82,3 +82,44 @@ class TestNineRouterLLM(unittest.TestCase):
         router = create_llm_from_settings(settings)
         self.assertIsInstance(router, LLMRouter)
         self.assertEqual(len(router.chain), 2)
+
+    def test_router_set_and_reset_active_model(self):
+        prov = MagicMock()
+        router = LLMRouter([(prov, "default-model"), (prov, "fallback-model")])
+        self.assertEqual(router.active_model, "default-model")
+
+        router.set_active_model("Antigravity")
+        self.assertEqual(router.active_model, "Antigravity")
+        self.assertEqual(router.chain[0][1], "Antigravity")
+        self.assertEqual(router.chain[1][1], "fallback-model")
+
+        router.reset_model()
+        self.assertEqual(router.active_model, "default-model")
+        self.assertEqual(router.chain[0][1], "default-model")
+
+    def test_fetch_9router_models_categorized(self):
+        from bot_loker_wfh.llm import fetch_9router_models_categorized
+
+        mock_data = {
+            "data": [
+                {"id": "Antigravity", "owned_by": "combo"},
+                {"id": "GithubCopilot", "owned_by": "combo"},
+                {"id": "ag/gemini-3.8-flash", "owned_by": "ag", "capabilities": {"vision": True}},
+                {"id": "gh/gpt-4o", "owned_by": "gh", "capabilities": {"vision": True}},
+                {"id": "text-only-model", "owned_by": "other", "capabilities": {"vision": False}},
+            ]
+        }
+
+        with patch("bot_loker_wfh.llm.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(mock_data).encode("utf-8")
+            mock_resp.__enter__.return_value = mock_resp
+            mock_urlopen.return_value = mock_resp
+
+            result = fetch_9router_models_categorized()
+            self.assertIn("Antigravity", result["combo"])
+            self.assertIn("GithubCopilot", result["combo"])
+            self.assertIn("ag/gemini-3.8-flash", result["vision"])
+            self.assertIn("gh/gpt-4o", result["vision"])
+            self.assertNotIn("text-only-model", result["vision"])
+            self.assertNotIn("text-only-model", result["combo"])

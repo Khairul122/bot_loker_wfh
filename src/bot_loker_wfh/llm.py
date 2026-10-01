@@ -239,6 +239,46 @@ class OpenAICompatibleProvider:
         return res.text
 
 
+def fetch_9router_models_categorized(
+    base_url: str = "http://localhost:20128/v1",
+    api_key: str = "sk-dummy",
+    timeout: float = 5.0,
+) -> dict[str, Any]:
+    url = f"{base_url.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    req = Request(url, headers=headers)
+    try:
+        with urlopen(req, timeout=timeout) as resp:
+            data = json.load(resp)
+            models_data = data.get("data", [])
+
+            combo_models: list[str] = []
+            vision_models: list[str] = []
+
+            for m in models_data:
+                if not isinstance(m, dict):
+                    continue
+                mid = m.get("id", "")
+                if not mid:
+                    continue
+                owned = str(m.get("owned_by", "")).lower()
+                caps = m.get("capabilities")
+
+                if owned == "combo" or "combo" in mid.lower():
+                    combo_models.append(mid)
+
+                if isinstance(caps, dict) and caps.get("vision"):
+                    vision_models.append(mid)
+
+            return {
+                "combo": sorted(list(set(combo_models))),
+                "vision": sorted(list(set(vision_models))),
+                "error": None,
+            }
+    except Exception as err:
+        return {"combo": [], "vision": [], "error": str(err)}
+
+
 def _map_http_status_to_code(status: int) -> str:
     if status == 401:
         return "unauthorized"
@@ -263,9 +303,29 @@ class LLMRouter:
         task_budget_seconds: float = 90.0,
     ):
         self.chain = chain
+        self.original_chain = list(chain)
         self.recorder = recorder
         self.task_budget_seconds = task_budget_seconds
         self._last_result: LLMResult | None = None
+        self._active_model_override: str | None = None
+
+    @property
+    def active_model(self) -> str:
+        if self._active_model_override:
+            return self._active_model_override
+        if self.chain:
+            return self.chain[0][1]
+        return "none"
+
+    def set_active_model(self, model: str) -> None:
+        self._active_model_override = model
+        if self.chain:
+            first_provider = self.chain[0][0]
+            self.chain = [(first_provider, model)] + list(self.original_chain[1:])
+
+    def reset_model(self) -> None:
+        self._active_model_override = None
+        self.chain = list(self.original_chain)
 
     @property
     def last_result(self) -> LLMResult | None:
