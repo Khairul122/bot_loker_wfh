@@ -29,6 +29,13 @@ def _apply_002_schema(connection: sqlite3.Connection) -> None:
         if column not in app_columns:
             connection.execute(f"ALTER TABLE applications ADD COLUMN {column} TEXT")
 
+    filter_columns = {
+        row[1]
+        for row in connection.execute("PRAGMA table_info(filters)").fetchall()
+    }
+    if "max_bids" not in filter_columns:
+        connection.execute("ALTER TABLE filters ADD COLUMN max_bids INTEGER DEFAULT NULL")
+
     connection.executescript(
         """
         CREATE TABLE IF NOT EXISTS llm_calls (

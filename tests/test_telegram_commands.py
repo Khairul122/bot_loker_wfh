@@ -136,6 +136,48 @@ class TelegramCommandHandlerTest(unittest.TestCase):
         self.assertIn("dikembalikan ke konfigurasi awal", res_reset.message)
         mock_router.reset_model.assert_called_once()
 
+    def test_filter_command_views_and_updates_filters(self):
+        # 1. View filters
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter"))
+        self.assertTrue(res.success)
+        self.assertIn("Filter Scraping Lowongan & Lead Aktif", res.message)
+        self.assertIn("Role Keywords", res.message)
+
+        # 2. Update role
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter role laravel, python"))
+        self.assertTrue(res.success)
+        self.assertIn("laravel, python", res.message)
+
+        # 3. Add role
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter addrole golang"))
+        self.assertTrue(res.success)
+        self.assertIn("golang", res.message)
+
+        # 4. Update score
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter score 0.5"))
+        self.assertTrue(res.success)
+        self.assertIn("0.50", res.message)
+
+        # 5. Update age
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter age 7"))
+        self.assertTrue(res.success)
+        self.assertIn("7 hari", res.message)
+
+        # 6. Update bids
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter bid 30"))
+        self.assertTrue(res.success)
+        self.assertIn("30 bid", res.message)
+
+        # 7. Disable bids filter
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter bid 0"))
+        self.assertTrue(res.success)
+        self.assertIn("dinonaktifkan", res.message)
+
+        # 8. Reset filter
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/filter reset"))
+        self.assertTrue(res.success)
+        self.assertIn("default", res.message)
+
 
 if __name__ == "__main__":
     unittest.main()

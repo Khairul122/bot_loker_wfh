@@ -14,6 +14,7 @@ class FilterConfig:
     min_relevance_score: float
     max_posting_age_days: int
     no_response_after_days: int
+    max_bids: int | None = None
 
 
 class FilterRepository:
@@ -22,27 +23,40 @@ class FilterRepository:
         self.filter_id = filter_id
 
     def get(self) -> FilterConfig:
-        row = self.connection.execute(
+        cols = {
+            row[1] for row in self.connection.execute("PRAGMA table_info(filters)").fetchall()
+        }
+        has_bids = "max_bids" in cols
+        query = (
             "SELECT role_keywords, exclusion_keywords, min_relevance_score, "
-            "max_posting_age_days, no_response_after_days FROM filters WHERE id = ?",
-            (self.filter_id,),
-        ).fetchone()
+            "max_posting_age_days, no_response_after_days"
+            + (", max_bids" if has_bids else "")
+            + " FROM filters WHERE id = ?"
+        )
+        row = self.connection.execute(query, (self.filter_id,)).fetchone()
         if row is None:
             raise ValueError(f"Filter configuration not found: {self.filter_id}")
+        max_bids = int(row[5]) if has_bids and row[5] is not None else None
         return FilterConfig(
             role_keywords=tuple(json.loads(row[0])),
             exclusion_keywords=tuple(json.loads(row[1])),
             min_relevance_score=float(row[2]),
             max_posting_age_days=int(row[3]),
             no_response_after_days=int(row[4]),
+            max_bids=max_bids,
         )
 
     def update(self, config: FilterConfig) -> None:
         _validate(config)
+        cols = {
+            row[1] for row in self.connection.execute("PRAGMA table_info(filters)").fetchall()
+        }
+        if "max_bids" not in cols:
+            self.connection.execute("ALTER TABLE filters ADD COLUMN max_bids INTEGER DEFAULT NULL")
         cursor = self.connection.execute(
             "UPDATE filters SET role_keywords = ?, exclusion_keywords = ?, "
             "min_relevance_score = ?, max_posting_age_days = ?, "
-            "no_response_after_days = ?, "
+            "no_response_after_days = ?, max_bids = ?, "
             "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
             (
                 json.dumps(config.role_keywords),
@@ -50,6 +64,7 @@ class FilterRepository:
                 config.min_relevance_score,
                 config.max_posting_age_days,
                 config.no_response_after_days,
+                config.max_bids,
                 self.filter_id,
             ),
         )
@@ -71,3 +86,5 @@ def _validate(config: FilterConfig) -> None:
         raise ValueError("max_posting_age_days cannot be negative")
     if config.no_response_after_days < 1:
         raise ValueError("no_response_after_days must be positive")
+    if config.max_bids is not None and config.max_bids < 0:
+        raise ValueError("max_bids cannot be negative")

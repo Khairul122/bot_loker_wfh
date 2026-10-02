@@ -177,6 +177,27 @@ class LeadServiceTest(unittest.TestCase):
         self.assertEqual(service.collect(), {"freelancer": 0})   # deduped
         self.assertEqual(self.connection.execute("SELECT COUNT(*) FROM leads").fetchone()[0], 1)
 
+    def test_max_bids_filter_skips_high_bid_leads(self):
+        from bot_loker_wfh.filters import FilterConfig, FilterRepository
+        repo = FilterRepository(self.connection)
+        cfg = repo.get()
+        repo.update(FilterConfig(
+            role_keywords=cfg.role_keywords,
+            exclusion_keywords=cfg.exclusion_keywords,
+            min_relevance_score=cfg.min_relevance_score,
+            max_posting_age_days=cfg.max_posting_age_days,
+            no_response_after_days=cfg.no_response_after_days,
+            max_bids=30,
+        ))
+
+        service = self.service(StaticFetcher("freelancer", [
+            Lead("freelancer", "10", "Laravel Dev", "desc", "u", posted_at=NOW.isoformat(), bids=15),
+            Lead("freelancer", "11", "React Dev", "desc", "u", posted_at=NOW.isoformat(), bids=100),
+        ]))
+
+        self.assertEqual(service.collect(), {"freelancer": 1})
+        self.assertEqual(self.connection.execute("SELECT external_id FROM leads").fetchone()[0], "10")
+
     def test_a_failing_source_does_not_stop_the_others(self):
         service = self.service(
             StaticFetcher("freelancer", error=OSError("down")),

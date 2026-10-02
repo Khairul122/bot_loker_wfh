@@ -204,7 +204,7 @@ class BotRunnerTest(unittest.TestCase):
         texts = [text for _, text in self.client.texts]
         self.assertTrue(texts[0].startswith("Bot aktif. Ketik /help untuk daftar perintah."))
         self.assertTrue(any("/siapkan" in text for text in texts))
-        self.assertEqual(self.scheduler.calls, 1)
+        self.assertEqual(self.scheduler.calls, 0)
 
 
 class TelegramClientTest(unittest.TestCase):

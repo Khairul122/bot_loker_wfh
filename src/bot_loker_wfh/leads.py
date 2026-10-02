@@ -82,6 +82,7 @@ class Lead:
     posted_at: str | None = None
     kind: str = ""
     score: float = 0.0
+    bids: int | None = None
 
 
 def classify(
@@ -275,8 +276,13 @@ def _freelancer_lead(project: Any) -> Lead | None:
     budget_text = None
     if low is not None or high is not None:
         budget_text = f"{currency} {_money(low)}-{_money(high)}{suffix}".strip()
+    bids_count = None
     bids = (project.get("bid_stats") or {}).get("bid_count")
     if bids is not None:
+        try:
+            bids_count = int(bids)
+        except (ValueError, TypeError):
+            bids_count = None
         budget_text = f"{budget_text or 'Budget n/a'} | {bids} bid"
     submitted = project.get("time_submitted")
     return Lead(
@@ -291,6 +297,7 @@ def _freelancer_lead(project: Any) -> Lead | None:
             if submitted
             else None
         ),
+        bids=bids_count,
     )
 
 
@@ -318,9 +325,14 @@ def _projects_co_id_lead(item: Any) -> Lead | None:
             )
         except ValueError:
             posted_at = None
+    bids_count = None
     bids = item.get("bid_count")
     budget = item.get("budget_range_str") or item.get("published_budget_str")
     if bids is not None:
+        try:
+            bids_count = int(bids)
+        except (ValueError, TypeError):
+            bids_count = None
         budget = f"{budget or 'Budget n/a'} | {bids} bid"
     return Lead(
         source="projects.co.id",
@@ -330,6 +342,7 @@ def _projects_co_id_lead(item: Any) -> Lead | None:
         url=f"https://projects.co.id{view}",
         budget=budget,
         posted_at=posted_at,
+        bids=bids_count,
     )
 
 
@@ -390,6 +403,8 @@ class LeadService:
     def _store(self, lead: Lead) -> bool:
         if not self._is_recent(lead.posted_at):
             return False
+        if self._exceeds_max_bids(lead):
+            return False
         kind, score = classify(lead.title, lead.description, self.extra_terms)
         if kind is None:
             return False
@@ -407,6 +422,18 @@ class LeadService:
         except sqlite3.IntegrityError:
             return False
         return True
+
+    def _exceeds_max_bids(self, lead: Lead) -> bool:
+        if lead.bids is None:
+            return False
+        try:
+            from .filters import FilterRepository
+            cfg = FilterRepository(self.connection).get()
+            if cfg.max_bids is not None and cfg.max_bids > 0:
+                return lead.bids > cfg.max_bids
+        except Exception:
+            pass
+        return False
 
     def _is_recent(self, posted_at: str | None) -> bool:
         if not posted_at:
@@ -455,7 +482,7 @@ class LeadService:
         label = "Peluang jual source code" if kind == "source_code" else "Proyek dicari developer"
         snippet = " ".join(description.split())[:350]
         text = (
-            f"{label}\n{title}\nSumber: {source}\nBudget: {budget or '-'}\n"
+            f"{label}\nID Lead: {lead_id}\n{title}\nSumber: {source}\nBudget: {budget or '-'}\n"
             f"Terbit: {(posted_at or '-')[:16]}\n\n{snippet}\n\nLink: {url}"
         )
         return TelegramMessage(
@@ -471,7 +498,7 @@ class LeadService:
 
     def list_text(self, limit: int = 10) -> str:
         rows = self.connection.execute(
-            "SELECT kind, title, source, budget, url, status FROM leads "
+            "SELECT id, kind, title, source, budget, url, status FROM leads "
             "WHERE status IN ('NEW', 'INTERESTED') ORDER BY "
             "CASE status WHEN 'INTERESTED' THEN 0 ELSE 1 END, posted_at DESC LIMIT ?",
             (limit,),
@@ -479,7 +506,7 @@ class LeadService:
         if not rows:
             return "Belum ada lead."
         lines = ["Lead terbaru"]
-        for kind, title, source, budget, url, status in rows:
+        for lead_id, kind, title, source, budget, url, status in rows:
             tag = "SOURCE CODE" if kind == "source_code" else "PROYEK"
-            lines.append(f"[{status}] {tag} {title} ({source}, {budget or '-'})\n{url}")
+            lines.append(f"[{status}] ID: {lead_id} | {tag} {title} ({source}, {budget or '-'})\n{url}")
         return "\n\n".join(lines)

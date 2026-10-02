@@ -68,12 +68,14 @@ class TelegramNotificationService:
             chat_id=self.chat_id,
             text=(
                 f"Lowongan candidate\n"
+                f"ID Job: {job_id}\n"
                 f"Posisi: {title}\n"
                 f"Perusahaan: {company}\n"
                 f"Lokasi: {location or '-'}\n"
                 f"Sumber: {source}\n"
                 f"Apply: {apply_url}"
-                f"{reason_line}"
+                f"{reason_line}\n\n"
+                f"Ketik /siapkan {job_id} atau klik tombol di bawah:"
             ),
             inline_keyboard=(
                 (
@@ -90,13 +92,15 @@ class TelegramNotificationService:
             chat_id=self.chat_id,
             text=(
                 f"Review lamaran\n"
+                f"ID Lamaran: {application_id}\n"
                 f"Posisi: {title}\n"
                 f"Perusahaan: {company}\n"
                 f"Lokasi: {location or '-'}\n"
                 f"Sumber: {source}\n"
                 f"Apply: {apply_url}\n\n"
                 f"Cover letter:\n{cover_letter}\n\n"
-                f"CV summary:\n{cv_summary}"
+                f"CV summary:\n{cv_summary}\n\n"
+                f"Untuk isi form otomatis setelah disetujui, ketik /isi {application_id}"
             ),
             inline_keyboard=(
                 (

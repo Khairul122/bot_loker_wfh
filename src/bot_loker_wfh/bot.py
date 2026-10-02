@@ -39,6 +39,7 @@ HELP_TEXT = (
     "/isi <application_id> [paksa] - buka form lamaran di browser & isi otomatis (tidak dikirim)\n"
     "/isilanjut <application_id> - isi halaman berikutnya pada form multi-halaman\n"
     "/model [nama|reset] - lihat atau ganti model AI aktif\n"
+    "/filter [role|exclude|score|age|reset] - kelola filter scrap lowongan\n"
     "/dilamar <application_id> - tandai sudah dikirim manual\n"
     "/clear - bersihkan pesan-pesan obrolan terakhir\n"
     "/lead - proyek freelance & peluang jual source code\n"
@@ -94,15 +95,13 @@ class BotRunner:
     # ------------------------------------------------------------------ loop
 
     def run_forever(self) -> None:
-        greeting = "Bot aktif. Ketik /help untuk daftar perintah."
-        if self.scheduler is not None:
-            greeting += " Sedang mengambil lowongan pertama, bisa beberapa menit."
+        greeting = f"Bot aktif. Ketik /help untuk daftar perintah.\n\n{HELP_TEXT}"
         for chat_id in sorted(self.allowed_chat_ids):
             self._safe_send(chat_id, greeting)
         self.logger.event("bot_started", status="running")
 
         offset: int | None = None
-        next_cycle = self.clock()
+        next_cycle = self.clock() + self.interval_seconds
         next_notify = self.clock() + NOTIFY_INTERVAL_SECONDS
         while True:
             now = self.clock()
@@ -231,7 +230,7 @@ class BotRunner:
         command, args = _split_command(text)
         if command in {"/start", "/help"}:
             self._safe_send(chat_id, HELP_TEXT)
-        elif command in {"/lowongan", "/status", "/laporan", "/model"}:
+        elif command in {"/lowongan", "/status", "/laporan", "/model", "/filter"}:
             router = getattr(self.draft_service, "llm", None)
             self._safe_send(chat_id, self.commands.handle(request, router=router).message)
         elif command == "/siapkan":
@@ -379,7 +378,9 @@ class BotRunner:
         self._safe_send(
             chat_id,
             f"Disetujui: {row[0]} — {row[1]}\n"
+            f"ID Lamaran: {application_id}\n\n"
             f"Kirim lamaran lewat link ini:\n{row[2]}\n\n"
+            f"Atau isi form otomatis di browser Chrome dengan:\n/isi {application_id}\n\n"
             f"Setelah terkirim, ketik:\n/dilamar {application_id}",
         )
 
