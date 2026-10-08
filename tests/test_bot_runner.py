@@ -175,6 +175,7 @@ class BotRunnerTest(unittest.TestCase):
         self.assertIsNone(self.runner._resolve("jobs", ["job-"]))
         self.assertIsNone(self.runner._resolve("jobs", ["%"]))
         self.assertEqual(self.runner._resolve("jobs", ["job-1"]), "job-1")
+        self.assertEqual(self.runner._resolve("jobs", ["<job-1>"]), "job-1")
 
     def test_notify_candidates_sends_each_candidate_once(self):
         self.assertEqual(self.runner.notify_candidates(), 1)

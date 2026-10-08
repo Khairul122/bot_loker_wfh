@@ -502,7 +502,7 @@ class BotRunner:
         """Resolve a full id or unique prefix; None when missing or ambiguous."""
         if not args:
             return None
-        prefix = args[0].strip()
+        prefix = args[0].strip().strip("<>[]\"'")
         if not prefix or any(char in prefix for char in "%_"):
             return None
         rows = self.connection.execute(
