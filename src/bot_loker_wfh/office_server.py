@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import threading
-from collections.abc import Callable
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+from .office_work import open_db
+from .status_transitions import InvalidTransitionError
 
 OFFICE_DIR = Path(__file__).with_name("office")
 HUNT_RESULT_LIMIT = 5
@@ -43,7 +45,7 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
 
 
 def hunt_freelancer(connection: sqlite3.Connection, lead_service) -> dict:
-    """Run one real Freelancer.com fetch and return what is now newest for that source.
+    """Run one real Freelancer.com fetch and return the newest leads for that source.
 
     Only public project data (title, budget, link) is returned, never CV content.
     """
@@ -55,15 +57,82 @@ def hunt_freelancer(connection: sqlite3.Connection, lead_service) -> dict:
     ).fetchall()
     return {
         "inserted": inserted,
-        "top": [dict(zip(("title", "budget", "url", "kind"), row)) for row in rows],
+        "matched": inserted,
+        "top": [
+            {"title": title, "sub": budget or "", "url": url, "kind": kind}
+            for title, budget, url, kind in rows
+        ],
     }
 
 
+def hunt_jobs(connection: sqlite3.Connection, source: str, fetcher, pipeline) -> dict:
+    """Fetch one job source for real, score new jobs, return its newest candidates."""
+    inserted = fetcher.fetch_and_store()
+    matched = pipeline.process_discovered()["candidate"]
+    rows = connection.execute(
+        "SELECT title, company, location, apply_url FROM jobs "
+        "WHERE source = ? AND status = 'CANDIDATE' "
+        "ORDER BY fetched_at DESC, relevance_score DESC LIMIT ?",
+        (source, HUNT_RESULT_LIMIT),
+    ).fetchall()
+    return {
+        "inserted": inserted,
+        "matched": matched,
+        "top": [
+            {"title": title, "sub": " · ".join(filter(None, (company, location))), "url": url, "kind": "job"}
+            for title, company, location, url in rows
+        ],
+    }
+
+
+RESULT_LIMIT = 25
+
+# One query per kind of work; every row is (title, sub, url, tag, score, when, detail).
+_RESULT_QUERIES = {
+    "jobs": (
+        "SELECT title, company || COALESCE(' · ' || location, ''), apply_url, status, relevance_score, "
+        "fetched_at, filtered_reason FROM jobs WHERE source = ? ORDER BY fetched_at DESC LIMIT ?"
+    ),
+    "screened": (
+        "SELECT title, company || ' · ' || source, apply_url, status, relevance_score, fetched_at, "
+        "filtered_reason FROM jobs WHERE status != 'DISCOVERED' "
+        "ORDER BY (status = 'CANDIDATE') DESC, fetched_at DESC LIMIT ?"
+    ),
+    "drafts": (
+        "SELECT j.title, j.company, j.apply_url, a.status, j.relevance_score, a.created_at, a.cover_letter "
+        "FROM applications a JOIN jobs j ON j.id = a.job_id ORDER BY a.created_at DESC LIMIT ?"
+    ),
+    "applied": (
+        "SELECT j.title, j.company, j.apply_url, a.status, j.relevance_score, "
+        "COALESCE(a.submitted_at, a.created_at), a.method FROM applications a JOIN jobs j ON j.id = a.job_id "
+        "WHERE a.status NOT IN ('DRAFT_READY', 'PENDING_APPROVAL', 'REJECTED_BY_USER') "
+        "ORDER BY COALESCE(a.submitted_at, a.created_at) DESC LIMIT ?"
+    ),
+    "tracking": (
+        "SELECT j.title, j.company, j.apply_url, h.to_status, NULL, h.changed_at, h.from_status "
+        "FROM application_status_history h JOIN applications a ON a.id = h.application_id "
+        "JOIN jobs j ON j.id = a.job_id ORDER BY h.changed_at DESC LIMIT ?"
+    ),
+    "leads": (
+        "SELECT title, COALESCE(budget, '') || ' · ' || source, url, status, score, fetched_at, kind "
+        "FROM leads ORDER BY fetched_at DESC LIMIT ?"
+    ),
+}
+
+
+def employee_results(connection: sqlite3.Connection, view: str, source: str | None = None) -> list[dict]:
+    """Recent output of one kind of work, for the owner to review (never CV content)."""
+    sql = _RESULT_QUERIES.get(view)
+    if sql is None:
+        return []
+    params = (source, RESULT_LIMIT) if view == "jobs" else (RESULT_LIMIT,)
+    keys = ("title", "sub", "url", "tag", "score", "when", "detail")
+    return [dict(zip(keys, row)) for row in connection.execute(sql, params).fetchall()]
+
+
 class _Handler(SimpleHTTPRequestHandler):
-    def __init__(self, *args, database_path: Path, make_lead_service, hunt_lock, **kwargs):
-        self.database_path = database_path
-        self.make_lead_service = make_lead_service
-        self.hunt_lock = hunt_lock
+    def __init__(self, *args, work, **kwargs):
+        self.work = work
         super().__init__(*args, directory=str(OFFICE_DIR), **kwargs)
 
     def _json(self, status: int, payload: dict) -> None:
@@ -74,46 +143,64 @@ class _Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _connect(self):
+        return open_db(self.work.database_path)
+
     def do_GET(self):
-        if self.path.split("?")[0] != "/stats.json":
-            return super().do_GET()
-        with sqlite3.connect(self.database_path) as connection:
-            self._json(200, collect_stats(connection))
+        path = self.path.split("?")[0]
+        if path == "/stats.json":
+            with self._connect() as connection:
+                return self._json(200, {**collect_stats(connection), "work": self.work.status()})
+        if path == "/results.json":
+            query = parse_qs(urlsplit(self.path).query)
+            view, source = query.get("view", [""])[0], query.get("source", [None])[0]
+            with self._connect() as connection:
+                return self._json(200, {"items": employee_results(connection, view, source)})
+        if path == "/inbox.json":
+            with self._connect() as connection:
+                return self._json(200, self.work.inbox(connection))
+        return super().do_GET()
 
     def do_POST(self):
-        if self.path != "/hunt/freelancer":
-            return self._json(404, {"error": "not_found"})
-        # Other sites open in the browser must not trigger fetches on the owner's machine.
+        # Other sites open in the browser must not trigger actions on the owner's machine.
         origin = self.headers.get("Origin")
         if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
             return self._json(403, {"error": "forbidden"})
-        if not self.hunt_lock.acquire(blocking=False):
+        parts = self.path.strip("/").split("/")
+        if parts == ["auto"]:
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            self.work.set_auto(bool(body.get("on")))
+            return self._json(200, self.work.status())
+        if len(parts) == 3 and parts[0] == "inbox":
+            try:
+                with self._connect() as connection:
+                    return self._json(200, self.work.decide(connection, parts[1], parts[2]))
+            except InvalidTransitionError:
+                return self._json(409, {"error": "stale"})
+        if len(parts) == 2 and parts[0] == "hunt" and parts[1] in self.work.hunters:
+            job = self.work.hunters[parts[1]]
+        elif parts == ["inbox", "draft"]:
+            job = lambda connection: {"drafted": self.work.draft_next(connection)}  # noqa: E731
+        else:
+            return self._json(404, {"error": "not_found"})
+        if not self.work.lock.acquire(blocking=False):
             return self._json(409, {"error": "busy"})
         try:
-            with sqlite3.connect(self.database_path) as connection:
-                self._json(200, hunt_freelancer(connection, self.make_lead_service(connection)))
+            with self._connect() as connection:
+                self._json(200, job(connection))
         except Exception as error:  # surfaced to the page as a sad employee, not a stack trace
             self._json(502, {"error": type(error).__name__})
         finally:
-            self.hunt_lock.release()
+            self.work.lock.release()
 
     def log_message(self, *args):
         pass
 
 
-def serve(
-    database_path: Path,
-    make_lead_service: Callable[[sqlite3.Connection], object],
-    port: int = 8765,
-) -> None:
-    # Bound to localhost only: the page exposes pipeline counts of a personal bot.
-    handler = partial(
-        _Handler,
-        database_path=database_path,
-        make_lead_service=make_lead_service,
-        hunt_lock=threading.Lock(),
-    )
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+def serve(work, port: int = 8765) -> None:
+    # Bound to localhost only: the page shows a personal bot's pipeline and cover letters.
+    server = ThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
     print(f"kantor 3D siap di http://127.0.0.1:{port}  (Ctrl+C untuk berhenti)")
     try:
         server.serve_forever()

@@ -96,6 +96,26 @@ def transition_application_status(
     connection.commit()
 
 
+def mark_applied_manually(connection: sqlite3.Connection, application_id: str, *, via: str) -> None:
+    """APPROVED -> SUBMITTED after the owner sent the application themselves."""
+    if _fetch_status(connection, table="applications", row_id=application_id) != "APPROVED":
+        raise InvalidTransitionError("only APPROVED applications can be marked as applied")
+    transition_application_status(
+        connection,
+        application_id=application_id,
+        to_status="SUBMITTED",
+        actor=TransitionActor.USER,
+        manual_correction=True,
+        reason=f"applied manually by user via {via}",
+    )
+    connection.execute(
+        "UPDATE applications SET method = 'manual', "
+        "submitted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        (application_id,),
+    )
+    connection.commit()
+
+
 def _fetch_status(
     connection: sqlite3.Connection, *, table: str, row_id: str
 ) -> str:

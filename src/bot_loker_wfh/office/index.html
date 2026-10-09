@@ -10,7 +10,7 @@
 :root{
   --paper:#fff8ee; --paper-2:#fbecd9; --ink:#4a3426; --ink-soft:#8a6b55; --line:#ecd6bd;
   --accent:#f08a5d; --accent-2:#6bb38a; --sky:#cfe9f5; --shadow:0 10px 30px rgba(92,58,30,.18);
-  --good:#5cb87a; --mid:#f2b84b; --low:#ef8a6b; --idle:#a9b4c8;
+  --card:#fff; --good:#5cb87a; --mid:#f2b84b; --low:#ef8a6b; --idle:#a9b4c8;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#cfe9f5;font-family:Nunito,system-ui,sans-serif;color:var(--ink)}
@@ -28,11 +28,20 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .tbtn{min-width:46px;height:46px;padding:0 14px;border-radius:16px;font-size:20px;display:inline-flex;align-items:center;gap:6px;font-weight:800}
 .tbtn span{font-size:14px}
 .tbtn:hover,.tbtn.on{background:var(--paper-2)}
+#lift{position:fixed;right:14px;top:50%;transform:translateY(-50%);padding:10px;display:none;flex-direction:column;gap:6px;text-align:center}
+#lift.show{display:flex;animation:pop .2s}
+#lift b{font-weight:900;font-size:14px}
+#liftBtns{display:flex;flex-direction:column;gap:4px}
+#liftBtns button{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:12px;font-weight:800;font-size:13px;background:var(--paper-2);text-align:left}
+#liftBtns button:hover{background:var(--line)}
+#liftBtns button.here{background:var(--accent);color:#fff}
 .tbtn.on{border-color:var(--accent)}
 #cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(74,52,38,.45);display:none;pointer-events:none}
-#nav{position:fixed;left:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:4px;padding:8px}
+#nav{position:fixed;left:14px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:4px;padding:8px}
 #nav button{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:12px;font-weight:700;font-size:14px;text-align:left;white-space:nowrap}
+#nav.open{display:flex}
 #nav button:hover,#nav button.on{background:var(--paper-2)}
+.navbtn{background:var(--paper-2);font-size:24px;box-shadow:none;border:0;width:44px;height:44px}
 #nav button i{font-style:normal;font-size:18px;width:24px;text-align:center}
 #nav hr{border:0;border-top:2px dashed var(--line);margin:4px 6px;width:auto}
 #hud{position:fixed;left:14px;bottom:14px;padding:12px 14px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 28px)}
@@ -70,18 +79,46 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .leads li a{display:block;padding:7px 10px;border-radius:12px;background:var(--paper-2);color:var(--ink);text-decoration:none;font-weight:800;font-size:13px}
 .leads li a:hover{background:var(--line)}
 .leads li small{display:block;color:var(--ink-soft);font-weight:700}
-#perf{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
-#perf.show{display:flex}
-#perf .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
-#perf h2{margin:0;font-size:22px;font-weight:900}
-#perf .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
+#perf,#inbox,#results{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
+#perf.show,#inbox.show,#results.show{display:flex}
+#perf .panel,#inbox .panel,#results .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
+#inbox .panel{width:min(720px,100%)}
+#perf h2,#inbox h2,#results h2{margin:0;font-size:22px;font-weight:900}
+#perf .sub,#inbox .sub,#results .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
+#inbox h3{font-size:15px;font-weight:900;margin:16px 0 8px}
+.badge{display:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#ef6a5a;color:#fff;font-size:12px;font-weight:900;place-items:center}
+.badge.on{display:inline-grid}
+.job{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:12px 14px;margin-bottom:10px}
+.job .jt{font-weight:900;font-size:16px}
+.job .jc{font-size:13px;font-weight:700;color:var(--ink-soft)}
+.job details{margin:8px 0}
+.job summary{cursor:pointer;font-weight:800;font-size:13px}
+.letter{white-space:pre-wrap;font-size:13px;line-height:1.5;background:var(--paper-2);border-radius:12px;padding:10px 12px;max-height:240px;overflow:auto;margin:6px 0 0}
+.jact{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.btn{display:inline-flex;align-items:center;padding:8px 12px;border-radius:12px;font-weight:900;font-size:13px;background:var(--paper-2);color:var(--ink);text-decoration:none}
+.btn:hover{background:var(--line)}
+.btn.ok{background:var(--good);color:#fff}
+.btn.no{background:transparent;border:2px solid var(--line)}
+.btn:disabled{opacity:.5;cursor:wait}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:14px;font-weight:800;font-size:13px;color:var(--ink-soft)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;margin-bottom:6px}
+.chipb{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:14px;background:var(--paper-2);font-weight:800;font-size:13px;white-space:nowrap}
+.chipb.on{background:var(--accent);color:#fff}
+.who{display:flex;align-items:center;gap:12px;margin:6px 0 12px}
+.who .face{width:46px;height:46px;font-size:26px}
+.job .jt a{color:inherit;text-decoration:none}
+.job .jt a:hover{text-decoration:underline}
+.meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;color:var(--ink-soft);font-weight:700}
+.tag{display:inline-flex;gap:4px;align-items:center;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:900;background:var(--paper-2);color:var(--ink)}
+.tag.good{background:rgba(92,184,122,.2)}.tag.mid{background:rgba(242,184,75,.25)}.tag.low{background:rgba(239,138,107,.25)}.tag.idle{background:rgba(169,180,200,.25)}
+.empty{padding:26px 10px;text-align:center;font-weight:800;color:var(--ink-soft)}
 .funnel{display:flex;align-items:flex-end;gap:8px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px}
 .step{flex:1;min-width:92px;text-align:center}
 .step .bar{margin:0 auto 6px;width:100%;border-radius:14px 14px 6px 6px;display:grid;place-items:center;font-size:24px;min-height:44px;transition:height .5s}
 .step b{display:block;font-size:20px;font-weight:900}
 .step small{font-weight:700;color:var(--ink-soft);font-size:12px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
-.ecard{text-align:left;padding:12px;border-radius:18px;background:#fff;border:2px solid var(--line);display:flex;gap:10px;align-items:center;position:relative}
+.ecard{text-align:left;padding:12px;border-radius:18px;background:var(--card);border:2px solid var(--line);display:flex;gap:10px;align-items:center;position:relative}
 .ecard:hover{border-color:var(--accent)}
 .ecard .face{width:44px;height:44px;font-size:24px}
 .ecard .ring{width:50px;height:50px}.ecard .ring>div{width:38px;height:38px;font-size:18px}
@@ -103,18 +140,22 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #hint{position:fixed;left:50%;top:74px;transform:translateX(-50%);font-weight:800;font-size:13px;color:var(--ink-soft);
   background:rgba(255,248,238,.85);padding:6px 12px;border-radius:12px;transition:opacity 1s}
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--sky);font-weight:900;font-size:20px;transition:opacity .6s}
-body.night{--paper:#2f2a3a;--paper-2:#3c3549;--ink:#f5e9da;--ink-soft:#c9b8a6;--line:#4d4560}
+body.night{--card:#3a3349;--paper:#2f2a3a;--paper-2:#3c3549;--ink:#f5e9da;--ink-soft:#c9b8a6;--line:#4d4560}
 body.night .bub{color:#4a3426}
 @media (max-width:760px){
-  #nav{top:auto;bottom:96px;left:8px;right:8px;transform:none;flex-direction:row;overflow-x:auto;padding:6px}
-  #nav hr{display:none}
-  #nav button span{display:none}
-  #hud{left:8px;right:8px;bottom:8px;padding:8px 10px}
+  #nav{top:auto;bottom:86px;left:8px;transform:none;max-height:58vh;overflow:auto}
+  #hud{left:8px;bottom:8px;padding:8px;gap:8px}
+  #hud .face{width:40px;height:40px;font-size:22px}
+  #hud .name{font-size:14px}
+  .emotes{margin-left:0}
   .emotes button{width:34px;height:34px;font-size:17px}
-  .meter{width:80px}
-  #card{left:8px;right:8px;width:auto;bottom:150px}
+  .meter{width:70px}
+  #brand .bt{display:none}
+  .tbtn{min-width:40px;height:40px;padding:0 9px;font-size:18px}
+  .tbtn span:not(.badge){display:none}
+  #card{left:8px;right:8px;width:auto;bottom:84px;max-height:calc(100vh - 170px);overflow:auto}
   #custom{left:8px;right:8px;width:auto}
-  .tbtn span{display:none}
+  #lift{right:8px;padding:8px}
   #hint{display:none}
 }
 </style>
@@ -127,13 +168,18 @@ body.night .bub{color:#4a3426}
 <div id="bubbles"></div>
 <div id="tip"></div>
 <div id="cross" aria-hidden="true"></div>
+<div id="lift" class="panel" role="group" aria-label="Tombol lift"><b>🛗 Lift</b><div id="liftBtns"></div></div>
 
 <div id="top">
-  <div id="brand" class="panel chip"><span class="dot" id="liveDot"></span>Kantor Loker WFH <span id="clock" style="color:var(--ink-soft)"></span></div>
+  <div id="brand" class="panel chip"><span class="dot" id="liveDot"></span><span class="bt">Kantor Loker WFH</span> <span id="clock" style="color:var(--ink-soft)"></span></div>
   <div id="tools">
     <button class="panel tbtn" id="bPov" title="Mata owner (V)">👁️<span>POV</span></button>
+    <button class="panel tbtn" id="bAuto" title="Karyawan kerja otomatis">🤖<span>Auto</span></button>
+    <button class="panel tbtn" id="bInbox" title="Persetujuan lamaran">📥<span>Persetujuan</span><b class="badge" id="inboxBadge"></b></button>
+    <button class="panel tbtn" id="bResults" title="Hasil kerja karyawan">📂<span>Hasil</span></button>
     <button class="panel tbtn" id="bPerf" title="Kinerja tim">📊<span>Kinerja</span></button>
     <button class="panel tbtn" id="bOver" title="Lihat seluruh gedung">🏢</button>
+    <button class="panel tbtn" id="bSound" title="Musik & efek suara">🔇</button>
     <button class="panel tbtn" id="bNight" title="Siang / malam">🌙</button>
     <button class="panel tbtn" id="bCustom" title="Ubah karakter">🎨</button>
   </div>
@@ -142,9 +188,10 @@ body.night .bub{color:#4a3426}
 <nav id="nav" class="panel" aria-label="Pindah tempat"></nav>
 
 <div id="hud" class="panel">
+  <button class="face navbtn" id="bNav" title="Pindah tempat" aria-expanded="false">📍</button>
   <div class="face" id="meFace">😊</div>
   <div>
-    <div class="name" id="meName">Kamu</div>
+    <div class="name" id="meName">Owner</div>
     <div class="mood" id="meMood">Senang</div>
     <div class="meter" title="Energi"><b id="meEnergy" style="width:80%"></b></div>
   </div>
@@ -170,9 +217,26 @@ body.night .bub{color:#4a3426}
     <button data-act="kopi">☕<small>Kopi</small></button>
     <button data-act="semangat">💪<small>Semangati</small></button>
   </div>
-  <button class="hunt" id="cHuntBtn">🔎 Cari proyek di Freelancer.com sekarang</button>
+  <button class="hunt" id="cHuntBtn"></button>
+  <button class="btn" id="cResults" style="width:100%;justify-content:center;margin-top:8px">📂 Lihat hasil kerjanya</button>
   <ul class="leads" id="cHunt"></ul>
 </div>
+
+<div id="inbox"><div class="panel" role="dialog" aria-label="Kotak persetujuan">
+  <button class="xbtn" id="inboxClose" aria-label="Tutup">✕</button>
+  <h2>Kotak Persetujuan</h2>
+  <div class="sub" id="inboxSub">Lowongan yang cocok, siap kamu putuskan</div>
+  <div id="inboxList"></div>
+</div></div>
+
+<div id="results"><div class="panel" role="dialog" aria-label="Hasil kerja karyawan">
+  <button class="xbtn" id="resultsClose" aria-label="Tutup">✕</button>
+  <h2>Hasil Kerja</h2>
+  <div class="sub">Pilih karyawan untuk melihat apa saja yang sudah dikerjakan</div>
+  <div class="chips" id="resultsChips"></div>
+  <div class="who" id="resultsWho"></div>
+  <div id="resultsList"></div>
+</div></div>
 
 <div id="perf"><div class="panel">
   <button class="xbtn" id="perfClose" aria-label="Tutup">✕</button>
@@ -192,7 +256,7 @@ body.night .bub{color:#4a3426}
 </div>
 
 <div id="toast" class="panel"></div>
-<div id="hint">WASD jalan · klik lantai untuk pindah · klik karyawan untuk ngobrol · V mode POV · di lift: E naik, Q turun</div>
+<div id="hint">WASD jalan · klik lantai untuk pindah · klik karyawan untuk ngobrol · V mode POV · klik lift kaca untuk pindah lantai</div>
 <div id="loading">Menyiapkan kantor…</div>
 
 <script type="module">
@@ -236,7 +300,8 @@ sun.position.set(35, 60, 25);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 160 });
-sun.shadow.bias = -0.0006;
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.04;
 scene.add(hemi, sun);
 
 // ---------- materials & helpers ----------
@@ -414,7 +479,8 @@ const dyn = {}; // data-driven props
 
 function buildFloor(i, d) {
   const g = group(0, i * FH, 0);
-  const slab = box(W + 0.8, 0.4, D + 0.8, d.floor, 0, -0.2, 0, g);
+  // ground floor sits 2cm above the grass so the two planes never z-fight
+  const slab = box(W + 0.8, 0.4, D + 0.8, d.floor, 0, i ? -0.2 : -0.18, 0, g);
   walkables.push({ mesh: slab, level: i });
   // back wall with windows
   box(W + 0.8, FH - 0.4, 0.3, d.wall, 0, (FH - 0.4) / 2, -D / 2 - 0.25, g);
@@ -539,6 +605,7 @@ sign('🌿', 'Taman Atap', '#6bb38a', '#fff', 0, 1.6, -D / 2 - 0.15, roof, 5);
 // elevator shaft (glass)
 const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, ROOF * FH + 1, 2.4), new THREE.MeshToonMaterial({ color: 0xbfe3f2, gradientMap: gradient, transparent: true, opacity: 0.28 }));
 shaft.position.set(ELEV_X, (ROOF * FH + 1) / 2 - 0.4, 0); scene.add(shaft);
+tag(shaft, { kind: 'spot', kindName: 'lift' });
 for (let i = 0; i <= ROOF; i++) box(2.4, 0.15, 2.6, 0xffffff, ELEV_X, i * FH - 0.4, 0, scene, { cast: false });
 
 // ---------- outdoors: park ----------
@@ -711,6 +778,7 @@ class Char {
         this.y = this.ride.from + (this.ride.to - this.ride.from) * e;
         if (u >= 1) {
           this.level = step.ride; this.y = this.level * FH; this.ride = null; this.platform.visible = false; this.path.shift();
+          if (this.isMe) Snd.play('ding');
           if (this.pendingGo) { const g = this.pendingGo; this.pendingGo = null; this.goTo(...g); }
         }
       } else {
@@ -852,12 +920,12 @@ function scout(src) {
 const STAFF = [
   { id: 'tegar', name: 'Tegar', role: 'Resepsionis Telegram', div: 'lobi', look: { skin: 0xf1c9a5, hair: 0x3b2a20, shirt: 0x2aabee, pants: 0x3d4a66 },
     perf: d => ({ score: r01((S.history + d.drafted) / 12), pills: [['📨', S.history], ['⏳', d.pending]], lines: d.pending ? [`Ada ${d.pending} lamaran nunggu persetujuanmu`] : ['Semua pesan udah aku antar 📬'] }) },
-  { id: 'reno', name: 'Reno', role: 'Pemburu RemoteOK', div: 'cari', look: { skin: 0xe0ac7e, hair: 0x1f1a17, shirt: 0x6bb38a, pants: 0x4a4a5a }, perf: scout('remoteok') },
-  { id: 'rima', name: 'Rima', role: 'Pemburu Remotive', div: 'cari', look: { skin: 0xf5d0b0, hair: 0x7a3e2a, shirt: 0xf2b84b, pants: 0x5a4a7a, bun: 1 }, perf: scout('remotive') },
-  { id: 'gery', name: 'Gery', role: 'Pemburu Greenhouse', div: 'cari', look: { skin: 0xc68a5e, hair: 0x2b211c, shirt: 0x4c9a6a, pants: 0x3d3d4a }, perf: scout('greenhouse') },
-  { id: 'leva', name: 'Leva', role: 'Pemburu Lever', div: 'cari', look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0x7aa6d8, pants: 0x4a4a5a, bun: 1 }, perf: scout('lever') },
-  { id: 'kalia', name: 'Kalia', role: 'Pemburu Kalibrr', div: 'cari', look: { skin: 0xe0ac7e, hair: 0x1f1a17, shirt: 0xef8a6b, pants: 0x3d4a66, bun: 1 }, perf: scout('kalibrr') },
-  { id: 'dela', name: 'Dela', role: 'Pemburu Dealls', div: 'cari', look: { skin: 0xf5d0b0, hair: 0x5a3020, shirt: 0xb48ad8, pants: 0x3d3d4a, bun: 1 }, perf: scout('dealls') },
+  { id: 'reno', name: 'Reno', role: 'Pemburu RemoteOK', div: 'cari', look: { skin: 0xe0ac7e, hair: 0x1f1a17, shirt: 0x6bb38a, pants: 0x4a4a5a }, perf: scout('remoteok'), hunt: { src: 'remoteok', site: 'RemoteOK', what: 'lowongan' } },
+  { id: 'rima', name: 'Rima', role: 'Pemburu Remotive', div: 'cari', look: { skin: 0xf5d0b0, hair: 0x7a3e2a, shirt: 0xf2b84b, pants: 0x5a4a7a, bun: 1 }, perf: scout('remotive'), hunt: { src: 'remotive', site: 'Remotive', what: 'lowongan' } },
+  { id: 'gery', name: 'Gery', role: 'Pemburu Greenhouse', div: 'cari', look: { skin: 0xc68a5e, hair: 0x2b211c, shirt: 0x4c9a6a, pants: 0x3d3d4a }, perf: scout('greenhouse'), hunt: { src: 'greenhouse', site: 'Greenhouse', what: 'lowongan' } },
+  { id: 'leva', name: 'Leva', role: 'Pemburu Lever', div: 'cari', look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0x7aa6d8, pants: 0x4a4a5a, bun: 1 }, perf: scout('lever'), hunt: { src: 'lever', site: 'Lever', what: 'lowongan' } },
+  { id: 'kalia', name: 'Kalia', role: 'Pemburu Kalibrr', div: 'cari', look: { skin: 0xe0ac7e, hair: 0x1f1a17, shirt: 0xef8a6b, pants: 0x3d4a66, bun: 1 }, perf: scout('kalibrr'), hunt: { src: 'kalibrr', site: 'Kalibrr', what: 'lowongan' } },
+  { id: 'dela', name: 'Dela', role: 'Pemburu Dealls', div: 'cari', look: { skin: 0xf5d0b0, hair: 0x5a3020, shirt: 0xb48ad8, pants: 0x3d3d4a, bun: 1 }, perf: scout('dealls'), hunt: { src: 'dealls', site: 'Dealls', what: 'lowongan' } },
   { id: 'sari', name: 'Sari', role: 'Penilai Skill', div: 'seleksi', look: { skin: 0xe8b98f, hair: 0x2b211c, shirt: 0x8a86d8, pants: 0x4a4a5a, bun: 1 },
     perf: d => ({ score: d.total ? 0.6 * d.processed / d.total + 0.4 * r01(d.cand / 20) : 0, pills: [['🧮', d.processed], ['⏳', d.disc]], lines: d.disc ? [`Masih ${d.disc} antrean buat dinilai`] : ['Semua lowongan udah aku nilai!'] }) },
   { id: 'eli', name: 'Eli', role: 'Penjaga Kelayakan', div: 'seleksi', look: { skin: 0xc68a5e, hair: 0x3b2a20, shirt: 0x5a7ab8, pants: 0x3d3d4a },
@@ -874,7 +942,7 @@ const STAFF = [
     perf: d => ({ score: d.sent ? 0.4 * r01(S.history / 10) + 0.6 * r01(d.responded / d.sent) : 0, pills: [['👀', d.responded], ['📬', d.sent]], lines: d.responded ? [`${d.responded} perusahaan udah respons!`] : ['Sabar ya, aku pantau terus 👀'] }) },
   { id: 'ivan', name: 'Ivan', role: 'Pelatih Interview', div: 'pantau', look: { skin: 0xc68a5e, hair: 0x2b211c, shirt: 0x6b5a8a, pants: 0x3d3d4a },
     perf: d => ({ score: d.interview ? r01(0.6 + 0.15 * d.interview + 0.4 * d.offer) : (d.sent ? 0.3 : 0.1), pills: [['🎤', d.interview], ['🏆', d.offer]], lines: d.offer ? ['ADA OFFER!! 🎉🎉'] : d.interview ? ['Yuk latihan interview bareng aku!'] : ['Siap latihan kapan aja 💪'] }) },
-  { id: 'lido', name: 'Lido', role: 'Pemburu Proyek', div: 'freelance', hunt: true, look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0xc9a227, pants: 0x4a4a5a },
+  { id: 'lido', name: 'Lido', role: 'Pemburu Proyek', div: 'freelance', hunt: { src: 'freelancer', site: 'Freelancer.com', what: 'proyek' }, look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0xc9a227, pants: 0x4a4a5a },
     perf: () => { const n = sum(S.leads), i = (S.leads || {}).INTERESTED || 0; return { score: n ? 0.5 * r01(n / 200) + 0.5 * r01(i / n / 0.05) : 0, pills: [['📌', n], ['💛', i]], lines: [`${i} proyek kamu tandai menarik`, 'Proyek freelance terus berdatangan!'] }; } },
 ];
 
@@ -926,11 +994,109 @@ async function loadStats() {
   $('liveDot').classList.toggle('live', live);
   $('liveDot').title = live ? 'Data langsung dari bot' : 'Data contoh (jalankan: python -m bot_loker_wfh office)';
   refreshPerf();
+  if (typeof reactToWork === 'function') { reactToWork(); renderAuto(); renderBadge(); }
+}
+
+// ---------- sound: lo-fi music + effects, synthesized with Web Audio (no audio files) ----------
+const SOUND_KEY = 'kantor-loker-sound';
+const Snd = (() => {
+  let ctx = null, music, sfx, noise, crackle = null, timer = null, nextBar = 0, bar = 0, on = false;
+  const CHORDS = [[53, 57, 60, 64], [52, 55, 59, 62], [50, 53, 57, 60], [48, 52, 55, 59]]; // Fmaj7 Em7 Dm7 Cmaj7
+  const MELODY = [72, 74, 76, 79, 81, 84];
+  const BEAT = 60 / 72;
+  const hz = m => 440 * 2 ** ((m - 69) / 12);
+  function init() {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const master = ctx.createGain(); master.gain.value = 0.8; master.connect(ctx.destination);
+    const warm = ctx.createBiquadFilter(); warm.type = 'lowpass'; warm.frequency.value = 1700; warm.connect(master);
+    music = ctx.createGain(); music.gain.value = 0; music.connect(warm);
+    sfx = ctx.createGain(); sfx.gain.value = 0.55; sfx.connect(master);
+    noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  function note(freq, t, dur, { type = 'sine', gain = 0.15, out = sfx, attack = 0.01, glide } = {}) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (glide) o.frequency.exponentialRampToValueAtTime(glide, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hit(t, dur, gain, freq, out = sfx) {
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noise; f.type = 'bandpass'; f.frequency.value = freq;
+    g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t, Math.random() * 0.5, dur + 0.05);
+  }
+  function scheduleBar(t) {
+    const ch = CHORDS[bar % 4];
+    ch.forEach(m => note(hz(m), t, BEAT * 4, { type: 'triangle', gain: 0.03, out: music, attack: 0.5 }));
+    note(hz(ch[0] - 12), t, BEAT * 2, { gain: 0.09, out: music, attack: 0.02 });
+    note(hz(ch[0] - 12), t + BEAT * 2.5, BEAT * 1.4, { gain: 0.07, out: music, attack: 0.02 });
+    for (let b = 0; b < 4; b++) {
+      const bt = t + b * BEAT;
+      if (b % 2 === 0) note(110, bt, 0.28, { gain: 0.22, out: music, glide: 42 }); // kick
+      else hit(bt + 0.02, 0.2, 0.1, 1600, music); // soft snare
+      hit(bt, 0.04, 0.035, 7000, music); hit(bt + BEAT * 0.6, 0.04, 0.025, 7000, music); // swung hats
+    }
+    for (let k = 0; k < 4; k++) if (Math.random() < 0.45) note(hz(pick(MELODY)), t + BEAT * k + (Math.random() < 0.5 ? 0 : BEAT * 0.5), BEAT * 1.3, { gain: 0.045, out: music, attack: 0.005 });
+    bar++;
+  }
+  function tick() { while (nextBar < ctx.currentTime + 1.2) { scheduleBar(nextBar); nextBar += BEAT * 4; } }
+  function start() {
+    if (!ctx) init();
+    ctx.resume(); on = true;
+    music.gain.cancelScheduledValues(ctx.currentTime);
+    music.gain.linearRampToValueAtTime(1, ctx.currentTime + 2);
+    nextBar = ctx.currentTime + 0.1; timer = setInterval(tick, 250); tick();
+    // vinyl crackle
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() < 0.0012 ? Math.random() * 2 - 1 : 0;
+    crackle = ctx.createBufferSource(); crackle.buffer = buf; crackle.loop = true;
+    const cg = ctx.createGain(); cg.gain.value = 0.12; crackle.connect(cg); cg.connect(music); crackle.start();
+  }
+  function stop() {
+    on = false; clearInterval(timer);
+    if (!ctx) return;
+    music.gain.cancelScheduledValues(ctx.currentTime);
+    music.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+    if (crackle) { crackle.stop(ctx.currentTime + 0.7); crackle = null; }
+  }
+  const FX = {
+    click: t => note(1200, t, 0.05, { gain: 0.05 }),
+    pop: t => note(620, t, 0.14, { gain: 0.18, glide: 980 }),
+    chime: t => [72, 76, 79, 84].forEach((m, i) => note(hz(m), t + i * 0.09, 0.6, { type: 'triangle', gain: 0.1 })),
+    coin: t => { note(hz(88), t, 0.1, { type: 'square', gain: 0.05 }); note(hz(93), t + 0.09, 0.35, { type: 'square', gain: 0.05 }); FX.chime(t + 0.2); },
+    sad: t => [67, 63, 60].forEach((m, i) => note(hz(m), t + i * 0.2, 0.4, { type: 'triangle', gain: 0.1 })),
+    ding: t => { note(hz(84), t, 0.9, { gain: 0.1 }); note(hz(79), t + 0.2, 1.1, { gain: 0.09 }); },
+    swish: t => hit(t, 0.35, 0.25, 3200),
+    boop: t => note(240, t, 0.3, { type: 'triangle', gain: 0.12, glide: 140 }),
+    step: t => hit(t, 0.05, 0.05, 700),
+    clap: t => { hit(t, 0.08, 0.3, 1500); hit(t + 0.05, 0.1, 0.2, 1200); },
+  };
+  return {
+    get on() { return on; },
+    toggle() { on ? stop() : start(); return on; },
+    start() { if (!on) start(); },
+    play(name) { if (on && ctx) FX[name](ctx.currentTime + 0.01); },
+  };
+})();
+function setSoundButton() { $('bSound').textContent = Snd.on ? '🔊' : '🔇'; }
+$('bSound').onclick = () => {
+  Snd.toggle(); setSoundButton();
+  try { localStorage.setItem(SOUND_KEY, Snd.on ? '1' : '0'); } catch {}
+};
+// browsers only allow audio after a user gesture: resume the saved preference on the first one
+let wantSound = false;
+try { wantSound = localStorage.getItem(SOUND_KEY) === '1'; } catch {}
+if (wantSound) {
+  const resume = () => { Snd.start(); setSoundButton(); removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); };
+  addEventListener('pointerdown', resume); addEventListener('keydown', resume);
 }
 
 // ---------- the player ----------
 const LOOK_KEY = 'kantor-loker-look';
-let myLook = { name: 'Kamu', skin: '#f1c9a5', hair: '#3b2a20', shirt: '#ffb26b', pants: '#4a5a7a' };
+let myLook = { name: 'Owner', skin: '#f1c9a5', hair: '#3b2a20', shirt: '#ffb26b', pants: '#4a5a7a' };
 try { myLook = { ...myLook, ...JSON.parse(localStorage.getItem(LOOK_KEY) || '{}') }; } catch {}
 const me = new Char(myLook.name, { skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants }, 0, 2, 9);
 me.speed = 3.6; me.energy = 80; me.joy = 60; me.isMe = true; me.idle = 0; me.hoopScore = 0;
@@ -938,6 +1104,8 @@ const ring = add(new THREE.TorusGeometry(0.55, 0.05, 6, 24), 0xffb26b, 0, 0.05, 
 
 function updateMe(dt, now) {
   const moving = me.walking;
+  me.stepT = (me.stepT || 0) + (moving ? dt : 0);
+  if (me.stepT > 0.36) { me.stepT = 0; Snd.play('step'); }
   me.energy = clamp(me.energy - dt * (moving ? 0.45 : 0.06), 0, 100);
   if (me.spot && !me.walking) {
     me.energy = clamp(me.energy + (me.spot.energy || 0) * dt * 0.6, 0, 100);
@@ -953,13 +1121,20 @@ function updateMe(dt, now) {
   $('meEnergy').style.background = me.energy < 35 ? 'var(--low)' : me.energy < 60 ? 'var(--mid)' : 'var(--accent-2)';
   // idle behaviour
   me.idle = moving || me.emote || me.spot ? 0 : me.idle + dt;
-  if (me.idle > 25) { me.idle = 0; me.doEmote(me.energy < 35 ? 'stretch' : 'dance', 2.5); say(me, me.energy < 35 ? 'Hoaam… ngopi dulu kali ya ☕' : pick(['Hmm, cek kinerja tim ah 📊', 'Semoga hari ini ada panggilan 🤞', 'Main ke taman yuk 🌳'])); }
+  if (me.idle > 25) { me.idle = 0; me.doEmote(me.energy < 35 ? 'stretch' : 'nod', 2); say(me, me.energy < 35 ? 'Hoaam… ngopi dulu kali ya ☕' : pick(['Hmm, cek kinerja tim ah 📊', 'Semoga hari ini ada panggilan 🤞', 'Main ke taman yuk 🌳'])); }
 }
 
 // keyboard
 const keys = {};
-addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; keys[e.key.toLowerCase()] = true; });
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+  keys[e.key.toLowerCase()] = true;
+});
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+// a key released while the window had no focus never sends keyup: forget everything held
+const releaseKeys = () => { for (const k in keys) keys[k] = false; };
+addEventListener('blur', releaseKeys);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseKeys(); });
 function keyMove(dt) {
   let x = 0, z = 0;
   if (keys.w || keys.arrowup) z -= 1; if (keys.s || keys.arrowdown) z += 1;
@@ -981,7 +1156,8 @@ const WALLS = [
   [ELEV_X + 1.0, ELEV_X + 1.4, -1.4, 1.4], [W / 2 + 0.5, ELEV_X + 1.4, 1.2, 1.5], [W / 2 + 0.5, ELEV_X + 1.4, -1.5, -1.2],
 ];
 const inR = (x, z, r, m = 0.25) => x > r[0] - m && x < r[1] + m && z > r[2] - m && z < r[3] + m;
-const inShaft = p => p.x > W / 2 + 0.4 && p.x < ELEV_X + 0.9 && Math.abs(p.z) < 1.1;
+const inShaft = p => p.x > W / 2 - 0.2 && p.x < ELEV_X + 0.9 && Math.abs(p.z) < 1.1;
+const inLift = p => p.x > W / 2 + 0.7 && p.x < ELEV_X + 0.9 && Math.abs(p.z) < 1.1;
 function blocked(level, p, nx, nz) {
   if (level > 0) {
     const onFloor = nx > -W / 2 + 0.3 && nx < W / 2 + 0.3 && Math.abs(nz) < D / 2 - 0.3;
@@ -1083,7 +1259,7 @@ function startChat(c) {
     c.doEmote(REACT[c.mood], 2);
     me.doEmote('wave', 1.6);
     say(c, c.mood === 'ngantuk' ? 'Eh! Aku nggak tidur kok 😳' : pick(c.perfNow.lines));
-    me.joy = clamp(me.joy + 3, 0, 100);
+    me.joy = clamp(me.joy + 3, 0, 100); Snd.play('pop');
   });
 }
 function endChat() {
@@ -1098,6 +1274,7 @@ function act(kind) {
   const c = chatWith; if (!c) return;
   const now = clock.elapsedTime;
   const at = new THREE.Vector3(c.pos.x, c.y, c.pos.z);
+  Snd.play({ sapa: 'pop', tos: 'clap', kopi: 'pop', semangat: 'chime' }[kind]);
   if (kind === 'sapa') { me.doEmote('wave'); c.doEmote('wave'); say(c, pick(['Haii! 👋', 'Halo bos!', 'Eh, ada kamu 😄'])); burst(at, ['✨'], 4); c.boost = 1; me.joy += 4; }
   if (kind === 'tos') { me.doEmote('high5', 1.4); c.doEmote('high5', 1.4); setTimeout(() => { c.doEmote('cheer', 1.5); burst(at, ['✋', '✨', '⭐'], 8); }, 500); say(c, pick(['Toss! ✋', 'Yeay kompak!', 'Mantap!'])); c.boost = 2; me.joy += 8; }
   if (kind === 'kopi') { c.doEmote('drink', 2.5); burst(at, ['☕', '💨'], 5); say(c, c.mood === 'ngantuk' || c.mood === 'lelah' ? 'Wah pas banget, makasih! ☕' : 'Makasih kopinya 😋'); c.boost = 2; me.joy += 4; }
@@ -1112,6 +1289,12 @@ function act(kind) {
 function useSpot(kindName, clickedObj) {
   endChat();
   if (kindName === 'hoop') return goShoot();
+  if (kindName === 'lift') {
+    me.goTo(me.level, DOOR_X, 0);
+    me.path.push({ p: V(ELEV_X, 0) }); // enter through the door, not the glass
+    me.onArrive = () => say(me, 'Mau ke lantai berapa? 🛗');
+    return;
+  }
   const cands = spots.filter(s => s.kind === kindName && (!s.by || s.by === me));
   if (!cands.length) { toast('Lagi dipakai, coba yang lain 🙂'); return; }
   const s = cands.reduce((a, b) => dist(a) < dist(b) ? a : b);
@@ -1119,6 +1302,7 @@ function useSpot(kindName, clickedObj) {
   me.leaveSpot();
   sendTo(me, s, () => {
     say(me, { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di atap… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️' }[s.kind] || '😊');
+    Snd.play('pop');
     if (s.kind === 'kafe' || s.kind === 'kopi') { me.energy = clamp(me.energy + 30, 0, 100); burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), ['☕', '💨', '✨']); }
   });
 }
@@ -1146,6 +1330,7 @@ function shoot() {
       animated.splice(animated.indexOf(fly), 1);
       ball.position.set(to.x, 0.26, to.z + 1.5);
       shooting = false;
+      Snd.play(made ? 'swish' : 'boop'); if (made) Snd.play('chime');
       if (made) { me.hoopScore++; $('score').textContent = '🏀 ' + me.hoopScore; me.joy = clamp(me.joy + 10, 0, 100); me.doEmote('cheer'); burst(to.clone().setY(1), ['🎉', '⭐', '✨'], 10); say(me, pick(['Masuk!! 🎉', 'Swish! 😎', 'Yesss!'])); staff.filter(c => c.spot?.kind?.match(/ping|slide|swing/)).forEach(c => c.doEmote('cheer')); }
       else { me.doEmote('sigh', 1.2); say(me, pick(['Yah meleset 😅', 'Dikit lagi!', 'Sekali lagi!'])); }
       setTimeout(() => { ball.position.set(me.pos.x + 0.6, 0.26, me.pos.z); }, 500);
@@ -1158,7 +1343,7 @@ function shoot() {
 document.querySelectorAll('[data-emote]').forEach(b => b.onclick = () => {
   const e = b.dataset.emote;
   if (e === 'sit') { me.path = []; me.pose = me.pose === 'floor' ? 'stand' : 'floor'; return; }
-  me.leaveSpot(); me.doEmote(e, 2.5); me.joy = clamp(me.joy + 2, 0, 100);
+  me.leaveSpot(); me.doEmote(e, 2.5); me.joy = clamp(me.joy + 2, 0, 100); Snd.play(e === 'cheer' ? 'clap' : 'pop');
   staff.filter(c => c.level === me.level && c.pos.distanceTo(me.pos) < 6).forEach(c => setTimeout(() => c.doEmote(e === 'wave' ? 'wave' : 'cheer', 1.8), 300 + Math.random() * 400));
 });
 
@@ -1171,10 +1356,14 @@ const PLACES = [
   ...DIVS.map((d, i) => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), go: () => me.goTo(i, 2, 4) })),
   { icon: '🌿', name: 'Taman Atap', go: () => me.goTo(ROOF, 0, 1) },
 ];
+const narrow = () => innerWidth <= 760;
+function setNav(open) { $('nav').classList.toggle('open', open); $('bNav').setAttribute('aria-expanded', open); }
+setNav(!narrow());
+$('bNav').onclick = () => setNav(!$('nav').classList.contains('open'));
 PLACES.forEach(p => {
   if (p.hr) { $('nav').appendChild(document.createElement('hr')); return; }
   const b = document.createElement('button'); b.innerHTML = `<i>${p.icon}</i><span>${p.name}</span>`; b.title = p.name;
-  b.onclick = () => { endChat(); overview = false; p.go(); }; $('nav').appendChild(b);
+  b.onclick = () => { endChat(); overview = false; p.go(); if (narrow()) setNav(false); }; $('nav').appendChild(b);
 });
 
 // ---------- UI: card ----------
@@ -1190,49 +1379,63 @@ function openCard(c) {
   $('cMood').textContent = MOODS[c.mood].emo; $('cMood').title = MOODS[c.mood].label;
   $('cStars').innerHTML = starsHtml(p.score);
   $('cPills').innerHTML = p.pills.map(([i, v]) => `<span class="pill">${i} ${v}</span>`).join('') + `<span class="pill">${MOODS[c.mood].label}</span>`;
-  $('cHuntBtn').style.display = c.def.hunt ? 'block' : 'none';
-  if (!c.def.hunt) $('cHunt').replaceChildren();
+  const h = c.def.hunt;
+  $('cHuntBtn').style.display = h ? 'block' : 'none';
+  if (h) {
+    $('cHuntBtn').disabled = !!hunting;
+    $('cHuntBtn').textContent = hunting === c ? `⏳ ${c.name} lagi mencari…` : hunting ? `⏳ ${hunting.name} lagi mencari, tunggu ya`
+      : `🔎 ${c.lastHunt ? 'Cari lagi' : `Cari ${h.what} di ${h.site} sekarang`}`;
+  }
+  showLeads(c.lastHunt || []);
   $('card').classList.add('show');
 }
 
-// ---------- real hunt: Lido runs the bot's Freelancer.com fetcher ----------
-let hunting = false;
+// ---------- real hunt: employees run the bot's own fetchers ----------
+let hunting = null; // the employee currently searching (server runs one search at a time)
 function showLeads(list) {
   $('cHunt').replaceChildren(...list.map(l => {
     const li = document.createElement('li'), a = document.createElement('a'), sm = document.createElement('small');
     a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    a.textContent = (l.kind === 'source_code' ? '💾 ' : '💼 ') + l.title;
-    sm.textContent = l.budget || 'Budget belum ditulis';
+    a.textContent = ({ source_code: '💾 ', job: '🏢 ' }[l.kind] || '💼 ') + l.title;
+    sm.textContent = l.sub || (l.kind === 'job' ? 'Remote' : 'Budget belum ditulis');
     a.appendChild(sm); li.appendChild(a); return li;
   }));
 }
-$('cHuntBtn').onclick = async () => {
-  const c = chatWith; if (!c || hunting) return;
-  if (!live) { toast('Jalankan: python -m bot_loker_wfh office supaya Lido bisa mencari beneran'); return; }
-  hunting = true; $('cHuntBtn').disabled = true; $('cHuntBtn').textContent = '⏳ Lido lagi mencari…';
-  c.showEmo('🔎'); c.doEmote('nod', 30); say(c, 'Bentar ya, aku cek Freelancer.com… 🔎', 30);
-  let res = null;
-  try { const r = await fetch('hunt/freelancer', { method: 'POST' }); res = r.ok ? await r.json() : { error: r.status }; }
+async function hunt(c) {
+  const h = c.def.hunt;
+  if (!h || hunting) return;
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office supaya karyawan bisa mencari beneran'); return; }
+  hunting = c; if (chatWith) openCard(chatWith);
+  c.showEmo('🔎'); say(c, `Bentar ya, aku cek ${h.site}… 🔎`, 120);
+  Snd.play('click');
+  let res;
+  try { const r = await fetch('hunt/' + h.src, { method: 'POST' }); res = r.ok ? await r.json() : { error: r.status }; }
   catch { res = { error: 'offline' }; }
-  hunting = false; $('cHuntBtn').disabled = false; $('cHuntBtn').textContent = '🔎 Cari lagi';
-  c.emote = null;
+  hunting = null;
   const at = new THREE.Vector3(c.pos.x, c.y, c.pos.z);
   if (res.error) {
-    c.sadUntil = clock.elapsedTime + 20; c.doEmote('sigh', 2.5);
-    say(c, res.error === 409 ? 'Aku masih nyari, sabar ya 🙏' : 'Gagal nyambung ke Freelancer 😢 coba lagi nanti');
-    return;
-  }
-  showLeads(res.top);
-  if (res.inserted > 0) {
-    c.boost = 2; c.boostUntil = clock.elapsedTime + 90; c.doEmote('cheer', 2.5);
-    burst(at, ['💼', '✨', '🎉'], 10); say(c, `Dapet ${res.inserted} proyek baru yang cocok! 🎉`);
-    toast(`💼 Lido menemukan ${res.inserted} proyek baru di Freelancer.com`);
-    me.joy = clamp(me.joy + 10, 0, 100);
+    c.sadUntil = clock.elapsedTime + 20; c.doEmote('sigh', 2.5); Snd.play('sad');
+    say(c, res.error === 409 ? 'Ada yang lagi nyari, gantian ya 🙏' : `Gagal nyambung ke ${h.site} 😢 coba lagi nanti`);
   } else {
-    c.doEmote('nod', 1.5); say(c, 'Belum ada yang baru. Ini yang terakhir aku simpan 👇');
+    c.lastHunt = res.top;
+    if (res.matched > 0) {
+      c.boost = 2; c.boostUntil = clock.elapsedTime + 90; c.doEmote('cheer', 2.5);
+      burst(at, [h.what === 'proyek' ? '💼' : '🏢', '✨', '🎉'], 10); Snd.play('coin');
+      say(c, `Dapet ${res.matched} ${h.what} baru yang cocok! 🎉`);
+      toast(`${h.what === 'proyek' ? '💼' : '🏢'} ${c.name} menemukan ${res.matched} ${h.what} cocok di ${h.site}`);
+      me.joy = clamp(me.joy + 10, 0, 100);
+    } else if (res.inserted > 0) {
+      c.doEmote('nod', 1.5); Snd.play('pop');
+      say(c, `Ada ${res.inserted} ${h.what} baru, tapi belum ada yang pas buat kamu`);
+    } else {
+      c.doEmote('nod', 1.5); Snd.play('pop');
+      say(c, `Belum ada ${h.what} baru. Ini yang terakhir aku simpan 👇`);
+    }
+    await loadStats();
   }
-  await loadStats(); openCard(c);
-};
+  if (chatWith) openCard(chatWith);
+}
+$('cHuntBtn').onclick = () => chatWith && hunt(chatWith);
 function closeCard() { $('card').classList.remove('show'); }
 $('cardClose').onclick = endChat;
 document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
@@ -1260,13 +1463,193 @@ $('perf').onclick = e => { if (e.target === $('perf')) togglePerf(false); };
 // ---------- UI: customize ----------
 const cu = { name: $('cuName'), skin: $('cuSkin'), hair: $('cuHair'), shirt: $('cuShirt'), pants: $('cuPants') };
 Object.entries(cu).forEach(([k, el]) => { el.value = myLook[k]; el.oninput = () => {
-  myLook[k] = el.value || 'Kamu';
+  myLook[k] = el.value || 'Owner';
   try { localStorage.setItem(LOOK_KEY, JSON.stringify(myLook)); } catch {}
   me.setLook({ skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants }); me.name = myLook.name;
   $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
 }; });
 $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
 $('bCustom').onclick = () => $('custom').classList.toggle('show');
+
+// ---------- approval inbox + auto work ----------
+const AUTO_KEY = 'kantor-loker-auto';
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const byId = id => staff.find(c => c.def.id === id);
+const at = c => new THREE.Vector3(c.pos.x, c.y, c.pos.z);
+async function post(path, body) {
+  try {
+    const r = await fetch(path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+  } catch { return { ok: false, status: 0, data: {} }; }
+}
+const fmtIn = sec => sec == null ? 'segera' : sec < 3600 ? `${Math.max(1, Math.round(sec / 60))} menit lagi` : `${Math.round(sec / 3600)} jam lagi`;
+function renderAuto() {
+  const w = S.work || {};
+  $('bAuto').classList.toggle('on', !!w.auto);
+  $('bAuto').title = !live ? 'Butuh server office' : !w.auto ? 'Nyalakan kerja otomatis'
+    : w.busy ? 'Tim lagi bekerja…' : `Tim kerja otomatis · putaran berikutnya ${fmtIn(w.next_in)}`;
+}
+function renderBadge() {
+  const n = (S.applications || {}).PENDING_APPROVAL || 0;
+  $('inboxBadge').textContent = n; $('inboxBadge').classList.toggle('on', n > 0);
+  if (inboxOpen && n !== lastPending) renderInbox();
+  lastPending = n;
+}
+async function setAuto(on) {
+  const res = await post('auto', { on });
+  if (!res.ok) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  S.work = res.data; renderAuto();
+  try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch {}
+  toast(on ? '🤖 Tim kerja otomatis: cari → nilai → tulis draf. Hasilnya masuk 📥 untuk kamu setujui' : '🤖 Kerja otomatis dimatikan');
+}
+$('bAuto').onclick = () => live ? setAuto(!S.work?.auto) : toast('Jalankan: python -m bot_loker_wfh office');
+
+// the background cycle runs on the server; employees act out what it is doing
+let prevBusy = null, lastWorkAt;
+const workerFor = src => src === 'draft' ? byId('cora') : staff.find(c => c.def.hunt?.src === src);
+function reactToWork() {
+  const w = S.work; if (!w) return;
+  if (w.busy !== prevBusy) {
+    const c = w.busy && workerFor(w.busy);
+    if (c) { c.showEmo(w.busy === 'draft' ? '✍️' : '🔎'); say(c, w.busy === 'draft' ? 'Aku tulis surat lamarannya ya ✍️' : `Lagi cek ${c.def.hunt.site}… 🔎`, 8); }
+    prevBusy = w.busy;
+  }
+  const L = w.last;
+  if (!L || L.at === lastWorkAt) return;
+  const first = lastWorkAt === undefined; lastWorkAt = L.at;
+  if (first) return; // only react to work done while the office is open
+  const c = workerFor(L.source); if (!c) return;
+  if (L.error) { c.sadUntil = clock.elapsedTime + 20; c.doEmote('sigh', 2); say(c, 'Sumberku lagi error 😢 nanti aku coba lagi'); return; }
+  if (L.matched > 0) {
+    c.boost = 2; c.boostUntil = clock.elapsedTime + 90; c.doEmote('cheer', 2.5);
+    burst(at(c), L.source === 'draft' ? ['✍️', '📝', '✨'] : ['🏢', '✨', '🎉'], 8); Snd.play('coin');
+    say(c, L.source === 'draft' ? `${L.matched} draf siap kamu cek di 📥` : `Dapet ${L.matched} yang cocok! 🎉`);
+    toast(L.source === 'draft' ? `✍️ Cora menyiapkan ${L.matched} draf lamaran — cek 📥 Persetujuan` : `${c.def.hunt.what === 'proyek' ? '💼' : '🏢'} ${c.name} menemukan ${L.matched} ${c.def.hunt.what} cocok`);
+  } else { c.doEmote('nod', 1.5); say(c, 'Belum ada yang baru, nanti aku cek lagi'); }
+}
+
+let inboxOpen = false, lastPending = 0;
+async function toggleInbox(v = !inboxOpen) { inboxOpen = v; $('inbox').classList.toggle('show', v); if (v) await renderInbox(); }
+$('bInbox').onclick = () => toggleInbox();
+$('inboxClose').onclick = () => toggleInbox(false);
+$('inbox').onclick = e => { if (e.target === $('inbox')) toggleInbox(false); };
+async function renderInbox() {
+  const L = $('inboxList');
+  if (!live) { L.replaceChildren(el('div', 'empty', '🔌 Jalankan: python -m bot_loker_wfh office')); return; }
+  let d;
+  try { d = await (await fetch('inbox.json', { cache: 'no-store' })).json(); } catch { L.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  $('inboxSub').textContent = d.pending.length ? `${d.pending.length} lowongan cocok menunggu keputusanmu` : 'Belum ada yang perlu kamu setujui';
+  const parts = [];
+  if (d.pending.length) parts.push(el('h3', null, '🕵️ Menunggu persetujuanmu'), ...d.pending.map(i => jobCard(i, 'pending', d.form_assist)));
+  if (d.approved.length) parts.push(el('h3', null, '🚀 Disetujui · tinggal dilamar'), ...d.approved.map(i => jobCard(i, 'approved', d.form_assist)));
+  if (!parts.length) parts.push(el('div', 'empty', d.waiting ? '🌱 Belum ada draf. Minta Cora menulis dulu 👇' : '🌱 Kotak masih kosong. Nyalakan 🤖 Auto atau suruh tim Pencari Kerja mencari.'));
+  const foot = el('div', 'foot');
+  foot.append(el('span', null, d.waiting ? `✍️ ${d.waiting} lowongan cocok lain belum ada suratnya` : '✨ Semua lowongan cocok sudah ada drafnya'));
+  if (d.waiting) { const b = el('button', 'btn', '✍️ Minta Cora tulis 3 draf'); b.onclick = () => { b.disabled = true; draftMore(); }; foot.append(b); }
+  parts.push(foot);
+  L.replaceChildren(...parts);
+}
+function jobCard(i, kind, formAssist) {
+  const card = el('div', 'job');
+  card.append(el('div', 'jt', i.title), el('div', 'jc', [i.company, i.location].filter(Boolean).join(' · ')));
+  const st = el('div', 'stars'); st.innerHTML = starsHtml(clamp(i.score || 0, 0, 1)); st.title = 'Kecocokan dengan skill-mu'; card.append(st);
+  if (kind === 'pending' && i.letter) { const det = el('details'); det.append(el('summary', null, '✍️ Surat lamaran dari Cora'), el('p', 'letter', i.letter)); card.append(det); }
+  const row = el('div', 'jact');
+  const link = el('a', 'btn', kind === 'pending' ? '👀 Lihat lowongan' : '🌐 Buka & lamar'); link.href = i.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; row.append(link);
+  const btn = (text, cls, fn) => { const b = el('button', 'btn ' + cls, text); b.onclick = () => { row.querySelectorAll('button').forEach(x => x.disabled = true); fn(); }; row.append(b); };
+  if (kind === 'pending') { btn(formAssist ? '✅ Setujui & isi formulir' : '✅ Setujui & lamar', 'ok', () => decide(i, 'approve')); btn('❌ Tolak', 'no', () => decide(i, 'reject')); }
+  else { if (formAssist) btn('🧾 Isi formulir lagi', '', () => decide(i, 'apply')); btn('✔️ Sudah dilamar', 'ok', () => decide(i, 'applied')); }
+  card.append(row);
+  return card;
+}
+async function decide(item, action) {
+  const res = await post(`inbox/${encodeURIComponent(item.id)}/${action}`);
+  if (!res.ok) { Snd.play('sad'); toast(res.status === 409 ? 'Lamaran ini sudah diproses sebelumnya' : 'Gagal, coba lagi'); await loadStats(); return renderInbox(); }
+  if (action === 'approve' || action === 'apply') {
+    const f = byId('faris'); f.boost = 2; f.boostUntil = clock.elapsedTime + 60; f.doEmote('cheer', 2); Snd.play('chime');
+    if (res.data.mode === 'form') { f.showEmo('🧾'); say(f, 'Aku isi formulirnya di browser. Cek, lalu kamu yang klik kirim ya 🧾', 6); toast('🧾 Faris membuka & mengisi formulir di browser. Periksa, klik kirim, lalu tandai "Sudah dilamar"'); }
+    else { say(f, 'Disetujui! Buka lowongannya lalu lamar ya 👉', 6); toast('✅ Disetujui. Klik "Buka & lamar", kirim lamarannya, lalu tandai "Sudah dilamar"'); }
+  } else if (action === 'reject') {
+    const e = byId('eli'); e.doEmote('nod', 1.5); say(e, 'Oke, yang ini aku lewati 👌'); Snd.play('pop');
+  } else if (action === 'applied') {
+    const s = byId('subi'); s.boost = 2; s.boostUntil = clock.elapsedTime + 90; s.doEmote('cheer', 3); burst(at(s), ['🚀', '✨', '🎉'], 10);
+    say(s, 'Lamaran terkirim! Semoga lolos 🤞', 6); Snd.play('coin'); toast('🚀 Lamaran tercatat terkirim. Tara akan memantau statusnya');
+    me.joy = clamp(me.joy + 12, 0, 100);
+  }
+  await loadStats(); renderInbox();
+}
+async function draftMore() {
+  const c = byId('cora'); c.showEmo('✍️'); say(c, 'Siap, aku tulis sekarang ✍️', 30);
+  const res = await post('inbox/draft');
+  if (res.ok) { c.doEmote('cheer', 2); say(c, `${res.data.drafted} draf siap kamu cek!`); Snd.play('chime'); }
+  else { c.doEmote('sigh', 1.5); say(c, res.status === 409 ? 'Tim lagi sibuk, sebentar lagi ya' : 'Gagal nulis 😢 coba lagi'); }
+  await loadStats(); renderInbox();
+}
+
+// ---------- results: what each employee actually produced ----------
+const RESULT_VIEW = { tegar: 'tracking', sari: 'screened', eli: 'screened', cora: 'drafts', lulu: 'drafts', faris: 'applied', subi: 'applied', tara: 'tracking', ivan: 'tracking', lido: 'leads' };
+const viewFor = c => c.def.hunt?.what === 'lowongan' ? `view=jobs&source=${c.def.hunt.src}` : `view=${RESULT_VIEW[c.def.id]}`;
+const TAG = {
+  CANDIDATE: ['✅', 'Cocok', 'good'], FILTERED_OUT: ['🚫', 'Disaring', 'idle'], DISCOVERED: ['🆕', 'Baru, belum dinilai', 'mid'],
+  DRAFT_READY: ['📝', 'Draf', 'mid'], PENDING_APPROVAL: ['⏳', 'Menunggu persetujuanmu', 'mid'], APPROVED: ['👍', 'Kamu setujui', 'good'],
+  REJECTED_BY_USER: ['🙅', 'Kamu tolak', 'idle'], SUBMITTING: ['📤', 'Sedang dikirim', 'mid'], SUBMITTED: ['🚀', 'Terkirim', 'good'],
+  SUBMIT_FAILED: ['⚠️', 'Gagal kirim', 'low'], SUBMISSION_AMBIGUOUS: ['❓', 'Belum pasti terkirim', 'mid'], VIEWED: ['👀', 'Dilihat perusahaan', 'good'],
+  INTERVIEW: ['🎤', 'Interview', 'good'], OFFER: ['🏆', 'Offer!', 'good'], REJECTED_BY_COMPANY: ['💔', 'Ditolak perusahaan', 'low'],
+  NO_RESPONSE: ['🔕', 'Tidak ada respons', 'idle'], WITHDRAWN: ['↩️', 'Dibatalkan', 'idle'], NEW: ['🆕', 'Baru', 'mid'], INTERESTED: ['💛', 'Kamu minati', 'good'],
+};
+const REASON = [[/relevance/, 'Skill kurang cocok'], [/remote/, 'Bukan full remote'], [/old/, 'Lowongan sudah lama'], [/region/, 'Terbatas wilayah'], [/role/, 'Bukan bidangmu'], [/exclu|block/, 'Masuk daftar hindari']];
+const tagEl = code => { const [i, t, c] = TAG[code] || ['•', code, 'idle']; return el('span', 'tag ' + c, `${i} ${t}`); };
+function ago(iso) {
+  const t = Date.parse(iso || ''); if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  return m < 60 ? `${Math.max(1, m)} menit lalu` : m < 1440 ? `${Math.round(m / 60)} jam lalu` : `${Math.round(m / 1440)} hari lalu`;
+}
+let resultsOpen = false, resultsFor = null;
+function toggleResults(v = !resultsOpen, c = resultsFor || staff[0]) {
+  resultsOpen = v; $('results').classList.toggle('show', v);
+  if (v) showResults(c);
+}
+$('bResults').onclick = () => toggleResults();
+$('resultsClose').onclick = () => toggleResults(false);
+$('results').onclick = e => { if (e.target === $('results')) toggleResults(false); };
+$('cResults').onclick = () => chatWith && toggleResults(true, chatWith);
+async function showResults(c) {
+  resultsFor = c;
+  $('resultsChips').replaceChildren(...staff.map(s => {
+    const b = el('button', 'chipb' + (s === c ? ' on' : ''), `${MOODS[s.mood].emo} ${s.name}`); b.title = s.def.role;
+    b.onclick = () => showResults(s); return b;
+  }));
+  $('resultsChips').querySelector('.on')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  const face = el('div', 'face', MOODS[c.mood].emo); face.style.cssText = faceStyle(c);
+  const info = el('div'); info.append(el('div', 'jt', `${c.name} · ${c.def.role}`));
+  const st = el('div', 'stars'); st.innerHTML = starsHtml(c.perfNow.score); info.append(st);
+  $('resultsWho').replaceChildren(face, info);
+  const list = $('resultsList');
+  if (!live) { list.replaceChildren(el('div', 'empty', '🔌 Jalankan: python -m bot_loker_wfh office untuk melihat hasil kerja asli')); return; }
+  list.replaceChildren(el('div', 'empty', '⏳ Memuat…'));
+  let items = [];
+  try { items = (await (await fetch('results.json?' + viewFor(c), { cache: 'no-store' })).json()).items; }
+  catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  if (resultsFor !== c) return;
+  const view = viewFor(c);
+  list.replaceChildren(...(items.length ? items.map(i => resultCard(i, view)) : [el('div', 'empty', `🌱 ${c.name} belum punya hasil kerja. ${c.def.hunt ? 'Suruh dia mencari lewat kartunya.' : ''}`)]));
+}
+function resultCard(i, view) {
+  const card = el('div', 'job'), title = el('div', 'jt');
+  if (i.url) { const a = el('a', null, i.title); a.href = i.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; title.append(a); } else title.textContent = i.title;
+  card.append(title, el('div', 'jc', i.sub || ''));
+  const meta = el('div', 'meta');
+  if (view.includes('tracking') && i.detail) meta.append(tagEl(i.detail), el('span', null, '→'));
+  meta.append(tagEl(i.tag));
+  if (i.tag === 'FILTERED_OUT' && i.detail) meta.append(el('span', 'tag idle', (REASON.find(([r]) => r.test(i.detail)) || [0, i.detail])[1]));
+  if (view.includes('leads')) meta.append(el('span', 'tag', i.detail === 'source_code' ? '💾 Source code' : '💼 Proyek'));
+  if (view.includes('applied') && i.detail === 'manual') meta.append(el('span', 'tag', '✋ Kamu kirim sendiri'));
+  if (i.score != null && !view.includes('leads')) { const s = el('span', 'stars'); s.style.fontSize = '13px'; s.innerHTML = starsHtml(clamp(i.score, 0, 1)); s.title = 'Kecocokan'; meta.append(s); }
+  if (i.when) meta.append(el('span', null, '🕒 ' + ago(i.when)));
+  card.append(meta);
+  if (view.includes('drafts') && i.detail) { const det = el('details'); det.append(el('summary', null, '✍️ Baca surat lamarannya'), el('p', 'letter', i.detail)); card.append(det); }
+  return card;
+}
 
 // ---------- UI: night / overview / toast ----------
 let night = false;
@@ -1319,6 +1702,7 @@ function interact(h) {
   me.goTo(level, x, z);
   burst(new THREE.Vector3(x, level * FH - 1.8, z), ['📍'], 1);
 }
+renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
 renderer.domElement.addEventListener('pointermove', e => {
   if (fp && downAt && e.buttons) {
     yaw -= e.movementX * 0.005; pitch = clamp(pitch - e.movementY * 0.004, -1.2, 1.1);
@@ -1327,11 +1711,32 @@ renderer.domElement.addEventListener('pointermove', e => {
   const h = hitAt(e); const ud = h?.object.userData || {};
   const tip = $('tip');
   if (ud.kind === 'char') { tip.style.display = 'block'; tip.textContent = ud.char === me ? myLook.name : `${ud.char.name} · ${ud.char.def.role}`; }
-  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa' }[ud.kindName] || 'Main'; }
+  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift' }[ud.kindName] || 'Main'; }
   else tip.style.display = 'none';
   tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
   renderer.domElement.style.cursor = ud.kind ? 'pointer' : 'default';
 });
+
+// ---------- lift panel ----------
+const LIFT_FLOORS = [{ icon: '🌿', name: 'Taman Atap', level: ROOF }, ...DIVS.map((d, i) => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), level: i })).reverse()];
+LIFT_FLOORS.forEach(f => {
+  const b = document.createElement('button'); b.innerHTML = `<span>${f.icon}</span>${f.name}`; b.dataset.level = f.level;
+  b.onclick = () => {
+    if (me.ride) return;
+    me.stop(); Snd.play('click');
+    me.path = f.level === me.level ? [{ p: V(DOOR_X, 0) }] : [{ ride: f.level }, { p: V(DOOR_X, 0) }];
+  };
+  $('liftBtns').appendChild(b);
+});
+let liftShown = false, liftLevel = -1;
+function updateLiftPanel() {
+  const show = inLift(me.pos) && !me.ride && !me.path.length;
+  if (show !== liftShown) { liftShown = show; $('lift').classList.toggle('show', show); }
+  if (show && liftLevel !== me.level) {
+    liftLevel = me.level;
+    $('liftBtns').querySelectorAll('button').forEach(b => b.classList.toggle('here', +b.dataset.level === me.level));
+  }
+}
 
 // ---------- floor visibility (cutaway) ----------
 function updateCutaway() {
@@ -1371,7 +1776,7 @@ function frame() {
   swings.forEach(s => { if (!spots.some(sp => sp.swing === s && sp.by && sp.by.pose === 'swing')) s.rotation.x *= 0.96; });
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 110) c.position.x = -110; });
   trees.forEach(tr => tr.rotation.z = Math.sin(t * 0.8 + tr.userData.sway) * 0.02);
-  updateParts(dt); updateCutaway(); updateCamera(dt); if (!fp) controls.update();
+  updateParts(dt); updateCutaway(); updateLiftPanel(); updateCamera(dt); if (!fp) controls.update();
   renderer.render(scene, camera);
   updateBubbles();
   requestAnimationFrame(frame);
@@ -1380,9 +1785,9 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { endChat(); togglePerf(false); $('custom').classList.remove('show'); }
+  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); $('custom').classList.remove('show'); }
   if (k === 'v') setFP(!fp);
-  if ((k === 'e' || k === 'q') && inShaft(me.pos) && !me.ride) {
+  if ((k === 'e' || k === 'q') && inLift(me.pos) && !me.ride) {
     const to = clamp(me.level + (k === 'e' ? 1 : -1), 0, ROOF);
     if (to !== me.level) { me.stop(); me.path = [{ ride: to }, { p: V(DOOR_X, 0) }]; }
   } else if (k === 'e' && fp) {
@@ -1408,7 +1813,11 @@ $('bPov').onclick = () => setFP(!fp);
 
 const h = new Date().getHours(); setNight(h >= 18 || h < 6);
 await loadStats();
-setInterval(loadStats, 60000);
+// poll faster while the team works on its own, so reactions show up promptly
+(function poll() { setTimeout(async () => { await loadStats(); poll(); }, S.work?.auto ? 8000 : 60000); })();
+let wantAuto = true;
+try { wantAuto = localStorage.getItem(AUTO_KEY) !== '0'; } catch {}
+if (live && wantAuto && !S.work?.auto) setAuto(true);
 staff.forEach(c => c.setMood(staffMood(c, 0)));
 $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 700);
 setTimeout(() => $('hint').style.opacity = 0, 12000);

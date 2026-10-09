@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sqlite3
+import threading
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
@@ -25,7 +26,8 @@ from .leads import (
 )
 from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
-from .office_server import serve as serve_office
+from .office_server import hunt_freelancer, hunt_jobs, serve as serve_office
+from .office_work import OfficeWork
 from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
@@ -296,11 +298,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "office":
         profile = load_profile(settings.profile_path)
-        serve_office(
-            initialize_database(settings.database_url),
-            lambda connection: LeadService(connection, profile, fetchers=[FreelancerFetcher()]),
-            args.port,
+        database_path = initialize_database(settings.database_url)
+        llm = create_llm_from_settings(settings, str(database_path))
+        work = OfficeWork(
+            database_path,
+            hunters=_office_hunters(profile),
+            draft_service_for=lambda connection: DraftService(connection, profile, llm=llm),
+            form_assist_enabled=settings.form_assist_enabled,
+            # same floor as the scheduler: job sources are polled at most every 4 hours
+            interval_seconds=int(max(4.0, settings.fetch_interval_hours) * 3600),
+            lock=threading.Lock(),
         )
+        serve_office(work, args.port)
         return 0
 
     if args.command == "cleanup-retention":
@@ -335,6 +344,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()}"
     )
     return 0
+
+
+def _office_hunters(profile) -> dict:
+    """Real searches the 3D office can trigger, one per employee."""
+    job_fetchers = {
+        "remoteok": RemoteOKFetcher,
+        "remotive": RemotiveFetcher,
+        "greenhouse": GreenhouseFetcher,
+        "lever": LeverFetcher,
+        "kalibrr": KalibrrFetcher,
+        "dealls": DeallsFetcher,
+    }
+    hunters = {
+        source: (
+            lambda connection, source=source, fetcher_class=fetcher_class: hunt_jobs(
+                connection, source, fetcher_class(connection), JobPipeline(connection, profile)
+            )
+        )
+        for source, fetcher_class in job_fetchers.items()
+    }
+    hunters["freelancer"] = lambda connection: hunt_freelancer(
+        connection, LeadService(connection, profile, fetchers=[FreelancerFetcher()])
+    )
+    return hunters
 
 
 def _lead_service(connection, profile, settings: Settings) -> LeadService:

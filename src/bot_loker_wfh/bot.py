@@ -3,25 +3,21 @@
 from __future__ import annotations
 
 import logging
-import os
 import sqlite3
 import subprocess
-import sys
 import time
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from .drafts import DraftService
-from .form_assist import FormAssistError, resolve_form_target
+from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form
 from .leads import LeadService
 from .logging_utils import StructuredLogger, sanitize_error
 from .pipeline import JobPipeline
 from .scheduler import JobScheduler
 from .status_transitions import (
     InvalidTransitionError,
-    TransitionActor,
-    transition_application_status,
+    mark_applied_manually,
 )
 from .telegram_approval import TelegramApprovalHandler
 from .telegram_auth import TelegramAuth, TelegramRequest
@@ -406,27 +402,8 @@ class BotRunner:
                 self._safe_send(chat_id, str(error))
                 return
         try:
-            cmd = [
-                sys.executable,
-                "-m",
-                "bot_loker_wfh",
-                "fill-form",
-                "--application-id",
-                application_id,
-            ]
-            if force_assist:
-                cmd.append("--force-assist")
-            if next_page:
-                cmd.append("--next-page")
-            log_dir = Path("data/logs")
-            log_dir.mkdir(parents=True, exist_ok=True)
-            log_file = (log_dir / "fill-form.log").open("a", encoding="utf-8")
-
-            self.spawn(
-                cmd,
-                cwd=os.getcwd(),
-                stdout=log_file,
-                stderr=log_file,
+            spawn_fill_form(
+                application_id, spawn=self.spawn, force_assist=force_assist, next_page=next_page
             )
         except OSError:
             self._safe_send(chat_id, "Gagal menjalankan pengisi form.")
@@ -452,29 +429,10 @@ class BotRunner:
             self._safe_send(chat_id, "Application tidak ditemukan.")
             return
         try:
-            row = self.connection.execute(
-                "SELECT status FROM applications WHERE id = ?", (application_id,)
-            ).fetchone()
-            if row is None or row[0] != "APPROVED":
-                self._safe_send(chat_id, "Hanya lamaran berstatus APPROVED yang bisa ditandai.")
-                return
-            transition_application_status(
-                self.connection,
-                application_id=application_id,
-                to_status="SUBMITTED",
-                actor=TransitionActor.USER,
-                manual_correction=True,
-                reason="applied manually by user via Telegram",
-            )
+            mark_applied_manually(self.connection, application_id, via="Telegram")
         except InvalidTransitionError:
-            self._safe_send(chat_id, "Status tidak bisa diubah.")
+            self._safe_send(chat_id, "Hanya lamaran berstatus APPROVED yang bisa ditandai.")
             return
-        self.connection.execute(
-            "UPDATE applications SET method = 'manual', "
-            "submitted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-            (application_id,),
-        )
-        self.connection.commit()
         self._safe_send(chat_id, "Ditandai sebagai SUBMITTED. Semoga sukses!")
 
     def _manual_fetch(self, chat_id: int) -> None:

@@ -78,7 +78,12 @@ Open the bot as a cozy 3D office (Three.js from a CDN, served by the standard li
 python -m bot_loker_wfh office --port 8765
 ```
 
-Each floor is one division of the pipeline; employees' moods and the "Kinerja" panel come from `/stats.json` (counts only). Press `V` for the owner's first-person view. Lido (Proyek Freelance) can run a real Freelancer.com search on demand using the same fetcher and filters as `fetch-leads`.
+Each floor is one division of the pipeline; employees' moods and the "Kinerja" panel come from `/stats.json` (counts only). Press `V` for the owner's first-person view.
+
+- 🤖 **Auto**: every `FETCH_INTERVAL_HOURS` (minimum 4) each scout searches its source, jobs are scored, and Cora drafts letters for the 3 best new matches. Nothing is sent.
+- 📥 **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
+- 📂 **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
+- Every scout and Lido can also run one real search on demand from their card.
 
 ## Operational Documentation for MVP
 

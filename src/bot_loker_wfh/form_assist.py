@@ -9,8 +9,11 @@ does not have a reviewed answer for: the user reviews the form and submits it.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
+import subprocess
+import sys
 import tempfile
 import time
 from collections.abc import Callable
@@ -23,6 +26,25 @@ from urllib.parse import urlparse
 GREENHOUSE_HOSTS = frozenset({"job-boards.greenhouse.io", "boards.greenhouse.io"})
 LEVER_HOSTS = frozenset({"jobs.lever.co", "jobs.eu.lever.co"})
 LEVER_RESUME_PARSE_SECONDS = 4
+
+
+def spawn_fill_form(
+    application_id: str,
+    *,
+    spawn: Callable[..., Any] = subprocess.Popen,
+    force_assist: bool = False,
+    next_page: bool = False,
+) -> None:
+    """Start the form filler as a separate process; output goes to data/logs/fill-form.log."""
+    cmd = [sys.executable, "-m", "bot_loker_wfh", "fill-form", "--application-id", application_id]
+    if force_assist:
+        cmd.append("--force-assist")
+    if next_page:
+        cmd.append("--next-page")
+    log_dir = Path("data/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = (log_dir / "fill-form.log").open("a", encoding="utf-8")
+    spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
 
 
 class FormAssistError(RuntimeError):
