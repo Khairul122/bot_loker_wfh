@@ -43,8 +43,21 @@ def spawn_fill_form(
         cmd.append("--next-page")
     log_dir = Path("data/logs")
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = (log_dir / "fill-form.log").open("a", encoding="utf-8")
-    spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
+    # the child gets its own copy of the handle, so the parent can close it right away
+    with (log_dir / "fill-form.log").open("a", encoding="utf-8") as log_file:
+        spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
+
+
+def spawn_fill_lead(
+    lead_id: str, engine: str, *, spawn: Callable[..., Any] = subprocess.Popen
+) -> None:
+    """Start the bid-form filler for a freelance lead; output goes to data/logs/fill-lead.log."""
+    cmd = [sys.executable, "-m", "bot_loker_wfh", "fill-lead", "--lead-id", lead_id, "--engine", engine]
+    log_dir = Path("data/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    # the child gets its own copy of the handle, so the parent can close it right away
+    with (log_dir / "fill-lead.log").open("a", encoding="utf-8") as log_file:
+        spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
 
 
 class FormAssistError(RuntimeError):

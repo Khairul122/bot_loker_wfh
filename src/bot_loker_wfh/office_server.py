@@ -35,7 +35,7 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
     return {
         "jobs": _grouped(connection, "SELECT source, status, COUNT(*) FROM jobs GROUP BY 1, 2"),
         "applications": _grouped(connection, "SELECT status, COUNT(*) FROM applications GROUP BY 1"),
-        "leads": _grouped(connection, "SELECT status, COUNT(*) FROM leads GROUP BY 1"),
+        "leads": _grouped(connection, "SELECT source, status, COUNT(*) FROM leads GROUP BY 1, 2"),
         "llm": _grouped(connection, "SELECT status, COUNT(*) FROM llm_calls GROUP BY 1"),
         "forms": _grouped(connection, "SELECT status, COUNT(*) FROM form_sessions GROUP BY 1"),
         "history": connection.execute(
@@ -44,16 +44,16 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
     }
 
 
-def hunt_freelancer(connection: sqlite3.Connection, lead_service) -> dict:
-    """Run one real Freelancer.com fetch and return the newest leads for that source.
+def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dict:
+    """Run one real fetch of a freelance source and return its newest leads.
 
     Only public project data (title, budget, link) is returned, never CV content.
     """
-    inserted = lead_service.collect().get("freelancer", 0)
+    inserted = lead_service.collect().get(source, 0)
     rows = connection.execute(
-        "SELECT title, budget, url, kind FROM leads WHERE source = 'freelancer' "
+        "SELECT title, budget, url, kind FROM leads WHERE source = ? "
         "ORDER BY fetched_at DESC, score DESC LIMIT ?",
-        (HUNT_RESULT_LIMIT,),
+        (source, HUNT_RESULT_LIMIT),
     ).fetchall()
     return {
         "inserted": inserted,
@@ -115,7 +115,7 @@ _RESULT_QUERIES = {
     ),
     "leads": (
         "SELECT title, COALESCE(budget, '') || ' · ' || source, url, status, score, fetched_at, kind "
-        "FROM leads ORDER BY fetched_at DESC LIMIT ?"
+        "FROM leads WHERE source = ? ORDER BY fetched_at DESC LIMIT ?"
     ),
 }
 
@@ -125,7 +125,7 @@ def employee_results(connection: sqlite3.Connection, view: str, source: str | No
     sql = _RESULT_QUERIES.get(view)
     if sql is None:
         return []
-    params = (source, RESULT_LIMIT) if view == "jobs" else (RESULT_LIMIT,)
+    params = (source, RESULT_LIMIT) if view in ("jobs", "leads") else (RESULT_LIMIT,)
     keys = ("title", "sub", "url", "tag", "score", "when", "detail")
     return [dict(zip(keys, row)) for row in connection.execute(sql, params).fetchall()]
 
@@ -156,6 +156,10 @@ class _Handler(SimpleHTTPRequestHandler):
             view, source = query.get("view", [""])[0], query.get("source", [None])[0]
             with self._connect() as connection:
                 return self._json(200, {"items": employee_results(connection, view, source)})
+        if path == "/leads.json":
+            source = parse_qs(urlsplit(self.path).query).get("source", [None])[0]
+            with self._connect() as connection:
+                return self._json(200, self.work.leads(connection, source))
         if path == "/inbox.json":
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
@@ -172,6 +176,14 @@ class _Handler(SimpleHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             self.work.set_auto(bool(body.get("on")))
             return self._json(200, self.work.status())
+        if len(parts) == 3 and parts[0] == "leads":
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            try:
+                with self._connect() as connection:
+                    return self._json(200, self.work.lead_action(connection, parts[1], parts[2], body))
+            except (KeyError, ValueError):
+                return self._json(404, {"error": "not_found"})
         if len(parts) == 3 and parts[0] == "inbox":
             try:
                 with self._connect() as connection:

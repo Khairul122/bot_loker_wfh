@@ -83,6 +83,54 @@ class FormAgent:
         if running_session:
             return "Pengisian sebelumnya masih berjalan."
 
+        return self._session(
+            apply_url=apply_url,
+            company=company,
+            title=title,
+            description=description,
+            cover_letter=cover_letter,
+            record_id=application_id,
+            page_number=page_number,
+            force_assist=force_assist,
+        )
+
+    def run_lead_session(self, lead_id: str, *, keep_open_seconds: float = 0) -> str:
+        """Fill a freelance bid form with the owner's saved proposal; never submits."""
+        row = self.connection.execute(
+            "SELECT url, source, title, description, proposal FROM leads WHERE id = ?",
+            (lead_id,),
+        ).fetchone()
+        if not row:
+            return "Proyek tidak ditemukan."
+        url, source, title, description, proposal = row
+        if not (proposal or "").strip():
+            return "Tulis proposal dulu sebelum mengisi formulir."
+        return self._session(
+            apply_url=url,
+            company=source,
+            title=title,
+            description=description,
+            cover_letter=proposal,
+            record_id=None,  # form_sessions belongs to job applications
+            page_number=1,
+            force_assist=True,  # bid pages are not in the ATS registry
+            keep_open_seconds=keep_open_seconds,
+        )
+
+    def _session(
+        self,
+        *,
+        apply_url: str,
+        company: str,
+        title: str,
+        description: str,
+        cover_letter: str,
+        record_id: str | None,
+        page_number: int,
+        force_assist: bool,
+        keep_open_seconds: float = 0,
+    ) -> str:
+        application_id = record_id or ""
         parsed_url = urlparse(apply_url)
         host = parsed_url.hostname or ""
 
@@ -237,8 +285,12 @@ class FormAgent:
                 has_captcha=has_captcha,
                 tool_calls=getattr(client, "tool_call_count", 0),
             )
-            report_builder.record_session(record_input)
+            if record_id:
+                report_builder.record_session(record_input)
             report_text = report_builder.build_report_text(record_input)
+            if keep_open_seconds and hasattr(client, "hold_open"):
+                print(report_text, flush=True)
+                client.hold_open(keep_open_seconds)
             return report_text
 
         finally:

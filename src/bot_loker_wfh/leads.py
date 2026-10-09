@@ -337,8 +337,9 @@ def _projects_co_id_lead(item: Any) -> Lead | None:
     return Lead(
         source="projects.co.id",
         external_id=str(item["project_id"]),
-        title=str(item["title"]).strip(),
-        description=" ".join(str(item.get("short_description") or "").split()),
+        # the listing API returns HTML-escaped text ("X &amp; Instagram")
+        title=html.unescape(str(item["title"])).strip(),
+        description=" ".join(html.unescape(str(item.get("short_description") or "")).split()),
         url=f"https://projects.co.id{view}",
         budget=budget,
         posted_at=posted_at,

@@ -37,7 +37,7 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #liftBtns button.here{background:var(--accent);color:#fff}
 .tbtn.on{border-color:var(--accent)}
 #cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(74,52,38,.45);display:none;pointer-events:none}
-#nav{position:fixed;left:14px;top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:4px;padding:8px}
+#nav{position:fixed;left:14px;top:76px;max-height:calc(100vh - 76px - 112px);overflow-y:auto;display:none;flex-direction:column;gap:4px;padding:8px}
 #nav button{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:12px;font-weight:700;font-size:14px;text-align:left;white-space:nowrap}
 #nav.open{display:flex}
 #nav button:hover,#nav button.on{background:var(--paper-2)}
@@ -143,7 +143,7 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 body.night{--card:#3a3349;--paper:#2f2a3a;--paper-2:#3c3549;--ink:#f5e9da;--ink-soft:#c9b8a6;--line:#4d4560}
 body.night .bub{color:#4a3426}
 @media (max-width:760px){
-  #nav{top:auto;bottom:86px;left:8px;transform:none;max-height:58vh;overflow:auto}
+  #nav{top:auto;bottom:86px;left:8px;max-height:calc(100vh - 86px - 70px)}
   #hud{left:8px;bottom:8px;padding:8px;gap:8px}
   #hud .face{width:40px;height:40px;font-size:22px}
   #hud .name{font-size:14px}
@@ -491,7 +491,8 @@ function buildFloor(i, d) {
   box(0.3, FH - 0.4, 4, d.wall, W / 2 + 0.25, (FH - 0.4) / 2, -4.6, g); // right stub
   box(0.3, FH - 0.4, 4, d.wall, W / 2 + 0.25, (FH - 0.4) / 2, 4.6, g);
   box(W + 0.8, 0.14, 0.14, 0xffffff, 0, FH - 0.5, D / 2 + 0.3, g, { cast: false }); // front beam
-  sign(d.icon, d.name, d.accent, '#ffffff', -3.5, FH - 1.05, -D / 2 - 0.05, g, 7.5);
+  // in front of the window glass (front face at -D/2 - 0.05), otherwise the two z-fight
+  sign(d.icon, d.name, d.accent, '#ffffff', -3.5, FH - 1.05, -D / 2 + 0.03, g, 7.5);
   // ceiling lights
   for (let k = -1; k <= 1; k++) box(2.5, 0.08, 0.5, 0xffffff, k * 5, FH - 0.45, 0, g, { glow: 0xfff0c8, cast: false });
   floors.push(g);
@@ -578,7 +579,7 @@ DIVS.forEach((d, i) => {
     plant(8, 5, g, 1.2);
   }
   if (d.id === 'freelance') {
-    seats('freelance', [[-5, -3]], g, d.screen);
+    seats('freelance', [[-5, -3], [-1.2, -3], [-5, 1.2]], g, d.screen);
     for (const [x, z, c] of [[2, 2, 0xef8a6b], [4, 3.5, 0x6bb38a], [6, 2, 0x7aa6d8]]) { const b = sph(0.7, c, x, 0.45, z, g); b.scale.y = 0.65; }
     box(4, 2.4, 0.1, 0xc89a6c, 4, 2, -5.7, g); // cork board
     const notes = [];
@@ -896,7 +897,7 @@ function route(fromLevel, from, toLevel, to) {
 const DEMO = {
   jobs: { remoteok: { FILTERED_OUT: 95, CANDIDATE: 4 }, remotive: { FILTERED_OUT: 20, CANDIDATE: 6 }, greenhouse: { FILTERED_OUT: 210, CANDIDATE: 15 }, lever: { FILTERED_OUT: 30, CANDIDATE: 3 }, kalibrr: { FILTERED_OUT: 40, CANDIDATE: 2 }, dealls: { FILTERED_OUT: 18, CANDIDATE: 1 } },
   applications: { SUBMITTED: 3, VIEWED: 1, INTERVIEW: 1, PENDING_APPROVAL: 2 },
-  leads: { NEW: 420, INTERESTED: 12 }, llm: { success: 9, error: 1 }, forms: { filled: 4, captcha: 1 }, history: 14,
+  leads: { freelancer: { NEW: 420, INTERESTED: 12 }, 'projects.co.id': { NEW: 9 } }, llm: { success: 9, error: 1 }, forms: { filled: 4, captcha: 1 }, history: 14,
 };
 let S = DEMO, live = false;
 const sum = o => Object.values(o || {}).reduce((a, b) => a + (typeof b === 'number' ? b : sum(b)), 0);
@@ -916,6 +917,12 @@ function scout(src) {
   return d => { const j = d.jobs[src] || {}, f = sum(j), c = j.CANDIDATE || 0;
     return { score: f ? 0.5 * r01(f / 120) + 0.5 * r01(c / f / 0.1) : 0, pills: [['🔎', f], ['✅', c]],
       lines: f ? [`Udah ${f} lowongan aku intip!`, c ? `${c} yang cocok buat kamu ✨` : 'Belum nemu yang pas, lanjut cari!'] : ['Sumberku lagi sepi nih…'] }; };
+}
+const leadsBy = src => src ? (S.leads || {})[src] || {} : Object.values(S.leads || {}).reduce((a, o) => { for (const k in o) a[k] = (a[k] || 0) + o[k]; return a; }, {});
+function leadScout(src, target) {
+  return () => { const L = leadsBy(src), n = sum(L), i = L.INTERESTED || 0;
+    return { score: n ? 0.5 * r01(n / target) + 0.5 * r01(i / n / 0.05) : 0, pills: [['📌', n], ['💛', i]],
+      lines: n ? [`${n} proyek sudah aku kumpulkan`, i ? `${i} kamu tandai menarik 💛` : 'Cek kartuku, siapa tahu ada yang cocok'] : ['Aku belum mulai, suruh aku cari ya!'] }; };
 }
 const STAFF = [
   { id: 'tegar', name: 'Tegar', role: 'Resepsionis Telegram', div: 'lobi', look: { skin: 0xf1c9a5, hair: 0x3b2a20, shirt: 0x2aabee, pants: 0x3d4a66 },
@@ -942,8 +949,9 @@ const STAFF = [
     perf: d => ({ score: d.sent ? 0.4 * r01(S.history / 10) + 0.6 * r01(d.responded / d.sent) : 0, pills: [['👀', d.responded], ['📬', d.sent]], lines: d.responded ? [`${d.responded} perusahaan udah respons!`] : ['Sabar ya, aku pantau terus 👀'] }) },
   { id: 'ivan', name: 'Ivan', role: 'Pelatih Interview', div: 'pantau', look: { skin: 0xc68a5e, hair: 0x2b211c, shirt: 0x6b5a8a, pants: 0x3d3d4a },
     perf: d => ({ score: d.interview ? r01(0.6 + 0.15 * d.interview + 0.4 * d.offer) : (d.sent ? 0.3 : 0.1), pills: [['🎤', d.interview], ['🏆', d.offer]], lines: d.offer ? ['ADA OFFER!! 🎉🎉'] : d.interview ? ['Yuk latihan interview bareng aku!'] : ['Siap latihan kapan aja 💪'] }) },
-  { id: 'lido', name: 'Lido', role: 'Pemburu Proyek', div: 'freelance', hunt: { src: 'freelancer', site: 'Freelancer.com', what: 'proyek' }, look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0xc9a227, pants: 0x4a4a5a },
-    perf: () => { const n = sum(S.leads), i = (S.leads || {}).INTERESTED || 0; return { score: n ? 0.5 * r01(n / 200) + 0.5 * r01(i / n / 0.05) : 0, pills: [['📌', n], ['💛', i]], lines: [`${i} proyek kamu tandai menarik`, 'Proyek freelance terus berdatangan!'] }; } },
+  { id: 'lido', name: 'Lido', role: 'Pemburu Freelancer.com 🌍', div: 'freelance', hunt: { src: 'freelancer', site: 'Freelancer.com', what: 'proyek' }, look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0xc9a227, pants: 0x4a4a5a }, perf: leadScout('freelancer', 200) },
+  { id: 'nara', name: 'Nara', role: 'Pemburu Projects.co.id 🇮🇩', div: 'freelance', hunt: { src: 'projects.co.id', site: 'Projects.co.id', what: 'proyek' }, look: { skin: 0xe0ac7e, hair: 0x2b211c, shirt: 0xef6a5a, pants: 0x4a4a5a, bun: 1 }, perf: leadScout('projects.co.id', 30) },
+  { id: 'tama', name: 'Tama', role: 'Pengintai Telegram 🇮🇩', div: 'freelance', hunt: { src: 'telegram', site: 'channel Telegram', what: 'proyek' }, look: { skin: 0xc68a5e, hair: 0x1f1a17, shirt: 0x2aabee, pants: 0x3d3d4a }, perf: leadScout('telegram', 30) },
 ];
 
 function moodFor(perf) {
@@ -980,7 +988,7 @@ function refreshPerf() {
   (dyn.planes || []).forEach((p, i) => p.visible = i < clamp(d.sent, 0, 8));
   (dyn.trophies || []).forEach((p, i) => p.visible = i < d.offer);
   (dyn.medals || []).forEach((p, i) => p.visible = i < d.interview);
-  (dyn.notes || []).forEach((p, i) => p.visible = i < clamp((S.leads || {}).INTERESTED || 0, 0, 12));
+  (dyn.notes || []).forEach((p, i) => p.visible = i < clamp(leadsBy().INTERESTED || 0, 0, 12));
   if (perfOpen) renderPerf();
 }
 async function loadStats() {
@@ -1415,7 +1423,9 @@ async function hunt(c) {
   const at = new THREE.Vector3(c.pos.x, c.y, c.pos.z);
   if (res.error) {
     c.sadUntil = clock.elapsedTime + 20; c.doEmote('sigh', 2.5); Snd.play('sad');
-    say(c, res.error === 409 ? 'Ada yang lagi nyari, gantian ya 🙏' : `Gagal nyambung ke ${h.site} 😢 coba lagi nanti`);
+    say(c, res.error === 409 ? 'Ada yang lagi nyari, gantian ya 🙏'
+      : res.error === 404 ? 'Aku belum dikasih daftar channel. Isi LEAD_TELEGRAM_CHANNELS di .env lalu jalankan ulang office ya 📋'
+      : `Gagal nyambung ke ${h.site} 😢 coba lagi nanti`, 8);
   } else {
     c.lastHunt = res.top;
     if (res.matched > 0) {
@@ -1587,8 +1597,8 @@ async function draftMore() {
 }
 
 // ---------- results: what each employee actually produced ----------
-const RESULT_VIEW = { tegar: 'tracking', sari: 'screened', eli: 'screened', cora: 'drafts', lulu: 'drafts', faris: 'applied', subi: 'applied', tara: 'tracking', ivan: 'tracking', lido: 'leads' };
-const viewFor = c => c.def.hunt?.what === 'lowongan' ? `view=jobs&source=${c.def.hunt.src}` : `view=${RESULT_VIEW[c.def.id]}`;
+const RESULT_VIEW = { tegar: 'tracking', sari: 'screened', eli: 'screened', cora: 'drafts', lulu: 'drafts', faris: 'applied', subi: 'applied', tara: 'tracking', ivan: 'tracking' };
+const viewFor = c => c.def.hunt ? `view=${c.def.hunt.what === 'lowongan' ? 'jobs' : 'leads'}&source=${encodeURIComponent(c.def.hunt.src)}` : `view=${RESULT_VIEW[c.def.id]}`;
 const TAG = {
   CANDIDATE: ['✅', 'Cocok', 'good'], FILTERED_OUT: ['🚫', 'Disaring', 'idle'], DISCOVERED: ['🆕', 'Baru, belum dinilai', 'mid'],
   DRAFT_READY: ['📝', 'Draf', 'mid'], PENDING_APPROVAL: ['⏳', 'Menunggu persetujuanmu', 'mid'], APPROVED: ['👍', 'Kamu setujui', 'good'],

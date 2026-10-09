@@ -2,7 +2,7 @@ import sqlite3
 import unittest
 
 from bot_loker_wfh.database import apply_schema
-from bot_loker_wfh.office_server import collect_stats, employee_results, hunt_freelancer, hunt_jobs
+from bot_loker_wfh.office_server import collect_stats, employee_results, hunt_jobs, hunt_leads
 
 
 class CollectStatsTest(unittest.TestCase):
@@ -50,7 +50,7 @@ class CollectStatsTest(unittest.TestCase):
                 )
                 return {"freelancer": 1}
 
-        result = hunt_freelancer(connection, FakeLeadService())
+        result = hunt_leads(connection, FakeLeadService(), "freelancer")
 
         self.assertEqual(result["inserted"], 1)
         self.assertEqual(
@@ -106,8 +106,9 @@ class CollectStatsTest(unittest.TestCase):
 
         self.assertEqual(len(jobs), 1)
         self.assertEqual((jobs[0]["tag"], jobs[0]["detail"]), ("FILTERED_OUT", "role mismatch"))
-        for view in ("screened", "drafts", "applied", "tracking", "leads"):
+        for view in ("screened", "drafts", "applied", "tracking"):
             self.assertIsInstance(employee_results(connection, view), list)
+        self.assertEqual(employee_results(connection, "leads", "projects.co.id"), [])
         self.assertEqual(employee_results(connection, "nope"), [])
 
 

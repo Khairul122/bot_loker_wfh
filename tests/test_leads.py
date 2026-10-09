@@ -95,7 +95,7 @@ class SourceFetcherTest(unittest.TestCase):
         def item(number):
             return {
                 "project_id": f"p{number}",
-                "title": f"Buat Website {number}",
+                "title": f"Buat Website &amp; App {number}",
                 "short_description": "  Butuh   programmer  ",
                 "budget_range_str": "Rp 1,000,000 - 2,000,000",
                 "published_date": "2026-09-18 08:00:00",
@@ -115,6 +115,7 @@ class SourceFetcherTest(unittest.TestCase):
         self.assertEqual([lead.external_id for lead in leads], ["p1", "p2"])
         self.assertEqual(leads[0].url, "https://projects.co.id/public/browse_projects/view/p1/x")
         self.assertEqual(leads[0].description, "Butuh programmer")
+        self.assertEqual(leads[0].title, "Buat Website & App 1")
         self.assertEqual(leads[0].posted_at, "2026-09-18T08:00:00+07:00")
         self.assertEqual(leads[0].budget, "Rp 1,000,000 - 2,000,000 | 3 bid")
 

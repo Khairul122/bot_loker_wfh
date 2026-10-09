@@ -26,7 +26,8 @@ from .leads import (
 )
 from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
-from .office_server import hunt_freelancer, hunt_jobs, serve as serve_office
+from .office_server import hunt_jobs, hunt_leads, serve as serve_office
+from .lead_desk import draft_proposal
 from .office_work import OfficeWork
 from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
@@ -51,6 +52,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--application-id", help="Application ID for fill-form")
     parser.add_argument("--force-assist", action="store_true", help="Force assist mode for fill-form")
     parser.add_argument("--next-page", action="store_true", help="Fill next page for multi-page form")
+    parser.add_argument("--lead-id", help="Lead ID for fill-lead")
+    parser.add_argument("--engine", choices=("browsermcp", "playwright"), default="browsermcp",
+                        help="Browser for fill-lead: your Chrome (BrowserMCP) or Playwright MCP")
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
         "command",
@@ -70,6 +74,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "process-jobs",
             "add-company",
             "fill-form",
+            "fill-lead",
             "cleanup-retention",
             "backup-db",
             "restore-db",
@@ -189,6 +194,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "run-bot":
         return _run_bot(settings)
 
+    if args.command == "fill-lead":
+        if not args.lead_id:
+            parser.error("fill-lead requires --lead-id")
+        return _fill_lead(settings, args.lead_id, args.engine)
+
     if args.command == "fill-form":
         if not args.application_id:
             parser.error("fill-form requires --application-id")
@@ -302,8 +312,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         llm = create_llm_from_settings(settings, str(database_path))
         work = OfficeWork(
             database_path,
-            hunters=_office_hunters(profile),
+            hunters=_office_hunters(profile, settings),
             draft_service_for=lambda connection: DraftService(connection, profile, llm=llm),
+            proposal_writer=lambda connection, lead_id: draft_proposal(connection, lead_id, profile, llm),
             form_assist_enabled=settings.form_assist_enabled,
             # same floor as the scheduler: job sources are polled at most every 4 hours
             interval_seconds=int(max(4.0, settings.fetch_interval_hours) * 3600),
@@ -346,7 +357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _office_hunters(profile) -> dict:
+def _office_hunters(profile, settings: Settings) -> dict:
     """Real searches the 3D office can trigger, one per employee."""
     job_fetchers = {
         "remoteok": RemoteOKFetcher,
@@ -364,9 +375,15 @@ def _office_hunters(profile) -> dict:
         )
         for source, fetcher_class in job_fetchers.items()
     }
-    hunters["freelancer"] = lambda connection: hunt_freelancer(
-        connection, LeadService(connection, profile, fetchers=[FreelancerFetcher()])
-    )
+    lead_fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher()]  # global + Indonesia
+    if settings.lead_telegram_channels:
+        lead_fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
+    for fetcher in lead_fetchers:
+        hunters[fetcher.source] = (
+            lambda connection, fetcher=fetcher: hunt_leads(
+                connection, LeadService(connection, profile, fetchers=[fetcher]), fetcher.source
+            )
+        )
     return hunters
 
 
@@ -448,6 +465,41 @@ def _fill_form(
         return 1
     except Exception as error:
         tell(f"Error pengisian form: {error}")
+        return 1
+    finally:
+        connection.close()
+    return 0
+
+
+# How long a Playwright MCP browser stays open for the owner to review and submit.
+PLAYWRIGHT_REVIEW_SECONDS = 30 * 60
+
+
+def _fill_lead(settings: Settings, lead_id: str, engine: str) -> int:
+    """Fill a freelance bid form with the saved proposal. Never presses submit."""
+    from .form_agent.agent import FormAgent
+
+    database_path = initialize_database(settings.database_url)
+    connection = sqlite3.connect(database_path)
+    try:
+        agent = FormAgent(
+            connection,
+            router=create_llm_from_settings(settings, str(database_path)),
+            browser_command=(
+                settings.playwright_mcp_command if engine == "playwright" else settings.browser_mcp_command
+            ),
+            min_confidence=settings.form_min_confidence,
+            max_actions=settings.form_max_actions,
+            max_tool_calls=settings.form_max_tool_calls,
+            timeout_seconds=settings.form_timeout_seconds,
+            applicant_path=settings.applicant_path,
+            answers_path=settings.answers_path,
+            db_path=str(database_path),
+        )
+        keep_open = PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
+        print(agent.run_lead_session(lead_id, keep_open_seconds=keep_open), flush=True)
+    except Exception as error:
+        print(f"Error pengisian form proyek: {error}", flush=True)
         return 1
     finally:
         connection.close()

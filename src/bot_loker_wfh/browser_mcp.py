@@ -156,6 +156,23 @@ class McpBrowserClient:
             "Ekstensi BrowserMCP belum terhubung setelah menunggu."
         )
 
+    def hold_open(self, max_seconds: float, poll_seconds: float = 10.0) -> None:
+        """Keep the server (and the browser it launched) alive until the owner closes it.
+
+        Used for Playwright MCP, whose browser dies with the server process. Polls a
+        read-only snapshot that does not count against max_tool_calls.
+        """
+        deadline = time.time() + max_seconds
+        while time.time() < deadline:
+            time.sleep(poll_seconds)
+            try:
+                res = self._send_request("tools/call", {"name": "browser_snapshot", "arguments": {}})
+            except Exception:
+                return
+            payload = res.get("result", {})
+            if "error" in res or (isinstance(payload, dict) and payload.get("isError")):
+                return
+
     def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         if name not in ALLOWED_TOOLS:
             raise McpClientError(f"Tool {name} is not in allowed tools list")

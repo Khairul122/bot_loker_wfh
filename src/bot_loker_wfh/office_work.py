@@ -15,7 +15,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form
+from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
+from .lead_desk import list_leads, save_proposal, set_lead_status
 from .status_transitions import (
     InvalidTransitionError,
     TransitionActor,
@@ -47,6 +48,7 @@ class OfficeWork:
         form_assist_enabled: bool,
         interval_seconds: int,
         lock: threading.Lock,
+        proposal_writer: Callable[[sqlite3.Connection, str], str] | None = None,
         spawn: Callable[..., Any] = subprocess.Popen,
         clock: Callable[[], float] = time.time,
     ) -> None:
@@ -56,6 +58,7 @@ class OfficeWork:
         self.form_assist_enabled = form_assist_enabled
         self.interval_seconds = interval_seconds
         self.lock = lock  # shared with manual hunts: one search/draft at a time
+        self.proposal_writer = proposal_writer
         self.spawn = spawn
         self.clock = clock
         self.auto = False
@@ -149,6 +152,34 @@ class OfficeWork:
             "SELECT COUNT(*) FROM jobs j LEFT JOIN applications a ON a.job_id = j.id "
             "WHERE j.status = 'CANDIDATE' AND a.id IS NULL"
         ).fetchone()[0]
+
+    # ------------------------------------------------------------------ freelance desk
+
+    def leads(self, connection: sqlite3.Connection, source: str | None) -> dict:
+        return {"items": list_leads(connection, source), "browser_fill": self.form_assist_enabled}
+
+    def lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> dict:
+        """interested | ignored | new | proposal | fill. Raises KeyError for unknown leads."""
+        if action in ("interested", "ignored", "new"):
+            set_lead_status(connection, lead_id, action.upper())
+            return {"status": action.upper()}
+        if action == "proposal":
+            text = str(body.get("text") or "").strip()
+            if text:
+                save_proposal(connection, lead_id, text)
+            else:
+                text = self.proposal_writer(connection, lead_id)
+            return {"proposal": text}
+        if action == "fill":
+            row = connection.execute("SELECT url, proposal FROM leads WHERE id = ?", (lead_id,)).fetchone()
+            if row is None:
+                raise KeyError(lead_id)
+            engine = "playwright" if body.get("engine") == "playwright" else "browsermcp"
+            if not self.form_assist_enabled or not (row[1] or "").strip():
+                return {"mode": "manual", "url": row[0]}
+            spawn_fill_lead(lead_id, engine, spawn=self.spawn)
+            return {"mode": "form", "engine": engine, "url": row[0]}
+        raise ValueError(f"unknown action: {action}")
 
     # ------------------------------------------------------------------ auto work
 
