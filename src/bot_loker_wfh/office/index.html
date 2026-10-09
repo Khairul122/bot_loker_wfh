@@ -290,7 +290,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 try { await document.fonts.load('900 80px Nunito'); } catch {}
 
 // ---------- constants ----------
-const FH = 4.2, W = 18, D = 12, NF = 7, ROOF = NF;
+const FH = 4.2, W = 18, D = 12, NF = 9, ROOF = NF; // NF = DIVS.length
 const ELEV_X = 10.9, DOOR_X = 9.0;
 const $ = id => document.getElementById(id);
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -334,6 +334,12 @@ gradient.minFilter = gradient.magFilter = THREE.NearestFilter;
 gradient.needsUpdate = true;
 const matCache = new Map();
 const glow = []; // materials that light up at night
+// ponytail: ~20 point lights cost fill-rate on weak GPUs; drop the lamp lights first if it stutters
+const nightLights = []; // real light sources, only switched on at night
+function light(x, y, z, color = 0xffc982, power = 14, dist = 13, parent = scene) {
+  const l = new THREE.PointLight(color, power, dist, 1.5); l.position.set(x, y, z); l.visible = false;
+  parent.add(l); nightLights.push(l); return l;
+}
 function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
   if (!opts.unique && matCache.has(key)) return matCache.get(key);
@@ -460,6 +466,7 @@ function lamp(x, z, p, h = 3) {
   const g = group(x, 0, z, p);
   cyl(0.06, 0.08, h, 0x5a4a42, 0, h / 2, 0, g);
   sph(0.28, 0xfff1c9, 0, h + 0.1, 0, g, { glow: 0xffd27a });
+  light(0, h - 0.2, 0, 0xffc982, 16, 14, g);
   return g;
 }
 function tree(x, z, s = 1, kind = 0) {
@@ -495,11 +502,109 @@ const DIVS = [
   { id: 'lamar', icon: '🚀', name: 'Divisi Pelamar', floor: 0xd4ecf2, wall: 0xeef9fc, accent: '#4ea7c4', screen: 0x9fe6ff },
   { id: 'pantau', icon: '📈', name: 'Pantau & Interview', floor: 0xf4dbe2, wall: 0xfff1f4, accent: '#d8738f', screen: 0xffb3c6 },
   { id: 'freelance', icon: '🤝', name: 'Proyek Freelance', floor: 0xf4ecc6, wall: 0xfffbe8, accent: '#c9a227', screen: 0xffe58a },
+  { id: 'kantin', icon: '🍛', name: 'Kantin & Toilet', floor: 0xf3e3c8, wall: 0xfff8ec, accent: '#e0844a', screen: 0xffd7a8 },
+  { id: 'owner', icon: '👑', name: 'Ruang Owner', floor: 0xe3d3bd, wall: 0xf7efe3, accent: '#8a6b55', screen: 0x9fe6ff },
 ];
+const KANTIN = 7, OWNER = 8;
+const roomSpots = []; // spots built together with their rooms, merged into `spots` below
+// walls that exist on one level only (toilet room, houses): [x0, x1, z0, z1, level]
+const ROOM_WALLS = [];
 const floors = [];
 const deskSeats = {}; // division id -> [{x,z,ry}]
 const animated = []; // per-frame callbacks (t, dt)
 const dyn = {}; // data-driven props
+
+// ---------- kantin + toilet (level 7) ----------
+const FOODS = [
+  { id: 'nasgor', icon: '🍛', name: 'Nasi Goreng', energy: 35, joy: 6 },
+  { id: 'mie', icon: '🍜', name: 'Mie Ayam', energy: 30, joy: 8 },
+  { id: 'bakso', icon: '🍲', name: 'Bakso', energy: 28, joy: 10 },
+  { id: 'esteh', icon: '🧋', name: 'Es Teh', energy: 12, joy: 12 },
+];
+const ORDER_AT = [V(-6, -3.4), V(-4.4, -3.4), V(-2.8, -3.4)]; // in front of the counter
+const stalls = [];
+function buildKantin(g) {
+  // buffet counter along the back wall
+  const ct = group(-4.4, 0, -4.7, g);
+  box(6.4, 1, 0.9, 0xc4895a, 0, 0.5, 0, ct); box(6.6, 0.08, 1.05, 0xfff2df, 0, 1.04, 0, ct);
+  [0xf2b84b, 0xd8643a, 0x8fcf7a, 0xf6e7c1, 0xb5651d, 0xffd166].forEach((c, k) => {
+    box(0.8, 0.1, 0.55, 0xd9dde3, -2.6 + k * 1.04, 1.12, 0, ct, { cast: false });
+    sph(0.26, c, -2.6 + k * 1.04, 1.17, 0, ct, { cast: false }).scale.y = 0.35;
+  });
+  box(6.4, 0.5, 0.04, 0, 0, 1.5, 0.38, ct, { cast: false, material: new THREE.MeshToonMaterial({ color: 0xcfeaf5, gradientMap: gradient, transparent: true, opacity: 0.35 }) });
+  tag(ct, { kind: 'spot', kindName: 'kantin' });
+  // three tables, four seats each; a plate sprite appears while someone eats
+  [-6.6, -2.6, 1.4].forEach((tx, ti) => {
+    const tz = 2.4;
+    box(1.8, 0.08, 1, 0xe6c49a, tx, 0.74, tz, g); cyl(0.08, 0.2, 0.72, 0xb98d63, tx, 0.36, tz, g);
+    for (const sx of [-0.45, 0.45]) for (const sz of [-1, 1]) {
+      const x = tx + sx, z = tz + sz * 0.9;
+      chair(x, z, sz > 0 ? Math.PI : 0, g, 0xe0844a);
+      const plate = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('🍛', false), depthWrite: false }));
+      plate.scale.setScalar(0.42); plate.position.set(x, KANTIN * FH + 0.95, tz + sz * 0.3); plate.visible = false; scene.add(plate);
+      roomSpots.push({ kind: 'makan', level: KANTIN, x, z, ry: sz > 0 ? Math.PI : 0, pose: 'eat', table: ti, plate, emo: '😋' });
+    }
+  });
+  // toilet room in the back-right corner: two stalls + a sink, its door on the left of the front wall
+  const tile = 0xeaf3f6;
+  box(0.15, FH - 0.4, 4.4, tile, 4, (FH - 0.4) / 2, -3.75, g);
+  box(0.6, FH - 0.4, 0.15, tile, 4.3, (FH - 0.4) / 2, -1.55, g);
+  box(3.2, FH - 0.4, 0.15, tile, 7.2, (FH - 0.4) / 2, -1.55, g);
+  box(1, FH - 3, 0.15, tile, 5.1, 2.6 + (FH - 3) / 2, -1.55, g);
+  ROOM_WALLS.push([3.9, 4.1, -6, -1.5, KANTIN], [4, 4.6, -1.65, -1.45, KANTIN], [5.6, 8.8, -1.65, -1.45, KANTIN]);
+  sign('🚻', 'Toilet', '#4ea7c4', '#fff', 7.2, 3, -1.46, g, 2.6);
+  box(4.8, 0.02, 4.3, 0xdfeef3, 6.4, 0.012, -3.75, g, { cast: false });
+  const toiletBox = [4, 8.8, -6, -1.5];
+  [6.7, 8.1].forEach(x => {
+    box(0.1, 2.2, 1.7, 0xb9d7e2, x - 0.7, 1.1, -5.05, g);
+    cyl(0.24, 0.2, 0.42, 0xffffff, x, 0.21, -5.35, g); box(0.5, 0.5, 0.18, 0xffffff, x, 0.6, -5.75, g);
+    const hinge = group(x - 0.65, 0, -4.2, g); box(1.25, 2, 0.06, 0x7ab8d0, 0.62, 1.1, 0, hinge); hinge.rotation.y = -1.2;
+    const spot = { kind: 'toilet', level: KANTIN, x, z: -5.1, ry: 0, pose: 'sit', emo: '🚽', energy: 2,
+      via: [V(5.1, -0.4), V(5.1, -2.4), V(x, -3.4)], box: toiletBox };
+    stalls.push({ hinge, spot }); roomSpots.push(spot);
+    tag(hinge, { kind: 'spot', kindName: 'toilet' });
+  });
+  box(0.1, 2.2, 1.7, 0xb9d7e2, 8.8, 1.1, -5.05, g);
+  const sink = group(4.35, 0, -3.2, g);
+  box(0.5, 0.85, 0.9, 0xffffff, 0, 0.42, 0, sink); cyl(0.25, 0.18, 0.12, 0xdfeef3, 0.05, 0.9, 0, sink);
+  box(0.04, 0.9, 0.8, 0xcfeaf5, -0.24, 1.75, 0, sink, { glow: 0xffffff, cast: false });
+  roomSpots.push({ kind: 'wastafel', level: KANTIN, x: 5, z: -3.2, ry: -Math.PI / 2, pose: 'wash', obj: sink, emo: '🧼',
+    via: [V(5.1, -0.4), V(5.1, -2.4)], box: toiletBox });
+  plant(-8.2, 5.2, g, 1.2); plant(8.2, 5.2, g);
+  const wd = group(-8.3, 0, -1.2, g); box(0.5, 1, 0.5, 0xffffff, 0, 0.5, 0, wd); cyl(0.2, 0.2, 0.5, 0x9fd8ef, 0, 1.25, 0, wd);
+}
+
+// ---------- owner's office (level 8) ----------
+const DESK = { x: -2, z: -2.7 };
+const DELIVER_AT = [V(-2.9, -1.1), V(-2, -1.0), V(-1.1, -1.1)]; // where reports are handed over
+const reportStack = [];
+let kpiBoard = null;
+function buildOwnerRoom(g) {
+  rug(-2, -1.5, 3.4, 0xb5651d, g);
+  const dk = group(DESK.x, 0, DESK.z, g);
+  box(3.4, 0.12, 1.4, 0x6b4a33, 0, 0.8, 0, dk); box(3.2, 0.74, 0.1, 0x5a3d2b, 0, 0.4, 0.62, dk);
+  for (const x of [-1.6, 1.6]) box(0.12, 0.8, 1.3, 0x5a3d2b, x, 0.4, 0, dk);
+  box(1.2, 0.7, 0.06, 0x3b3b48, -0.4, 1.25, -0.35, dk);
+  screens.push(box(1.1, 0.6, 0.02, 0x9fe6ff, -0.4, 1.25, -0.315, dk, { glow: 0x9fe6ff, unique: true, cast: false }));
+  box(0.7, 0.06, 0.5, 0x8a6b55, 1.1, 0.89, 0.15, dk); // report tray: one paper per unreviewed report
+  for (let k = 0; k < 12; k++) { const p = box(0.55, 0.035, 0.4, k % 2 ? 0xffffff : 0xfff6e0, 1.1, 0.94 + k * 0.04, 0.15, dk, { cast: false }); p.rotation.y = rand(-0.2, 0.2); p.visible = false; reportStack.push(p); }
+  sph(0.08, 0xffd166, -1.3, 0.95, 0.3, dk);
+  tag(dk, { kind: 'spot', kindName: 'owner' });
+  const oc = chair(DESK.x, DESK.z - 0.9, 0, g, 0x5a3d2b); oc.scale.setScalar(1.2); tag(oc, { kind: 'spot', kindName: 'owner' });
+  roomSpots.push({ kind: 'owner', level: OWNER, x: DESK.x, z: DESK.z - 0.85, ry: 0, pose: 'sit', emo: '👑', energy: 3 });
+  for (const x of [-3.3, -0.7]) chair(x, -0.2, Math.PI, g, 0xd8b48a);
+  sofa(4.6, 3.6, Math.PI, g, 0x7a5a8a); box(1.6, 0.4, 0.8, 0x6b4a33, 4.6, 0.2, 2.2, g);
+  roomSpots.push({ kind: 'sofa', level: OWNER, x: 4.6, z: 3.5, ry: Math.PI, pose: 'sit', emo: '🛋️', energy: 6 });
+  shelf(5.4, -5.5, 0, g); shelf(7.6, -5.5, 0, g);
+  plant(-8.2, -5, g, 1.4); plant(8.2, 5.2, g, 1.2); plant(-8.2, 5.2, g);
+  // KPI board on the left wall: real team scores, redrawn after every stats poll
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
+  kpiBoard = { canvas: c, tex: new THREE.CanvasTexture(c) }; kpiBoard.tex.colorSpace = THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(5.6, 2.8), new THREE.MeshBasicMaterial({ map: kpiBoard.tex }));
+  board.position.set(-W / 2 + 0.08, 2.1, 1.2); board.rotation.y = Math.PI / 2; g.add(board);
+  box(0.06, 3, 5.8, 0x5a3d2b, -W / 2 + 0.03, 2.1, 1.2, g, { cast: false });
+  tag(board, { kind: 'spot', kindName: 'owner' });
+}
 
 function buildFloor(i, d) {
   const g = group(0, i * FH, 0);
@@ -514,6 +619,14 @@ function buildFloor(i, d) {
   box(0.3, FH - 0.4, D + 0.8, d.wall, -W / 2 - 0.25, (FH - 0.4) / 2, 0, g); // left wall
   box(0.3, FH - 0.4, 4, d.wall, W / 2 + 0.25, (FH - 0.4) / 2, -4.6, g); // right stub
   box(0.3, FH - 0.4, 4, d.wall, W / 2 + 0.25, (FH - 0.4) / 2, 4.6, g);
+  // the strips beside and above the lift door, the threshold and the cheeks up to the glass:
+  // without them the floor shows holes around the lift
+  for (const s of [-1, 1]) box(0.3, FH - 0.4, 1.4, d.wall, W / 2 + 0.25, (FH - 0.4) / 2, s * 1.9, g);
+  box(0.3, FH - 3, 2.4, d.wall, W / 2 + 0.25, 2.6 + (FH - 3) / 2, 0, g);
+  box(0.6, 0.4, 2.6, d.floor, W / 2 + 0.6, i ? -0.2 : -0.18, 0, g, { cast: false });
+  for (const s of [-1, 1]) box(0.45, FH - 0.4, 0.12, 0xe4eef3, W / 2 + 0.62, (FH - 0.4) / 2, s * 1.26, g);
+  box(0.45, 0.12, 2.6, 0xe4eef3, W / 2 + 0.62, FH - 0.46, 0, g, { cast: false });
+  light(0, i * FH + FH - 0.9, 0.5, 0xffd9a0, 22, 15); // in the scene, not the floor group: the cutaway must not change the light count
   box(W + 0.8, 0.14, 0.14, 0xffffff, 0, FH - 0.5, D / 2 + 0.3, g, { cast: false }); // front beam
   // in front of the window glass (front face at -D/2 - 0.05), otherwise the two z-fight
   sign(d.icon, d.name, d.accent, '#ffffff', -3.5, FH - 1.05, -D / 2 + 0.03, g, 7.5);
@@ -527,7 +640,8 @@ function buildFloor(i, d) {
 function seats(id, list, g, screen) {
   deskSeats[id] = list.map(([x, z]) => { desk(x, z, Math.PI, g, screen); return { x, z: z - 0.75, ry: 0, side: 1.4 }; });
 }
-const seatExit = s => [V(s.x + s.side, s.z), V(s.x + s.side, s.z + 2.4)];
+// the way out from behind a desk, walked in reverse on the way in
+const seatVia = s => [V(s.x + s.side, s.z + 2.4), V(s.x + s.side, s.z)];
 
 DIVS.forEach((d, i) => {
   const g = buildFloor(i, d);
@@ -611,6 +725,8 @@ DIVS.forEach((d, i) => {
     dyn.notes = notes;
     plant(-8, 5, g, 1.3);
   }
+  if (d.id === 'kantin') buildKantin(g);
+  if (d.id === 'owner') buildOwnerRoom(g);
 });
 
 // rooftop garden
@@ -640,7 +756,8 @@ for (let k = 0; k < 5; k++) cyl(0.5, 0.5, 0.05, 0x7cbf72, -30 + rand(-4, 4), 0.1
 const ducks = [];
 for (let k = 0; k < 2; k++) { const dg = group(-30, 0.1, -6); sph(0.35, 0xffffff, 0, 0.2, 0, dg); sph(0.2, 0xffffff, 0.3, 0.5, 0, dg); const bk = box(0.15, 0.06, 0.1, 0xf2a03d, 0.5, 0.48, 0, dg); dg.userData.o = k * 3; ducks.push(dg); }
 animated.push(t => ducks.forEach(dk => { const a = t * 0.25 + dk.userData.o; dk.position.set(-30 + Math.cos(a) * 3.5, 0.1 + Math.sin(t * 2 + a) * 0.03, -6 + Math.sin(a) * 3.5); dk.rotation.y = -a; }));
-[[-22, -16, 1.1], [-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [16, -22, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [12, 24, 0.9], [-8, 26, 1], [30, 24, 1, 1], [0, -26, 1.2], [-14, -24, 1, 1], [26, -24, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
+// the strip behind the office (z < -15) is the housing estate, keep trees off it
+[[-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [12, 24, 0.9], [-8, 26, 1], [30, 24, 1, 1], [-35, -24, 1, 1], [35, -23, 1], [0, -40, 1.1], [-14, -39, 1, 1], [16, -39, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
 flowers(-24, -2); flowers(-36, 2); flowers(-20, 14); flowers(-12, 18); flowers(8, 18); flowers(14, 16); flowers(-4, -18);
 lamp(-17, 12, scene); lamp(-30, 6, scene); lamp(17, 12, scene); lamp(30, 3, scene); lamp(-6, 16, scene);
 const benchA = bench(-24, 3, Math.PI); const benchB = bench(-36, 6, Math.PI * 0.75); const benchC = bench(-22, -14, 0.2);
@@ -704,6 +821,7 @@ const spots = [
   { kind: 'parasol', level: ROOF, x: 4, z: 3.6, ry: Math.PI, pose: 'floor', obj: parasol, emo: '🌤️', energy: 6, joy: 2 },
   { kind: 'sofa', level: 0, x: -5.6, z: 3, ry: Math.PI / 2, pose: 'sit', obj: null, emo: '🛋️', energy: 6 },
   { kind: 'sofa', level: 3, x: -5, z: 3.6, ry: 0, pose: 'sit', obj: null, emo: '📚', energy: 6 },
+  ...roomSpots,
 ];
 spots.forEach((s, i) => { s.id = i; s.by = null; if (s.obj) tag(s.obj, { kind: 'spot', kindName: s.kind }); });
 tag(ball, { kind: 'spot', kindName: 'hoop' });
@@ -780,17 +898,28 @@ class Char {
   face(x, z) { this.targetRy = Math.atan2(x - this.pos.x, z - this.pos.z); }
   leaveSpot() { if (this.spot) { this.spot.by = null; this.spot = null; } this.pose = 'stand'; }
   stop() { spots.forEach(s => { if (s.by === this) s.by = null; }); this.spot = null; this.pose = 'stand'; this.path = []; this.onArrive = null; }
-  goTo(level, x, z, onArrive) {
-    if (this.ride) { this.pendingGo = [level, x, z, onArrive]; return; }
+  // via: waypoints from outside to just inside a room/desk/house; box: that room's footprint.
+  // The next trip out of it walks the same waypoints backwards instead of through a wall.
+  goTo(level, x, z, onArrive, { via = [], box } = {}) {
+    if (this.ride) { this.pendingGo = [level, x, z, onArrive, { via, box }]; return; }
+    const exit = this.exitPts();
     this.stop(); this.emote = null;
-    const sea = this.seat, ex = sea && seatExit(sea);
-    const atSeat = sea && this.level === sea.level && Math.hypot(this.pos.x - sea.x, this.pos.z - sea.z) < 0.4;
-    const toSeat = sea && level === sea.level && x === sea.x && z === sea.z;
-    const path = route(this.level, atSeat ? ex[1] : this.pos, level, toSeat ? ex[1] : V(x, z));
-    if (atSeat) path.unshift({ p: ex[0] }, { p: ex[1] });
-    if (toSeat) path.push({ p: ex[0] }, { p: V(x, z) });
+    const start = exit.length ? exit[exit.length - 1] : this.pos;
+    const path = exit.map(p => ({ p }));
+    path.push(...route(this.level, start, level, via.length ? via[0] : V(x, z)));
+    via.slice(1).forEach(p => path.push({ p }));
+    if (via.length) path.push({ p: V(x, z) });
     this.path = path; this.onArrive = onArrive;
+    this.inside = via.length ? { level, via, box, at: V(x, z) } : null;
   }
+  exitPts() {
+    const i = this.inside;
+    if (!i || i.level !== this.level) return [];
+    const near = i.box ? inR(this.pos.x, this.pos.z, i.box, 0.2) : Math.hypot(this.pos.x - i.at.x, this.pos.z - i.at.z) < 1.2;
+    return near ? [...i.via].reverse() : [];
+  }
+  carry(obj) { this.drop(); obj.position.set(0, -0.52, 0.2); this.p.arms[1].add(obj); this.carrying = obj; }
+  drop() { if (this.carrying) { this.carrying.parent?.remove(this.carrying); this.carrying = null; } }
   update(dt, t) {
     this.t += dt;
     const P = this.p; let walking = false;
@@ -834,7 +963,9 @@ class Char {
       this.pos.x = wp.x; this.pos.z = wp.z + off.z; rootY = wp.y + off.y - 0.2;
       legA = -1.4 + a; armL = armR = -2.6; bodyY = 0.05;
     } else if (this.pose === 'shoot') { const u = (this.t % 2.4) / 2.4; bodyY = u < 0.3 ? -0.1 : u < 0.5 ? 0.35 : 0; armL = armR = u < 0.5 ? -2.6 : -0.4; }
-    else if (this.pose === 'play') { armR = -1.2 + Math.sin(this.t * 6) * 0.6; bodyY = Math.abs(Math.sin(this.t * 3)) * 0.06; }
+    else if (this.pose === 'play') { this.swingT = Math.max(0, (this.swingT || 0) - dt); armR = -0.9 - Math.sin(this.swingT / 0.35 * Math.PI) * 1.1; armRz = 0.3; bodyY = Math.abs(Math.sin(this.t * 3)) * 0.06; }
+    else if (this.pose === 'eat') { const b = Math.max(0, Math.sin(this.t * 3)); bodyY = -0.18; legA = -1.45; armL = -0.6; armR = -1.5 - b * 1.0; headX = 0.12 - b * 0.15; }
+    else if (this.pose === 'wash') { armL = armR = -1.1 + Math.sin(this.t * 9) * 0.12; headX = 0.35; }
     else if (this.pose === 'dance') { bodyY = Math.abs(Math.sin(this.t * 5)) * 0.25; extraRy = Math.sin(this.t * 2.5) * 0.9; armL = -2.4 + Math.sin(this.t * 10) * 0.4; armR = -2.4 - Math.sin(this.t * 10) * 0.4; }
     else {
       // idle by mood
@@ -859,9 +990,11 @@ class Char {
       else if (e === 'startle') { bodyY += Math.max(0, Math.sin(u * 10)) * 0.4; armL = armR = -1.6; }
       else if (e === 'drink') { armR = -2.0; headX = -0.25; }
       else if (e === 'stretch') { armL = armR = -3.0; bodyRx = -0.12; headX = -0.2; }
+      else if (e === 'give') { armL = armR = -1.45; bodyRx = 0.1; }
       if (this.emoteT <= 0) this.emote = null;
     }
-    if (!walking && !['sit', 'work', 'floor', 'swing'].includes(this.pose)) P.legs.forEach((l, i) => l.rotation.x = 0);
+    if (this.carrying && !this.emote) armR = walking ? -1.0 : -1.25;
+    if (!walking && !['sit', 'work', 'floor', 'swing', 'eat'].includes(this.pose)) P.legs.forEach((l, i) => l.rotation.x = 0);
     else P.legs.forEach((l, i) => l.rotation.x = walking ? (i ? -legA : legA) : legA);
     P.arms[0].rotation.x = armL; P.arms[1].rotation.x = armR;
     P.arms[0].rotation.z = -armLz; P.arms[1].rotation.z = armRz;
@@ -882,9 +1015,17 @@ class Char {
 // ---------- routing ----------
 const inTower = p => p.x > -W / 2 - 0.3 && p.x < W / 2 + 2.5 && p.z > -D / 2 - 0.4 && p.z < D / 2 + 0.4;
 const FRONT_Z = D / 2 + 1.8;
+function hitsTower(a, b) {
+  for (let k = 1; k < 24; k++) {
+    const u = k / 24, x = a.x + (b.x - a.x) * u, z = a.z + (b.z - a.z) * u;
+    if (x > -W / 2 - 1 && x < W / 2 + 3 && z > -D / 2 - 1 && z < D / 2 + 1) return true;
+  }
+  return false;
+}
 function outdoorLeg(a, b) {
-  // detour around the tower footprint when walking outside
+  // detour around the tower footprint when walking outside, only if the straight line would cross it
   const pts = [];
+  if (!hitsTower(a, b)) return pts;
   const behind = p => p.z < -D / 2 - 0.4;
   const side = p => p.x < 0 ? -W / 2 - 2 : W / 2 + 3.6;
   if (behind(a) !== behind(b)) {
@@ -991,7 +1132,8 @@ STAFF.forEach(def => {
   const seat = deskSeats[def.div][used[def.div] = (used[def.div] ?? -1) + 1];
   const lvl = DIVS.findIndex(d => d.id === def.div);
   const c = new Char(def.name, def.look, lvl, seat.x, seat.z);
-  c.def = def; c.seat = { ...seat, level: lvl }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
+  c.def = def; c.seat = { ...seat, level: lvl, via: seatVia(seat) }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
+  c.inside = { level: lvl, via: c.seat.via, at: V(seat.x, seat.z) };
   c.state = 'work'; c.timer = rand(15, 50); c.boost = 0; c.boostUntil = 0;
   c.speed = rand(2.2, 2.8);
   staff.push(c);
@@ -1195,7 +1337,7 @@ function blocked(level, p, nx, nz) {
     const onFloor = nx > -W / 2 + 0.3 && nx < W / 2 + 0.3 && Math.abs(nz) < D / 2 - 0.3;
     if (!onFloor && !inShaft({ x: nx, z: nz })) return true;
   } else if (nx * nx + nz * nz > 47 * 47) return true;
-  return WALLS.some(r => inR(nx, nz, r) && !inR(p.x, p.z, r));
+  return WALLS.concat(ROOM_WALLS.filter(r => r[4] === level)).some(r => inR(nx, nz, r) && !inR(p.x, p.z, r));
 }
 
 // ---------- speech bubbles ----------
@@ -1269,7 +1411,7 @@ function updateStaff(c, dt, now) {
 }
 function goBack(c) {
   c.state = 'back';
-  c.goTo(c.seat.level, c.seat.x, c.seat.z, () => { c.state = 'work'; c.pose = 'work'; c.targetRy = c.seat.ry; c.timer = rand(30, 60); });
+  c.goTo(c.seat.level, c.seat.x, c.seat.z, () => { c.state = 'work'; c.pose = 'work'; c.targetRy = c.seat.ry; c.timer = rand(30, 60); }, { via: c.seat.via });
 }
 
 // ---------- chat with staff ----------

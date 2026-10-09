@@ -27,6 +27,7 @@ from .leads import (
 )
 from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
+from . import office_desk
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
 from .github_portfolio import load_portfolio, sync_portfolio
 from .lead_desk import draft_comment, draft_proposal
@@ -349,10 +350,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         work = OfficeWork(
             database_path,
             hunters=_office_hunters(profile, settings),
-            draft_service_for=lambda connection: DraftService(connection, profile, llm=llm),
-            proposal_writer=lambda connection, lead_id, mark_interested=True: draft_proposal(
-                connection, lead_id, profile, llm, portfolio=load_portfolio(), mark_interested=mark_interested
+            # Cora writes with the owner's standing instruction appended to every prompt
+            draft_service_for=lambda connection: DraftService(
+                connection, profile, llm=office_desk.instructed(llm, connection, "cora")
             ),
+            proposal_writer=lambda connection, lead_id, mark_interested=True: draft_proposal(
+                connection, lead_id, profile, office_desk.instructed(llm, connection, "cora"),
+                portfolio=load_portfolio(), mark_interested=mark_interested,
+            ),
+            screener=lambda connection: {"matched": JobPipeline(connection, profile).process_discovered()["candidate"]},
+            llm=llm,
+            notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
             # scrape interval lives in the DB so the owner can tune it live from the dashboard
             interval_seconds=lambda: _read_scrape_interval(database_path),
@@ -423,6 +431,19 @@ def _office_hunters(profile, settings: Settings) -> dict:
             )
         )
     return hunters
+
+
+def _owner_notifier(settings: Settings):
+    """Send text to every allowed Telegram chat, or None when Telegram is not configured."""
+    if not settings.telegram_bot_token or not settings.telegram_allowed_chat_ids:
+        return None
+    client = TelegramClient(settings.telegram_bot_token)
+
+    def notify(text: str) -> None:
+        for chat_id in sorted(settings.telegram_allowed_chat_ids):
+            client.send_text(chat_id, text)
+
+    return notify
 
 
 def _read_scrape_interval(database_path: Path) -> float:

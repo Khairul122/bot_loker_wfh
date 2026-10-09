@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 SCHEMA_PATH = Path(__file__).with_name("migrations") / "001_initial_schema.sql"
 SCHEMA_002_PATH = Path(__file__).with_name("migrations") / "002_llm_and_form_agent.sql"
 SCHEMA_003_PATH = Path(__file__).with_name("migrations") / "003_app_settings.sql"
+SCHEMA_004_PATH = Path(__file__).with_name("migrations") / "004_office_desk.sql"
 
 
 def apply_schema(connection: sqlite3.Connection) -> None:
@@ -19,6 +20,7 @@ def apply_schema(connection: sqlite3.Connection) -> None:
     _ensure_embedding_columns(connection)
     _apply_002_schema(connection)
     _apply_003_schema(connection)
+    connection.executescript(SCHEMA_004_PATH.read_text(encoding="utf-8"))
     connection.commit()
 
 

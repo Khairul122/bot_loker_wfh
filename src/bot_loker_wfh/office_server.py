@@ -9,6 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from . import office_desk as desk
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
 from .settings_store import DEFAULTS, get_setting, set_setting
@@ -141,6 +142,16 @@ def employee_results(connection: sqlite3.Connection, view: str, source: str | No
     return [dict(zip(keys, row)) for row in connection.execute(sql, params).fetchall()]
 
 
+def desk_state(connection: sqlite3.Connection) -> dict:
+    """What the 3D owner's office needs on every poll: ratings, instructions, reports to walk over."""
+    return {
+        "ratings": desk.ratings(connection),
+        "instructions": desk.instructions(connection),
+        "undelivered": desk.undelivered(connection),
+        "tray": desk.tray_count(connection),
+    }
+
+
 class _Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, work, **kwargs):
         self.work = work
@@ -161,7 +172,14 @@ class _Handler(SimpleHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path == "/stats.json":
             with self._connect() as connection:
-                return self._json(200, {**collect_stats(connection), "work": self.work.status()})
+                return self._json(200, {**collect_stats(connection), "work": self.work.status(),
+                                        "desk": desk_state(connection)})
+        if path == "/reports.json":
+            employee = parse_qs(urlsplit(self.path).query).get("employee", [None])[0]
+            with self._connect() as connection:
+                return self._json(200, {"items": desk.list_reports(connection, employee),
+                                        "ratings": desk.ratings(connection),
+                                        "telegram": self.work.notify is not None})
         if path == "/results.json":
             query = parse_qs(urlsplit(self.path).query)
             view, source = query.get("view", [""])[0], query.get("source", [None])[0]
@@ -183,12 +201,20 @@ class _Handler(SimpleHTTPRequestHandler):
                 return self._json(200, _settings_payload(connection))
         return super().do_GET()
 
+    def _body(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        body = json.loads(self.rfile.read(length) or b"{}")
+        return body if isinstance(body, dict) else {}
+
     def do_POST(self):
         # Other sites open in the browser must not trigger actions on the owner's machine.
         origin = self.headers.get("Origin")
         if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
             return self._json(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
+        handled = self._desk_post(parts)
+        if handled is not None:
+            return handled
         if parts == ["github", "sync"]:
             length = int(self.headers.get("Content-Length") or 0)
             username = str(json.loads(self.rfile.read(length) or b"{}").get("username") or "").strip()
@@ -231,7 +257,16 @@ class _Handler(SimpleHTTPRequestHandler):
             except InvalidTransitionError:
                 return self._json(409, {"error": "stale"})
         if len(parts) == 2 and parts[0] == "hunt" and parts[1] in self.work.hunters:
-            job = self.work.hunters[parts[1]]
+            hunter, owner = self.work.hunters[parts[1]], desk.SOURCE_OWNER.get(parts[1])
+
+            def job(connection, hunter=hunter, owner=owner):
+                result = hunter(connection)
+                if owner:  # the scout's standing instruction decides which finds are shown first
+                    words = desk.keywords(desk.get_instruction(connection, owner))
+                    result["top"] = desk.prioritize(result.get("top", []), words)
+                return result
+        elif parts == ["work", "screen"] and self.work.screener is not None:
+            job = self.work.screener
         elif parts == ["inbox", "draft"]:
             job = lambda connection: {"drafted": self.work.draft_next(connection)}  # noqa: E731
         else:
@@ -246,6 +281,39 @@ class _Handler(SimpleHTTPRequestHandler):
         finally:
             self.work.lock.release()
 
+    def _desk_post(self, parts: list[str]):
+        """Owner's office routes; None when the path is not one of them."""
+        try:
+            if len(parts) == 3 and parts[:2] == ["reports", "request"]:
+                with self._connect() as connection:
+                    return self._json(200, self.work.request_reports(connection, parts[2]))
+            if len(parts) == 3 and parts[0] == "reports" and parts[2] == "delivered":
+                with self._connect() as connection:
+                    desk.mark_delivered(connection, parts[1])
+                    return self._json(200, {"ok": True})
+            if len(parts) == 3 and parts[0] == "reports" and parts[2] == "review":
+                body = self._body()
+                with self._connect() as connection:
+                    return self._json(200, desk.review_report(connection, parts[1], body.get("rating"), str(body.get("note") or "")))
+            if len(parts) == 2 and parts[0] == "instructions":
+                text = str(self._body().get("text") or "")
+                with self._connect() as connection:
+                    return self._json(200, {"text": desk.set_instruction(connection, parts[1], text)})
+            if len(parts) == 2 and parts[0] == "ask":
+                question = str(self._body().get("question") or "")
+                with self._connect() as connection:
+                    return self._json(200, desk.ask(connection, self.work.llm, parts[1], question))
+            if parts == ["work", "telegram"]:
+                with self._connect() as connection:
+                    return self._json(200, self.work.telegram_digest(connection))
+        except KeyError:
+            return self._json(404, {"error": "not_found"})
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "invalid"})
+        except (OSError, RuntimeError):  # Telegram / LLM unreachable
+            return self._json(502, {"error": "unreachable"})
+        return None
+
     def log_message(self, *args):
         pass
 
@@ -253,6 +321,7 @@ class _Handler(SimpleHTTPRequestHandler):
 def serve(work, port: int = 8765) -> None:
     # Bound to localhost only: the page shows a personal bot's pipeline and cover letters.
     server = ThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
+    work.start_daily_reports()
     print(f"kantor 3D siap di http://127.0.0.1:{port}  (Ctrl+C untuk berhenti)")
     try:
         server.serve_forever()
