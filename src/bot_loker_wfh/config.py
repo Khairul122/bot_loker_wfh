@@ -42,7 +42,7 @@ class Settings:
     browser_mcp_command: str = "npx -y @browsermcp/mcp@0.1.3"
     github_username: str = ""
     playwright_mcp_command: str = (
-        "npx -y @playwright/mcp@0.0.80 --user-data-dir data/playwright-mcp-profile --output-dir data/playwright-mcp"
+        "npx -y @playwright/mcp@0.0.80 --extension --output-dir data/playwright-mcp"
     )
     form_min_confidence: float = 0.7
     form_max_actions: int = 60
@@ -117,7 +117,7 @@ class Settings:
             github_username=(source.get("GITHUB_USERNAME") or "").strip(),
             playwright_mcp_command=source.get(
                 "PLAYWRIGHT_MCP_COMMAND",
-                "npx -y @playwright/mcp@0.0.80 --user-data-dir data/playwright-mcp-profile --output-dir data/playwright-mcp",
+                "npx -y @playwright/mcp@0.0.80 --extension --output-dir data/playwright-mcp",
             ),
             form_min_confidence=float(source.get("FORM_MIN_CONFIDENCE") or 0.7),
             form_max_actions=int(source.get("FORM_MAX_ACTIONS") or 60),

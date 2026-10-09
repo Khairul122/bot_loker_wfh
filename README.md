@@ -84,7 +84,7 @@ Each floor is one division of the pipeline; employees' moods and the "Kinerja" p
 - 📥 **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
 - 📂 **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
 - Every scout and Lido can also run one real search on demand from their card.
-- 💼 **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or a Playwright MCP window (`PLAYWRIGHT_MCP_COMMAND`, persistent profile in `data/playwright-mcp-profile`). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
+- 💼 **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or your own Chrome through Playwright MCP (`--extension` mode: install the "Playwright MCP Bridge" extension in your logged-in Chrome profile). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
 - **Proposals from your data**: Cora writes each bid from `data/profile.json` plus your most relevant public GitHub repos (`GITHUB_USERNAME`, refreshed with `python -m bot_loker_wfh sync-github` or the 🔄 button). With 🤖 Auto on, she pre-drafts bids for the 3 best new projects each cycle. Set `LLM_PROVIDER=9router` to write them with your 9Router combo; otherwise a structured template is used.
 
 ## Operational Documentation for MVP
@@ -344,3 +344,15 @@ Run the test suite after installing development dependencies:
 python -m pytest
 ```
 
+
+### Freelance bid & comment drafts (opencode / 9Router)
+
+Set `LLM_PROVIDER=opencode` to write drafts through `opencode run` (model `OPENCODE_MODEL`, default `9router/ComboOpenCode`, configured in `~/.config/opencode/opencode.json`). If opencode fails and `NINEROUTER_MODEL` is set, 9Router is called directly. The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
+
+```powershell
+python -m bot_loker_wfh draft-lead --lead-id <id>
+python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright --text proposal
+python -m bot_loker_wfh fill-lead --lead-id <id> --engine browsermcp --text comment
+```
+
+`fill-lead` types the draft into the page and never presses submit.

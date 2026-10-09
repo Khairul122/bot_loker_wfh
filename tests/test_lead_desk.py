@@ -186,12 +186,12 @@ class OpenCodeProviderTest(unittest.TestCase):
             returncode, stdout = 0, "  a bid  \n"
 
         def fake_run(cmd, cwd, **kwargs):
-            seen["cmd"], seen["prompt"] = cmd, Path(cmd[6]).read_text(encoding="utf-8")
+            seen["cmd"], seen["prompt"] = cmd, Path(cmd[5]).read_text(encoding="utf-8")
             return Done()
 
         provider = OpenCodeProvider("9router/ComboOpenCode", run=fake_run)
         self.assertEqual(provider("line1\nline2"), "a bid")
-        self.assertEqual(seen["cmd"][1:6], ["run", "-m", "9router/ComboOpenCode", "-f"])
+        self.assertEqual(seen["cmd"][1:5], ["run", "-m", "9router/ComboOpenCode", "-f"])
         self.assertEqual(seen["prompt"], "line1\nline2")
 
         Done.returncode = 1
