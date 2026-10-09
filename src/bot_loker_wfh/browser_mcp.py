@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import collections
+import atexit
 import json
 import os
 import queue
+import signal
 import shlex
 import shutil
 import subprocess
@@ -29,6 +31,69 @@ ALLOWED_KEYS = frozenset({"Tab", "Escape"})
 ELEMENT_REQUIRING_TOOLS = frozenset(
     {"browser_type", "browser_click", "browser_select_option"}
 )
+
+
+def _tie_lifetime_to_parent(proc: "subprocess.Popen[str]") -> "Any | None":
+    """Windows: kill the MCP tree when this process dies (e.g. terminal closed).
+
+    ``atexit`` does not run when a console window is closed, so a Job Object with
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE is the only reliable way to reap npx->node.
+    Best-effort: any failure just falls back to stop()/atexit.
+    """
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [
+                (name, ctypes.c_ulonglong)
+                for name in (
+                    "ReadOperationCount",
+                    "WriteOperationCount",
+                    "OtherOperationCount",
+                    "ReadTransferCount",
+                    "WriteTransferCount",
+                    "OtherTransferCount",
+                )
+            ]
+
+        class BASIC_LIMIT(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", wintypes.LARGE_INTEGER),
+                ("PerJobUserTimeLimit", wintypes.LARGE_INTEGER),
+                ("LimitFlags", wintypes.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wintypes.DWORD),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", wintypes.DWORD),
+                ("SchedulingClass", wintypes.DWORD),
+            ]
+
+        class EXTENDED_LIMIT(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", BASIC_LIMIT),
+                ("IoInfo", IO_COUNTERS),
+                ("ProcessMemoryLimit", ctypes.c_size_t),
+                ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return
+        info = EXTENDED_LIMIT()
+        info.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+        kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info))
+        kernel32.AssignProcessToJobObject(job, wintypes.HANDLE(int(proc._handle)))
+        return job
+    except Exception:
+        return None
 
 
 class McpClientError(RuntimeError):
@@ -60,8 +125,11 @@ class McpBrowserClient:
         self._stdout_queue: queue.Queue[str] = queue.Queue()
         self._stderr_buffer: collections.deque[str] = collections.deque(maxlen=20)
         self._threads: list[threading.Thread] = []
+        self._job_handle: Any | None = None
         # Playwright MCP >= 0.0.7x calls the element argument "target"; BrowserMCP calls it "ref".
         self._ref_arg = "ref"
+        # Last-resort cleanup if the process exits without an explicit stop().
+        atexit.register(self.stop)
 
     def start(self) -> None:
         if self.process is not None:
@@ -88,9 +156,16 @@ class McpBrowserClient:
                 text=True,
                 encoding="utf-8",
                 bufsize=1,
+                # New session/group so stop() can kill the whole npx->node tree.
+                start_new_session=(os.name != "nt"),
+                creationflags=(
+                    subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+                ),
             )
         except Exception as err:
             raise McpClientError(f"Failed to start MCP process: {err}") from err
+
+        self._job_handle = _tie_lifetime_to_parent(self.process)
 
         # Background reader threads for stdout and stderr to prevent deadlocks
         stdout_t = threading.Thread(target=self._read_stdout, daemon=True)
@@ -138,16 +213,31 @@ class McpBrowserClient:
             self._stderr_buffer.append(line.rstrip())
 
     def stop(self) -> None:
-        if self.process:
+        if not self.process:
+            return
+        proc = self.process
+        self.process = None
+        # npx spawns the MCP server as a child; killing only the parent leaves node
+        # (and the browser it drives) running after the terminal is closed.
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
+            else:
+                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except Exception:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except Exception:
             try:
-                self.process.terminate()
-                self.process.wait(timeout=2)
+                proc.kill()
             except Exception:
-                try:
-                    self.process.kill()
-                except Exception:
-                    pass
-            self.process = None
+                pass
 
     def wait_for_extension(self, timeout: float = 20.0) -> bool:
         """Poll browser_snapshot repeatedly until Chrome extension is connected."""

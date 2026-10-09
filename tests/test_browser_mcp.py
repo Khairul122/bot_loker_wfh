@@ -77,6 +77,25 @@ class TestBrowserMCP(unittest.TestCase):
             success = client.wait_for_extension(timeout=5.0)
             self.assertTrue(success)
 
+    def test_stop_kills_whole_process_tree(self):
+        import os
+
+        client = McpBrowserClient()
+        proc = MagicMock()
+        proc.pid = 4242
+        client.process = proc
+
+        with patch("bot_loker_wfh.browser_mcp.subprocess.run") as run:
+            client.stop()
+
+        if os.name == "nt":
+            run.assert_called_once()
+            self.assertIn("/T", run.call_args[0][0])
+        else:
+            run.assert_not_called()
+        self.assertIsNone(client.process)
+        proc.wait.assert_called_once()
+
 
 class TargetArgumentTest(unittest.TestCase):
     def test_ref_is_sent_as_target_for_playwright_mcp(self):
