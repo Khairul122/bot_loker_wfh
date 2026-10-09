@@ -25,6 +25,7 @@ from .leads import (
 )
 from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
+from .office_server import serve as serve_office
 from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
@@ -48,6 +49,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--application-id", help="Application ID for fill-form")
     parser.add_argument("--force-assist", action="store_true", help="Force assist mode for fill-form")
     parser.add_argument("--next-page", action="store_true", help="Fill next page for multi-page form")
+    parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
         "command",
         choices=(
@@ -74,6 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "add-ats",
             "set-ats-mode",
             "list-ats",
+            "office",
         ),
         default="start",
         nargs="?",
@@ -289,6 +292,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).fetchall()
         for r in rows:
             print(f"- {r[0]} | host: {r[1]} | mode: {r[2]} | open_button: {r[3] or '-'} | active: {bool(r[4])}")
+        return 0
+
+    if args.command == "office":
+        profile = load_profile(settings.profile_path)
+        serve_office(
+            initialize_database(settings.database_url),
+            lambda connection: LeadService(connection, profile, fetchers=[FreelancerFetcher()]),
+            args.port,
+        )
         return 0
 
     if args.command == "cleanup-retention":

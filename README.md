@@ -70,6 +70,16 @@ Scheduler logs contain source names and inserted counts only; job descriptions, 
 
 Structured events use JSON with an event name, generated `run_id`, source, status, duration, inserted count, and sanitized error code where applicable. The logger uses an allowlist and never serializes exception messages, request bodies, tokens, CVs, or cover letters.
 
+### Kantor 3D
+
+Open the bot as a cozy 3D office (Three.js from a CDN, served by the standard library, localhost only):
+
+```powershell
+python -m bot_loker_wfh office --port 8765
+```
+
+Each floor is one division of the pipeline; employees' moods and the "Kinerja" panel come from `/stats.json` (counts only). Press `V` for the owner's first-person view. Lido (Proyek Freelance) can run a real Freelancer.com search on demand using the same fetcher and filters as `fetch-leads`.
+
 ## Operational Documentation for MVP
 
 ### Setup from Scratch

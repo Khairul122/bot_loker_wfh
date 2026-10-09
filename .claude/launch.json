@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "office",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import sys; sys.path.insert(0, 'src'); from bot_loker_wfh.__main__ import main; sys.exit(main(['office']))"],
+      "port": 8765
+    }
+  ]
+}
