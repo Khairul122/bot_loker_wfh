@@ -93,6 +93,31 @@ class LeadFillTest(unittest.TestCase):
         )
 
 
+class AutoProposalTest(unittest.TestCase):
+    def test_cycle_drafts_best_new_leads_without_marking_interest(self):
+        connection = sqlite3.connect(":memory:")
+        apply_schema(connection)
+        insert_lead(connection, "low")
+        insert_lead(connection, "high")
+        insert_lead(connection, "seen", status="IGNORED")
+        connection.execute("UPDATE leads SET score = 0.9 WHERE id = 'high'")
+        portfolio = {"repos": [{"name": "laravel-api", "url": "https://github.com/u/laravel-api",
+                                "language": "PHP", "description": "", "topics": []}]}
+        work = OfficeWork(
+            Path("unused.db"), hunters={}, draft_service_for=None, form_assist_enabled=False,
+            interval_seconds=1, lock=threading.Lock(),
+            proposal_writer=lambda c, lead_id, mark_interested=True: draft_proposal(
+                c, lead_id, PROFILE, portfolio=portfolio, mark_interested=mark_interested),
+        )
+
+        self.assertEqual(work.draft_proposals(connection, limit=1), 1)
+        status, proposal = connection.execute("SELECT status, proposal FROM leads WHERE id = 'high'").fetchone()
+
+        self.assertEqual(status, "NEW")
+        self.assertIn("https://github.com/u/laravel-api", proposal)
+        self.assertEqual(work.draft_proposals(connection, limit=5), 1)  # only "low" left
+
+
 class LoginWaitTest(unittest.TestCase):
     def test_waits_until_the_login_link_is_gone_and_stops_when_browser_closes(self):
         from bot_loker_wfh.form_agent.agent import LOGIN_GATE, FormAgent

@@ -85,6 +85,7 @@ Each floor is one division of the pipeline; employees' moods and the "Kinerja" p
 - 📂 **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
 - Every scout and Lido can also run one real search on demand from their card.
 - 💼 **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or a Playwright MCP window (`PLAYWRIGHT_MCP_COMMAND`, persistent profile in `data/playwright-mcp-profile`). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
+- **Proposals from your data**: Cora writes each bid from `data/profile.json` plus your most relevant public GitHub repos (`GITHUB_USERNAME`, refreshed with `python -m bot_loker_wfh sync-github` or the 🔄 button). With 🤖 Auto on, she pre-drafts bids for the 3 best new projects each cycle. Set `LLM_PROVIDER=9router` to write them with your 9Router combo; otherwise a structured template is used.
 
 ## Operational Documentation for MVP
 

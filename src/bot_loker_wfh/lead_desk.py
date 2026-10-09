@@ -26,7 +26,10 @@ def list_leads(connection: sqlite3.Connection, source: str | None = None) -> lis
     if source:
         sql += " AND source = ?"
         params = (source,)
-    sql += " ORDER BY (status = 'INTERESTED') DESC, COALESCE(posted_at, fetched_at) DESC LIMIT ?"
+    sql += (
+        " ORDER BY (status = 'INTERESTED') DESC, (COALESCE(proposal, '') != '') DESC,"
+        " COALESCE(posted_at, fetched_at) DESC LIMIT ?"
+    )
     keys = ("id", "source", "kind", "title", "description", "budget", "url", "status",
             "posted_at", "fetched_at", "proposal")
     rows = connection.execute(sql, (*params, LEAD_LIST_LIMIT)).fetchall()
