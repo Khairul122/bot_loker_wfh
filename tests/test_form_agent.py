@@ -130,3 +130,29 @@ class TestFormAgent(unittest.TestCase):
 
         self.assertIn("Python developer with 5 years experience", user_msg)
         self.assertNotIn("Cover Letter", user_msg)
+
+
+class FreelancerBidSnapshotTest(unittest.TestCase):
+    def test_unlabeled_nodes_are_not_fields_and_spinbuttons_are(self):
+        from bot_loker_wfh.form_agent.extractor import FormExtractor
+
+        snapshot = (
+            "- generic [ref=f1e980]:\n"
+            "  - generic [ref=f1e985]:\n"
+            '  - spinbutton "Nilai Penawaran" [ref=f1e284]: "500.00"\n'
+            '  - spinbutton "Proyek ini akan diselesaikan dalam" [ref=f1e295]: "7"\n'
+            '  - textbox "Jelaskan proposal Anda (minimum 100 karakter)" [ref=f1e327]:\n'
+            "  - paragraph [ref=f1e330]: some text\n"
+        )
+        fields = FormExtractor().extract(snapshot)
+        self.assertEqual([f.ref for f in fields], ["f1e284", "f1e295", "f1e327"])
+        self.assertEqual(fields[0].current_value, "500.00")
+
+
+class BidProposalClassifierTest(unittest.TestCase):
+    def test_bid_proposal_textbox_is_cover_letter(self):
+        from bot_loker_wfh.form_agent.classifier import FieldClassifier
+        from bot_loker_wfh.form_agent.extractor import FormField
+
+        for label in ("Describe your proposal (minimum 100 characters)", "Jelaskan proposal Anda (minimum 100 karakter)"):
+            self.assertEqual(FieldClassifier().classify(FormField("e1", label, "textbox", False)), "cover_letter")

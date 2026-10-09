@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 
+INTERACTIVE_ROLES = frozenset({
+    "textbox", "combobox", "listbox", "checkbox", "radio", "button", "file",
+    "input", "select", "textarea", "spinbutton",
+})
+
+
 @dataclass(frozen=True)
 class FormField:
     ref: str
@@ -83,6 +89,10 @@ class FormExtractor:
                 continue
 
             match = line_pattern.match(line_str)
+            # Unlabeled aria node ("- generic [ref=e9]"): a field only if its role is interactive
+            aria = re.match(r"^\s*-\s+([a-zA-Z]+)\s*\[", line_str)
+            if not match and aria and aria.group(1).lower() not in INTERACTIVE_ROLES:
+                continue
             if not match:
                 # Check legacy or key-value ref format
                 ref_m = ref_pattern.search(line_str) or re.search(
@@ -93,7 +103,9 @@ class FormExtractor:
                     role_m = re.search(
                         r"role[:=]\s*[\"']?([a-zA-Z0-9_-]+)[\"']?", line_str
                     )
-                    role = role_m.group(1).lower() if role_m else "textbox"
+                    role = role_m.group(1).lower() if role_m else (
+                        aria.group(1).lower() if aria else "textbox"
+                    )
                     lbl_m = re.search(
                         r"label[:=]\s*[\"']?([^,\"\']+)[\"']?", line_str
                     ) or re.search(r"name[:=]\s*[\"']?([^,\"\']+)[\"']?", line_str)
@@ -142,18 +154,7 @@ class FormExtractor:
                 if val_part and not val_part.startswith("["):
                     curr_val = val_part.strip('"\'')
 
-            if ref and role in {
-                "textbox",
-                "combobox",
-                "listbox",
-                "checkbox",
-                "radio",
-                "button",
-                "file",
-                "input",
-                "select",
-                "textarea",
-            }:
+            if ref and role in INTERACTIVE_ROLES:
                 field = FormField(
                     ref=ref,
                     label=clean_label[:80],
@@ -184,20 +185,7 @@ class FormExtractor:
         raw_opts = node.get("options") or node.get("choices") or []
         options = tuple(str(o).strip() for o in raw_opts if str(o).strip())
 
-        interactive_roles = {
-            "textbox",
-            "combobox",
-            "listbox",
-            "checkbox",
-            "radio",
-            "button",
-            "file",
-            "input",
-            "select",
-            "textarea",
-        }
-
-        if ref and (role in interactive_roles or "input" in role or "button" in role):
+        if ref and (role in INTERACTIVE_ROLES or "input" in role or "button" in role):
             clean_lbl = label.removesuffix("*").strip()
             fields.append(
                 FormField(

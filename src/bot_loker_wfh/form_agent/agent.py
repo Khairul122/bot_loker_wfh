@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 # A visible "Log In" / "Masuk" link means the bid form is hidden behind a login.
 LOGIN_GATE = re.compile(r'(link|button) "(log ?in|sign in|masuk)"', re.IGNORECASE)
 LOGIN_WAIT_SECONDS = 10 * 60
+RENDER_WAIT_SECONDS = 25.0  # SPA pages (Freelancer) render long after navigate returns
 
 from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
 from bot_loker_wfh.cv_profile import load_profile
@@ -127,6 +128,22 @@ class FormAgent:
         )
 
     @staticmethod
+    def _wait_for_render(client: Any, max_seconds: float = RENDER_WAIT_SECONDS) -> None:
+        """Poll until the page snapshot has real content, not just an empty document."""
+        if not hasattr(client, "peek_snapshot"):
+            time.sleep(2.0)
+            return
+        # Done when the element count stops growing: late widgets (the bid box) attach last.
+        deadline = time.time() + max_seconds
+        previous = -1
+        while time.time() < deadline:
+            time.sleep(2.0)
+            count = (client.peek_snapshot() or "").count("[ref=")
+            if count >= 30 and count == previous:
+                return
+            previous = count
+
+    @staticmethod
     def _wait_for_login(client: Any, max_seconds: float, poll_seconds: float = 5.0) -> bool:
         deadline = time.time() + max_seconds
         while time.time() < deadline:
@@ -202,7 +219,7 @@ class FormAgent:
             # 3. Buka halaman
             if page_number == 1:
                 client.call_tool("browser_navigate", {"url": apply_url})
-                time.sleep(2.0)
+                self._wait_for_render(client)
                 if open_button_label:
                     snap = client.call_tool("browser_snapshot", {})
                     extractor = FormExtractor()
@@ -228,7 +245,7 @@ class FormAgent:
                     if not self._wait_for_login(client, LOGIN_WAIT_SECONDS):
                         return "Login tidak terdeteksi dalam 10 menit. Form tidak diisi."
                     client.call_tool("browser_navigate", {"url": apply_url})
-                    time.sleep(3.0)
+                    self._wait_for_render(client)
 
             # 4. Baca form
             snapshot = client.call_tool("browser_snapshot", {})

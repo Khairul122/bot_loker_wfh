@@ -60,6 +60,7 @@ COVER_LETTER_KEYWORDS = (
     "additional information",
     "anything else",
     "motivation letter",
+    "proposal",  # freelance bid forms: "Describe your proposal" / "Jelaskan proposal Anda"
 )
 
 

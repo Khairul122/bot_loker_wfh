@@ -529,13 +529,9 @@ def _fill_lead(settings: Settings, lead_id: str, engine: str, text: str = "propo
             answers_path=settings.answers_path,
             db_path=str(database_path),
         )
-        # A Playwright-launched browser dies with the MCP server, so keep it open for review.
-        # In --extension mode it is the owner's own Chrome, which stays open anyway.
-        keep_open = (
-            PLAYWRIGHT_REVIEW_SECONDS
-            if engine == "playwright" and "--extension" not in settings.playwright_mcp_command
-            else 0
-        )
+        # Stopping Playwright MCP closes the tab it opened (also in --extension mode),
+        # so keep it alive until the owner reviews, submits and closes the tab.
+        keep_open = PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
         print(agent.run_lead_session(lead_id, keep_open_seconds=keep_open, text=text), flush=True)
     except Exception as error:
         print(f"Error pengisian form proyek: {error}", flush=True)

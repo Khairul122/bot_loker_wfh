@@ -76,3 +76,15 @@ class TestBrowserMCP(unittest.TestCase):
         with patch.object(client, "_send_request", side_effect=[err_res, ok_res]):
             success = client.wait_for_extension(timeout=5.0)
             self.assertTrue(success)
+
+
+class TargetArgumentTest(unittest.TestCase):
+    def test_ref_is_sent_as_target_for_playwright_mcp(self):
+        from bot_loker_wfh.browser_mcp import McpBrowserClient
+
+        client = McpBrowserClient()
+        client._ref_arg = "target"
+        sent = []
+        client._send_request = lambda method, params, timeout=None: sent.append(params) or {"result": {"content": []}}
+        client.call_tool("browser_type", {"element": "Proposal", "ref": "e5", "text": "hi", "submit": True})
+        self.assertEqual(sent[0]["arguments"], {"element": "Proposal", "target": "e5", "text": "hi", "submit": False})

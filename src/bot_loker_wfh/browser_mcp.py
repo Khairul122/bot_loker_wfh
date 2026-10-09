@@ -60,6 +60,8 @@ class McpBrowserClient:
         self._stdout_queue: queue.Queue[str] = queue.Queue()
         self._stderr_buffer: collections.deque[str] = collections.deque(maxlen=20)
         self._threads: list[threading.Thread] = []
+        # Playwright MCP >= 0.0.7x calls the element argument "target"; BrowserMCP calls it "ref".
+        self._ref_arg = "ref"
 
     def start(self) -> None:
         if self.process is not None:
@@ -112,6 +114,16 @@ class McpBrowserClient:
 
         # Send notifications/initialized per MCP specification
         self._send_notification("notifications/initialized", {})
+        try:
+            tools = self._send_request("tools/list", {}).get("result", {}).get("tools", [])
+            props = next(
+                (t.get("inputSchema", {}).get("properties", {}) for t in tools if t.get("name") == "browser_type"),
+                {},
+            )
+            if "target" in props and "ref" not in props:
+                self._ref_arg = "target"
+        except Exception:
+            pass  # keep "ref"
 
     def _read_stdout(self) -> None:
         if not self.process or not self.process.stdout:
@@ -202,6 +214,9 @@ class McpBrowserClient:
 
         self.tool_call_count += 1
         sanitized_args = dict(args)
+
+        if name in ELEMENT_REQUIRING_TOOLS and self._ref_arg != "ref":
+            sanitized_args[self._ref_arg] = sanitized_args.pop("ref")
 
         if name == "browser_type":
             sanitized_args["submit"] = False  # Always force submit=False
