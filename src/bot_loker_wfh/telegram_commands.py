@@ -310,18 +310,18 @@ class TelegramCommandHandler:
         ).fetchall()
 
         if not candidates and not pending and not approved:
-            return "Belum ada lowongan kandidat atau lamaran. Ketik /fetch untuk mengambil data."
+            return "Belum ada data. Ketik /fetch."
 
-        lines = ["Lowongan & Lamaran terbaru:"]
+        lines = []
         if candidates:
             lines.append("\n📌 CANDIDATE (Ketik /siapkan <ID>):")
-            lines.extend(f"• {job_id}: {title} — {company}" for job_id, title, company in candidates)
+            lines.extend(f"• {job_id[:8]} {title} — {company}" for job_id, title, company in candidates)
         if pending:
             lines.append("\n⏳ PENDING_APPROVAL (Ketik /setuju <ID>):")
-            lines.extend(f"• {app_id}: {title} — {company}" for app_id, title, company in pending)
+            lines.extend(f"• {app_id[:8]} {title} — {company}" for app_id, title, company in pending)
         if approved:
             lines.append("\n✅ APPROVED (Siap diisi otomatis: /isi <ID>):")
-            lines.extend(f"• {app_id}: {title} — {company}" for app_id, title, company in approved)
+            lines.extend(f"• {app_id[:8]} {title} — {company}" for app_id, title, company in approved)
 
         return "\n".join(lines)
 
@@ -361,11 +361,8 @@ class TelegramCommandHandler:
         ).fetchone()[0]
 
         base = (
-            "Laporan minggu berjalan\n"
-            f"Lowongan ditemukan: {total_jobs}\n"
-            f"Lolos filter: {candidates}\n"
-            f"Dilamar: {submitted}\n"
-            f"Mendapat respons: {responses}"
+            f"📊 Ditemukan {total_jobs} · Lolos {candidates} · "
+            f"Dilamar {submitted} · Respons {responses}"
         )
 
         try:
@@ -380,8 +377,7 @@ class TelegramCommandHandler:
                 llm_calls_count[2] or 0,
             )
             base += (
-                f"\n\nAI 7 hari terakhir\n"
-                f"- Panggilan: {total_c} (berhasil {success_c}, gagal {error_c})"
+                f"\nAI 7 hari: {total_c} panggilan ({success_c} ok, {error_c} gagal)"
             )
         except Exception:
             pass
@@ -395,10 +391,7 @@ class TelegramCommandHandler:
             avg_filled = round(form_sessions_count[1] or 0, 1)
             avg_manual = round(form_sessions_count[2] or 0, 1)
             base += (
-                f"\n\nForm 7 hari terakhir\n"
-                f"- Sesi: {s_count}\n"
-                f"- Rata-rata field terisi: {avg_filled}\n"
-                f"- Rata-rata field manual: {avg_manual}"
+                f"\nForm 7 hari: {s_count} sesi · terisi {avg_filled} · manual {avg_manual}"
             )
         except Exception:
             pass

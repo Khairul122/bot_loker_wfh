@@ -6,3 +6,4 @@ data/
 tmp/
 backups/
 .env
+*.egg-info/

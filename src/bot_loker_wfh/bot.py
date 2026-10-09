@@ -31,23 +31,16 @@ from .telegram_notifications import TelegramNotificationService
 
 
 HELP_TEXT = (
-    "Bot Loker WFH\n\n"
-    "/lowongan - daftar kandidat dan lamaran pending\n"
-    "/siapkan <job_id> - buat draft lamaran untuk lowongan\n"
-    "/setuju <application_id> - setujui lamaran\n"
-    "/tolak <application_id> - tolak lamaran\n"
-    "/isi <application_id> [paksa] - buka form lamaran di browser & isi otomatis (tidak dikirim)\n"
-    "/isilanjut <application_id> - isi halaman berikutnya pada form multi-halaman\n"
-    "/model [nama|reset] - lihat atau ganti model AI aktif\n"
-    "/filter [role|exclude|score|age|reset] - kelola filter scrap lowongan\n"
-    "/dilamar <application_id> - tandai sudah dikirim manual\n"
-    "/clear - bersihkan pesan-pesan obrolan terakhir\n"
-    "/lead - proyek freelance & peluang jual source code\n"
-    "/status <application_id> <status> - ubah status manual\n"
-    "/fetch - ambil lowongan baru sekarang\n"
-    "/laporan - ringkasan statistik\n\n"
-    "ID boleh diketik 8 karakter pertama saja. "
-    "Tombol di bawah setiap lowongan lebih praktis."
+    "Perintah:\n"
+    "/lowongan - kandidat & lamaran\n"
+    "/siapkan <id> - buat draft\n"
+    "/setuju <id> · /tolak <id>\n"
+    "/isi <id> · /isilanjut <id> - isi form (tidak dikirim)\n"
+    "/dilamar <id> - tandai terkirim\n"
+    "/status <id> <status>\n"
+    "/fetch · /laporan · /lead · /clear\n"
+    "/model [nama|reset] · /filter [role|exclude|score|age|reset]\n\n"
+    "ID cukup 8 karakter pertama."
 )
 
 NOTIFY_INTERVAL_SECONDS = 30 * 60
@@ -95,7 +88,7 @@ class BotRunner:
     # ------------------------------------------------------------------ loop
 
     def run_forever(self) -> None:
-        greeting = f"Bot aktif. Ketik /help untuk daftar perintah.\n\n{HELP_TEXT}"
+        greeting = f"Bot aktif.\n\n{HELP_TEXT}"
         for chat_id in sorted(self.allowed_chat_ids):
             self._safe_send(chat_id, greeting)
         self.logger.event("bot_started", status="running")
@@ -377,11 +370,10 @@ class BotRunner:
             return
         self._safe_send(
             chat_id,
-            f"Disetujui: {row[0]} — {row[1]}\n"
-            f"ID Lamaran: {application_id}\n\n"
-            f"Kirim lamaran lewat link ini:\n{row[2]}\n\n"
-            f"Atau isi form otomatis di browser Chrome dengan:\n/isi {application_id}\n\n"
-            f"Setelah terkirim, ketik:\n/dilamar {application_id}",
+            f"✅ {row[0]} — {row[1]}\n"
+            f"{row[2]}\n\n"
+            f"Isi otomatis: /isi {application_id}\n"
+            f"Setelah terkirim: /dilamar {application_id}",
         )
 
     def _fill_form(

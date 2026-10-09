@@ -61,21 +61,14 @@ class TelegramNotificationService:
 
     def _candidate_message(self, row: tuple[object, ...]) -> TelegramMessage:
         job_id, title, company, location, source, apply_url, filtered_reason = row
-        reason_line = (
-            f"\nCatatan: {filtered_reason}" if filtered_reason else ""
-        )
+        note = f"\n⚠️ {filtered_reason}" if filtered_reason else ""
         return TelegramMessage(
             chat_id=self.chat_id,
             text=(
-                f"Lowongan candidate\n"
-                f"ID Job: {job_id}\n"
-                f"Posisi: {title}\n"
-                f"Perusahaan: {company}\n"
-                f"Lokasi: {location or '-'}\n"
-                f"Sumber: {source}\n"
-                f"Apply: {apply_url}"
-                f"{reason_line}\n\n"
-                f"Ketik /siapkan {job_id} atau klik tombol di bawah:"
+                f"📌 {title}\n"
+                f"{company} · {location or '-'} · {source}\n"
+                f"{apply_url}{note}\n"
+                f"/siapkan {job_id}"
             ),
             inline_keyboard=(
                 (
@@ -87,20 +80,15 @@ class TelegramNotificationService:
         )
 
     def _approval_message(self, row: tuple[object, ...]) -> TelegramMessage:
-        application_id, title, company, location, source, apply_url, cover_letter, cv_summary = row
+        application_id, title, company, location, source, apply_url, cover_letter, _cv_summary = row
         return TelegramMessage(
             chat_id=self.chat_id,
             text=(
-                f"Review lamaran\n"
-                f"ID Lamaran: {application_id}\n"
-                f"Posisi: {title}\n"
-                f"Perusahaan: {company}\n"
-                f"Lokasi: {location or '-'}\n"
-                f"Sumber: {source}\n"
-                f"Apply: {apply_url}\n\n"
-                f"Cover letter:\n{cover_letter}\n\n"
-                f"CV summary:\n{cv_summary}\n\n"
-                f"Untuk isi form otomatis setelah disetujui, ketik /isi {application_id}"
+                f"📝 {title}\n"
+                f"{company} · {location or '-'} · {source}\n"
+                f"{apply_url}\n\n"
+                f"{cover_letter}\n\n"
+                f"ID: {application_id}"
             ),
             inline_keyboard=(
                 (

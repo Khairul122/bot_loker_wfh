@@ -109,7 +109,7 @@ class BotRunnerTest(unittest.TestCase):
 
         self.assertEqual(self.application_status(), "PENDING_APPROVAL")
         message = self.client.messages[0]
-        self.assertIn("Cover letter", message.text)
+        self.assertIn("Dear Hiring Team", message.text)
         labels = [button.label for button in message.inline_keyboard[0]]
         self.assertEqual(labels, ["Setujui", "Tolak"])
 
@@ -203,7 +203,7 @@ class BotRunnerTest(unittest.TestCase):
             self.runner.run_forever()
 
         texts = [text for _, text in self.client.texts]
-        self.assertTrue(texts[0].startswith("Bot aktif. Ketik /help untuk daftar perintah."))
+        self.assertTrue(texts[0].startswith("Bot aktif."))
         self.assertTrue(any("/siapkan" in text for text in texts))
         self.assertEqual(self.scheduler.calls, 0)
 

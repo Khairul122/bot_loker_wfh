@@ -38,12 +38,12 @@ Urutan kerja di bawah mengikuti prioritas. Kerjakan P0 dulu. Tanpa P0, BrowserMC
   FORM_ENGINE=browsermcp
   BROWSER_MCP_COMMAND=npx -y @browsermcp/mcp@0.1.3
   ```
-- [ ] Tambahkan semua variabel baru ke `.env.example` dengan komentar singkat: `FORM_ENGINE`, `BROWSER_MCP_COMMAND`, `FORM_MIN_CONFIDENCE`, `FORM_MAX_ACTIONS`, `FORM_MAX_TOOL_CALLS`, `FORM_TIMEOUT_SECONDS`, `FORM_AI_ANSWERS`, `LLM_PROVIDER`, `NINEROUTER_*`, `LLM_MODEL_*`.
-- [ ] Tulis bagian README "Mengisi form dengan BrowserMCP": pasang Node.js 18+, pasang ekstensi BrowserMCP di Chrome, isi `.env`, jalankan `check-browser`, tekan Connect, lalu `/isi`.
-- [ ] Saat `run-bot` start, cetak `form_engine=<nilai>` agar engine aktif terlihat di terminal.
+- [x] Tambahkan semua variabel baru ke `.env.example` dengan komentar singkat: `FORM_ENGINE`, `BROWSER_MCP_COMMAND`, `FORM_MIN_CONFIDENCE`, `FORM_MAX_ACTIONS`, `FORM_MAX_TOOL_CALLS`, `FORM_TIMEOUT_SECONDS`, `FORM_AI_ANSWERS`, `LLM_PROVIDER`, `NINEROUTER_*`, `LLM_MODEL_*`.
+- [x] Tulis bagian README "Mengisi form dengan BrowserMCP": pasang Node.js 18+, pasang ekstensi BrowserMCP di Chrome, isi `.env`, jalankan `check-browser`, tekan Connect, lalu `/isi`.
+- [x] Saat `run-bot` start, cetak `form_engine=<nilai>` agar engine aktif terlihat di terminal.
 
 **Selesai jika:**
-- [ ] `python -m bot_loker_wfh` menampilkan `form_engine=browsermcp`.
+- [x] `python -m bot_loker_wfh` menampilkan `form_engine=browsermcp`.
 - [ ] `/isi <id>` tidak lagi membuka Chromium baru dari Playwright.
 
 ---
@@ -52,14 +52,14 @@ Urutan kerja di bawah mengikuti prioritas. Kerjakan P0 dulu. Tanpa P0, BrowserMC
 
 **File:** `src/bot_loker_wfh/browser_mcp.py`
 
-- [ ] Di `call_tool()`, setelah menerima respons, periksa `result.get("isError")`.
-- [ ] Jika `isError` bernilai `true`, ambil teks dari `result["content"][0]["text"]` lalu lempar `McpClientError` dengan teks itu.
-- [ ] Buat subclass `McpNotConnectedError` jika teks mengandung `No connection to browser extension`.
-- [ ] Tetap periksa kunci `error` untuk error level JSON-RPC.
+- [x] Di `call_tool()`, setelah menerima respons, periksa `result.get("isError")`.
+- [x] Jika `isError` bernilai `true`, ambil teks dari `result["content"][0]["text"]` lalu lempar `McpClientError` dengan teks itu.
+- [x] Buat subclass `McpNotConnectedError` jika teks mengandung `No connection to browser extension`.
+- [x] Tetap periksa kunci `error` untuk error level JSON-RPC.
 
 **Selesai jika:**
-- [ ] Tes: respons `{"result": {"isError": true, "content": [...]}}` memicu `McpClientError`.
-- [ ] Tes: teks "No connection to browser extension" memicu `McpNotConnectedError`.
+- [x] Tes: respons `{"result": {"isError": true, "content": [...]}}` memicu `McpClientError`.
+- [x] Tes: teks "No connection to browser extension" memicu `McpNotConnectedError`.
 
 ---
 
@@ -67,14 +67,14 @@ Urutan kerja di bawah mengikuti prioritas. Kerjakan P0 dulu. Tanpa P0, BrowserMC
 
 **File:** `src/bot_loker_wfh/browser_mcp.py`, `src/bot_loker_wfh/form_agent/agent.py`
 
-- [ ] Kirim notifikasi `notifications/initialized` setelah `initialize`, sesuai spesifikasi MCP.
-- [ ] Tambahkan metode `wait_for_extension(timeout=20)`: panggil `browser_snapshot` berulang tiap 1 detik sampai tidak ada `McpNotConnectedError`.
-- [ ] Panggil `wait_for_extension()` di `FormAgent.run_session()` sebelum `browser_navigate`.
+- [x] Kirim notifikasi `notifications/initialized` setelah `initialize`, sesuai spesifikasi MCP.
+- [x] Tambahkan metode `wait_for_extension(timeout=20)`: panggil `browser_snapshot` berulang tiap 1 detik sampai tidak ada `McpNotConnectedError`.
+- [x] Panggil `wait_for_extension()` di `FormAgent.run_session()` sebelum `browser_navigate`.
 - [ ] Sebelum menunggu, kirim pesan Telegram:
   "Buka Chrome, klik ikon BrowserMCP, tekan Connect. Bot menunggu 20 detik."
 - [ ] Jika waktu habis, kirim:
   "Ekstensi BrowserMCP belum terhubung. Tekan Connect di Chrome, lalu ulangi /isi <id>."
-- [ ] Tambahkan env `FORM_CONNECT_TIMEOUT_SECONDS` (default 20).
+- [x] Tambahkan env `FORM_CONNECT_TIMEOUT_SECONDS` (default 20).
 
 **Selesai jika:**
 - [ ] Tanpa Connect, pengguna menerima pesan panduan dalam 25 detik.
@@ -86,12 +86,12 @@ Urutan kerja di bawah mengikuti prioritas. Kerjakan P0 dulu. Tanpa P0, BrowserMC
 
 **File:** `src/bot_loker_wfh/form_agent/executor.py`, `src/bot_loker_wfh/form_agent/agent.py`
 
-- [ ] `browser_type`: kirim `{"element": field.label or field.role, "ref": ..., "text": ..., "submit": False}`.
-- [ ] `browser_select_option`: kirim `{"element": ..., "ref": ..., "values": [...]}`.
-- [ ] `browser_click` untuk checkbox: kirim `{"element": ..., "ref": ...}`.
-- [ ] `browser_click` untuk tombol pembuka form di `agent.py`: kirim `{"element": open_button_label, "ref": ...}`.
-- [ ] Di `McpBrowserClient.call_tool()`, tolak panggilan `browser_type`, `browser_click`, `browser_select_option` yang tidak punya `element` atau `ref`, sebelum dikirim ke server.
-- [ ] Event di `executor.py` hanya dicatat `filled` jika `call_tool` tidak melempar error. Jika error, catat `failed` dengan kode error.
+- [x] `browser_type`: kirim `{"element": field.label or field.role, "ref": ..., "text": ..., "submit": False}`.
+- [x] `browser_select_option`: kirim `{"element": ..., "ref": ..., "values": [...]}`.
+- [x] `browser_click` untuk checkbox: kirim `{"element": ..., "ref": ...}`.
+- [x] `browser_click` untuk tombol pembuka form di `agent.py`: kirim `{"element": open_button_label, "ref": ...}`.
+- [x] Di `McpBrowserClient.call_tool()`, tolak panggilan `browser_type`, `browser_click`, `browser_select_option` yang tidak punya `element` atau `ref`, sebelum dikirim ke server.
+- [x] Event di `executor.py` hanya dicatat `filled` jika `call_tool` tidak melempar error. Jika error, catat `failed` dengan kode error.
 
 **Selesai jika:**
 - [ ] Tes: setiap panggilan ke klien palsu berisi `element` dan `ref`.
@@ -118,20 +118,20 @@ Format asli BrowserMCP:
 ```
 ```
 
-- [ ] Jika input berupa dict dengan kunci `content`, gabungkan semua `content[i].text` lalu parse sebagai teks.
-- [ ] Ambil hanya bagian di dalam blok ```` ```yaml ```` jika ada.
-- [ ] Parse tiap baris dengan pola: `- <role> "<label>" [atribut] [ref=<ref>]`.
-- [ ] Ambil `role` dari kata pertama, `label` dari teks dalam tanda kutip, `ref` dari `[ref=...]`.
-- [ ] Tandai `required` jika label berakhir `*` atau ada atribut `[required]`. Hapus `*` dari label.
-- [ ] Ambil `current_value` dari teks setelah titik dua di akhir baris, jika ada.
-- [ ] Kumpulkan baris `option` di bawah `combobox` atau `listbox` sebagai `options` milik field induknya.
-- [ ] Gabungkan `radio` dengan nama grup yang sama menjadi satu field dengan daftar opsi.
-- [ ] Simpan `page_url` dari baris `Page URL` untuk deteksi pindah halaman.
+- [x] Jika input berupa dict dengan kunci `content`, gabungkan semua `content[i].text` lalu parse sebagai teks.
+- [x] Ambil hanya bagian di dalam blok ```` ```yaml ```` jika ada.
+- [x] Parse tiap baris dengan pola: `- <role> "<label>" [atribut] [ref=<ref>]`.
+- [x] Ambil `role` dari kata pertama, `label` dari teks dalam tanda kutip, `ref` dari `[ref=...]`.
+- [x] Tandai `required` jika label berakhir `*` atau ada atribut `[required]`. Hapus `*` dari label.
+- [x] Ambil `current_value` dari teks setelah titik dua di akhir baris, jika ada.
+- [x] Kumpulkan baris `option` di bawah `combobox` atau `listbox` sebagai `options` milik field induknya.
+- [x] Gabungkan `radio` dengan nama grup yang sama menjadi satu field dengan daftar opsi.
+- [x] Simpan `page_url` dari baris `Page URL` untuk deteksi pindah halaman.
 
 **Selesai jika:**
-- [ ] Contoh snapshot di atas menghasilkan 4 field dengan label, role, dan ref yang benar.
-- [ ] `combobox "Country"` punya opsi `("Indonesia",)`.
-- [ ] `First Name` bertanda `required=True`.
+- [x] Contoh snapshot di atas menghasilkan 4 field dengan label, role, dan ref yang benar.
+- [x] `combobox "Country"` punya opsi `("Indonesia",)`.
+- [x] `First Name` bertanda `required=True`.
 
 ---
 
@@ -139,16 +139,16 @@ Format asli BrowserMCP:
 
 **File:** `src/bot_loker_wfh/browser_mcp.py`
 
-- [ ] Pecah perintah dengan `shlex.split(self.command, posix=(os.name != "nt"))`.
-- [ ] Cari path program dengan `shutil.which(args[0])`. Di Windows, `which("npx")` menemukan `npx.cmd`.
-- [ ] Jika tidak ditemukan, lempar `McpClientError("Node.js/npx tidak ditemukan. Pasang Node.js 18+.")`.
-- [ ] Baca `stderr` di thread terpisah agar buffer tidak penuh. Simpan 20 baris terakhir untuk pesan error, tanpa menulis ke log.
-- [ ] Ganti `readline()` yang bisa menunggu tanpa batas dengan thread pembaca dan `queue.get(timeout=...)`.
-- [ ] Beri timeout lebih panjang (60 detik) untuk `initialize` pertama, karena `npx -y` bisa sedang mengunduh paket.
+- [x] Pecah perintah dengan `shlex.split(self.command, posix=(os.name != "nt"))`.
+- [x] Cari path program dengan `shutil.which(args[0])`. Di Windows, `which("npx")` menemukan `npx.cmd`.
+- [x] Jika tidak ditemukan, lempar `McpClientError("Node.js/npx tidak ditemukan. Pasang Node.js 18+.")`.
+- [x] Baca `stderr` di thread terpisah agar buffer tidak penuh. Simpan 20 baris terakhir untuk pesan error, tanpa menulis ke log.
+- [x] Ganti `readline()` yang bisa menunggu tanpa batas dengan thread pembaca dan `queue.get(timeout=...)`.
+- [x] Beri timeout lebih panjang (60 detik) untuk `initialize` pertama, karena `npx -y` bisa sedang mengunduh paket.
 
 **Selesai jika:**
-- [ ] `python -m bot_loker_wfh check-browser` berhasil di Windows dan Linux.
-- [ ] Server yang diam tidak membuat bot menunggu lebih dari timeout.
+- [x] `python -m bot_loker_wfh check-browser` berhasil di Windows dan Linux.
+- [x] Server yang diam tidak membuat bot menunggu lebih dari timeout.
 
 ---
 
@@ -162,7 +162,7 @@ Format asli BrowserMCP:
   - [ ] **Opsi A (disarankan):** jalankan satu `McpBrowserClient` bersama selama `run-bot` hidup. Proses `fill-form` tidak lagi membuat server baru.
   - [ ] **Opsi B:** tetap satu server per sesi, tapi jangan panggil `client.stop()` sampai pengguna mengetik `/dilamar` atau 10 menit berlalu.
 - [ ] Tulis di README: jangan jalankan BrowserMCP dari Claude Desktop atau Cursor bersamaan, karena keduanya memakai port 9009 dan saling mematikan.
-- [ ] `check-browser` memeriksa apakah port 9009 sudah dipakai proses lain dan memberi peringatan.
+- [x] `check-browser` memeriksa apakah port 9009 sudah dipakai proses lain dan memberi peringatan.
 
 **Selesai jika:**
 - [ ] `/isi` lalu `/isilanjut` pada lamaran yang sama tidak meminta Connect ulang.
@@ -173,9 +173,9 @@ Format asli BrowserMCP:
 
 **File:** `src/bot_loker_wfh/bot.py`, `src/bot_loker_wfh/__main__.py`
 
-- [ ] Jangan buang output subprocess `fill-form` ke `DEVNULL`. Arahkan ke `data/logs/fill-form.log` yang hanya berisi event terstruktur tanpa data pribadi.
-- [ ] Kirim pesan bertahap: "Menyalakan BrowserMCP...", "Menunggu Connect...", "Membuka form...", "Mengisi 12 field...".
-- [ ] Jika subprocess keluar dengan kode bukan 0 tanpa pesan, kirim "Pengisian form gagal. Lihat data/logs/fill-form.log."
+- [x] Jangan buang output subprocess `fill-form` ke `DEVNULL`. Arahkan ke `data/logs/fill-form.log` yang hanya berisi event terstruktur tanpa data pribadi.
+- [x] Kirim pesan bertahap: "Menyalakan BrowserMCP...", "Menunggu Connect...", "Membuka form...", "Mengisi 12 field...".
+- [x] Jika subprocess keluar dengan kode bukan 0 tanpa pesan, kirim "Pengisian form gagal. Lihat data/logs/fill-form.log."
 
 **Selesai jika:**
 - [ ] Setiap `/isi` selalu berakhir dengan satu pesan hasil, sukses atau gagal.
@@ -186,13 +186,13 @@ Format asli BrowserMCP:
 
 **File:** `src/bot_loker_wfh/form_agent/executor.py`
 
-- [ ] Setelah semua aksi, ambil `browser_snapshot` ulang.
-- [ ] Bandingkan `current_value` tiap field dengan nilai yang diketik.
-- [ ] Field yang tidak cocok: coba sekali lagi, lalu tandai `verify_failed` dan masukkan ke daftar manual.
+- [x] Setelah semua aksi, ambil `browser_snapshot` ulang.
+- [x] Bandingkan `current_value` tiap field dengan nilai yang diketik.
+- [x] Field yang tidak cocok: coba sekali lagi, lalu tandai `verify_failed` dan masukkan ke daftar manual.
 - [ ] Jika `Page URL` berubah di tengah eksekusi, hentikan sesi dengan status `navigation_changed`.
 
 **Selesai jika:**
-- [ ] Laporan Telegram hanya menyebut "Terisi" untuk field yang benar-benar terisi.
+- [x] Laporan Telegram hanya menyebut "Terisi" untuk field yang benar-benar terisi.
 
 ---
 
@@ -200,11 +200,11 @@ Format asli BrowserMCP:
 
 **File:** `src/bot_loker_wfh/form_agent/agent.py`
 
-- [ ] `candidate_summary` sekarang diisi `resolver.cover_letter`. Ganti dengan `SafeCvProfile.to_summary()` yang dimuat dari `PROFILE_PATH`.
-- [ ] Pastikan `generate_answer()` juga memakai ringkasan profil, bukan cover letter.
+- [x] `candidate_summary` sekarang diisi `resolver.cover_letter`. Ganti dengan `SafeCvProfile.to_summary()` yang dimuat dari `PROFILE_PATH`.
+- [x] Pastikan `generate_answer()` juga memakai ringkasan profil, bukan cover letter.
 
 **Selesai jika:**
-- [ ] Tes: prompt ke LLM berisi ringkasan profil dan tidak berisi isi cover letter.
+- [x] Tes: prompt ke LLM berisi ringkasan profil dan tidak berisi isi cover letter.
 
 ---
 
@@ -215,8 +215,8 @@ Format asli BrowserMCP:
 **Folder:** `tests/fixtures/browsermcp/`
 
 - [ ] Rekam snapshot asli dari 6 form: 2 Greenhouse, 2 Lever, 1 Ashby, 1 Workable. Hapus data pribadi sebelum disimpan.
-- [ ] Simpan respons error asli: `no_connection.json`, `missing_element.json`.
-- [ ] Tes `FormExtractor` memakai semua fixture ini.
+- [x] Simpan respons error asli: `no_connection.json`, `missing_element.json`.
+- [x] Tes `FormExtractor` memakai semua fixture ini.
 
 ### Task 12: Tes klien dengan server palsu yang meniru BrowserMCP
 
@@ -256,12 +256,12 @@ Format asli BrowserMCP:
 
 ## Definition of Done
 
-- [ ] Task 1 sampai Task 6 selesai dan tesnya lulus.
+- [x] Task 1 sampai Task 6 selesai dan tesnya lulus.
 - [ ] `python -m pytest` lulus tanpa jaringan dan tanpa Chrome.
 - [ ] `/isi <id>` pada form Greenhouse mengisi minimal: First Name, Last Name, Email, Phone, LinkedIn, Cover letter.
 - [ ] Tanpa Connect, pengguna menerima panduan, bukan laporan palsu "Terisi".
-- [ ] Laporan Telegram hanya menyebut field yang benar-benar terisi.
-- [ ] Bot tidak pernah menekan Submit.
+- [x] Laporan Telegram hanya menyebut field yang benar-benar terisi.
+- [x] Bot tidak pernah menekan Submit.
 
 ---
 

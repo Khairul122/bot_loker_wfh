@@ -523,11 +523,11 @@ Dokumen ini mengubah `PRD.md` menjadi daftar kerja berurutan. Fokus awal adalah 
 ## Open Questions
 
 - [ ] Apakah aturan bisnis yang diinginkan adalah satu lamaran per job atau satu lamaran per perusahaan dalam periode tertentu?
-- [ ] Apakah `We Work Remotely` tetap masuk MVP walaupun bukan API resmi penuh?
-- [ ] Apakah lowongan dengan timezone restriction seperti `EU timezone only` selalu ditolak atau bisa masuk `REVIEW_REQUIRED`?
-- [ ] Apakah MVP perlu menyimpan draft cover letter manual, atau cukup menyimpan link dan status apply manual?
-- [ ] Provider LLM dan embedding mana yang dipakai untuk fase P3?
-- [ ] Apakah deployment awal cukup lokal/laptop atau langsung VPS Docker?
+- [x] Apakah `We Work Remotely` tetap masuk MVP walaupun bukan API resmi penuh? → Tidak diimplementasikan; sumber aktif: RemoteOK, Remotive, Greenhouse, Lever, Kalibrr, Dealls.
+- [x] Apakah lowongan dengan timezone restriction seperti `EU timezone only` selalu ditolak atau bisa masuk `REVIEW_REQUIRED`? → Selalu `FILTERED_OUT` (region restricted).
+- [x] Apakah MVP perlu menyimpan draft cover letter manual, atau cukup menyimpan link dan status apply manual? → Draft disimpan di `applications.cover_letter`.
+- [x] Provider LLM dan embedding mana yang dipakai untuk fase P3? → LLM: 9Router / Anthropic / template. Embedding tidak dipakai; skoring berbasis kecocokan skill.
+- [x] Apakah deployment awal cukup lokal/laptop atau langsung VPS Docker? → Keduanya: VPS Docker (tanpa form assist), laptop untuk `/isi`.
 
 ## Definition of Done MVP
 

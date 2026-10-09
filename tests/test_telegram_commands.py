@@ -87,10 +87,10 @@ class TelegramCommandHandlerTest(unittest.TestCase):
         result = self.handler.handle(TelegramRequest(chat_id=123, text="/laporan"))
 
         self.assertTrue(result.success)
-        self.assertIn("Lowongan ditemukan: 3", result.message)
-        self.assertIn("Lolos filter: 1", result.message)
-        self.assertIn("Dilamar: 1", result.message)
-        self.assertIn("Mendapat respons: 0", result.message)
+        self.assertIn("Ditemukan 3", result.message)
+        self.assertIn("Lolos 1", result.message)
+        self.assertIn("Dilamar 1", result.message)
+        self.assertIn("Respons 0", result.message)
 
     def test_unknown_or_malformed_command_is_rejected(self):
         result = self.handler.handle(TelegramRequest(chat_id=123, text="/status"))
