@@ -30,12 +30,18 @@ from .telegram_notifications import TelegramButton, TelegramMessage
 USER_AGENT = "bot-loker-wfh/0.1 (personal freelance lead search)"
 FREELANCER_URL = "https://www.freelancer.com/api/projects/0.1/projects/active/"
 PROJECTS_CO_ID_URL = "https://projects.co.id/public/browse_projects/listing"
+PEOPLEPERHOUR_URL = "https://www.peopleperhour.com/freelance-jobs/technology-programming"
 FREELANCER_QUERIES = (
     "fullstack",
     "laravel",
+    "php",
+    "python",
     "react",
     "flutter",
     "nestjs",
+    "tailwind css",
+    "mobile app",
+    "api",
     "website development",
     "source code",
 )
@@ -164,6 +170,46 @@ class ProjectsCoIdFetcher:
                 break
             page += 1
         return leads
+
+
+class PeoplePerHourFetcher:
+    source = "peopleperhour"
+
+    def __init__(
+        self,
+        *,
+        fetch_html: Callable[[str], str] | None = None,
+        max_pages: int = 5,
+        delay_seconds: float = REQUEST_DELAY_SECONDS,
+    ) -> None:
+        self.fetch_html = fetch_html or fetch_peopleperhour_html
+        self.max_pages = max_pages
+        self.delay_seconds = delay_seconds
+
+    def fetch(self) -> list[Lead]:
+        leads: dict[str, Lead] = {}
+        for page in range(1, self.max_pages + 1):
+            if page > 1 and self.delay_seconds > 0:
+                time.sleep(self.delay_seconds)
+            url = (
+                PEOPLEPERHOUR_URL
+                if page == 1
+                else f"{PEOPLEPERHOUR_URL}?page={page}"
+            )
+            try:
+                page_html = self.fetch_html(url)
+            except Exception as error:
+                logging.getLogger("bot_loker_wfh").warning(
+                    f"PeoplePerHour fetch error page {page}: {error}"
+                )
+                break
+
+            parsed = _peopleperhour_leads(page_html)
+            if not parsed:
+                break
+            for lead in parsed:
+                leads.setdefault(lead.external_id, lead)
+        return list(leads.values())
 
 
 class TelegramChannelFetcher:
@@ -347,6 +393,95 @@ def _projects_co_id_lead(item: Any) -> Lead | None:
     )
 
 
+def fetch_peopleperhour_html(url: str) -> str:
+    request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "text/html"})
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8", "replace")
+
+
+def _peopleperhour_leads(page: str) -> list[Lead]:
+    match = re.search(r"window\.PPHReact\.initialState\s*=\s*", page)
+    if not match:
+        return []
+    try:
+        decoder = json.JSONDecoder()
+        state, _ = decoder.raw_decode(page, match.end())
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+    projects = (state.get("entities") or {}).get("projects") or {}
+    if not isinstance(projects, dict):
+        return []
+
+    leads: list[Lead] = []
+    for proj_id, proj_data in projects.items():
+        if not isinstance(proj_data, dict):
+            continue
+        attrs = proj_data.get("attributes") or {}
+        if not isinstance(attrs, dict):
+            continue
+        if attrs.get("proj_status") != 3:
+            continue
+        lead = _peopleperhour_lead(attrs)
+        if lead is not None:
+            leads.append(lead)
+    return leads
+
+
+def _peopleperhour_lead(attrs: dict[str, Any]) -> Lead | None:
+    proj_id = attrs.get("proj_id")
+    title = attrs.get("title")
+    if not proj_id or not title:
+        return None
+
+    desc = attrs.get("proj_desc") or ""
+    url = attrs.get("url") or f"https://www.peopleperhour.com/freelance-jobs/{proj_id}"
+    currency = attrs.get("currency") or "USD"
+    budget_val = attrs.get("budget")
+    proposals = attrs.get("proposalCount")
+
+    bids_count = None
+    if proposals is not None:
+        try:
+            bids_count = int(proposals)
+        except (ValueError, TypeError):
+            bids_count = None
+
+    budget_parts = []
+    if budget_val is not None:
+        budget_parts.append(f"{currency} {_money(budget_val)}")
+    else:
+        budget_parts.append("Budget n/a")
+
+    if bids_count is not None:
+        budget_parts.append(f"{bids_count} bid")
+
+    budget_text = " | ".join(budget_parts) if budget_parts else None
+
+    posted_dt = attrs.get("posted_dt")
+    posted_at = None
+    if posted_dt:
+        try:
+            posted_at = (
+                datetime.strptime(str(posted_dt), "%Y-%m-%d %H:%M:%S")
+                .replace(tzinfo=timezone.utc)
+                .isoformat()
+            )
+        except ValueError:
+            posted_at = None
+
+    return Lead(
+        source="peopleperhour",
+        external_id=str(proj_id),
+        title=str(title).strip(),
+        description=str(desc).strip(),
+        url=str(url),
+        budget=budget_text,
+        posted_at=posted_at,
+        bids=bids_count,
+    )
+
+
 def _money(value: Any) -> str:
     try:
         return f"{float(value):,.0f}"
@@ -371,7 +506,9 @@ class LeadService:
         self.connection = connection
         self.extra_terms = tuple(profile.skills)
         self.fetchers = (
-            list(fetchers) if fetchers is not None else [FreelancerFetcher(), ProjectsCoIdFetcher()]
+            list(fetchers)
+            if fetchers is not None
+            else [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]
         )
         self.max_age_days = max_age_days
         self.now = now

@@ -44,6 +44,7 @@ MAX_NOTIFICATIONS_PER_BATCH = 10
 MAX_LEAD_NOTIFICATIONS_PER_BATCH = 5
 POLL_TIMEOUT_SECONDS = 30
 ERROR_BACKOFF_SECONDS = 5
+MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of configured interval
 
 
 class BotRunner:
@@ -56,7 +57,7 @@ class BotRunner:
         draft_service: DraftService,
         pipeline: JobPipeline,
         scheduler: JobScheduler | None,
-        interval_seconds: int,
+        interval_seconds: float | Callable[[], float],
         logger: logging.Logger | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
@@ -73,7 +74,7 @@ class BotRunner:
         self.draft_service = draft_service
         self.pipeline = pipeline
         self.scheduler = scheduler
-        self.interval_seconds = interval_seconds
+        self._interval_seconds = interval_seconds
         self.clock = clock
         self.sleep = sleep
         self.logger = StructuredLogger(logger or logging.getLogger(__name__))
@@ -83,6 +84,11 @@ class BotRunner:
 
     # ------------------------------------------------------------------ loop
 
+    def interval_seconds(self) -> int:
+        if callable(self._interval_seconds):
+            return max(int(self._interval_seconds()), MIN_INTERVAL_SECONDS)
+        return max(int(self._interval_seconds), MIN_INTERVAL_SECONDS)
+
     def run_forever(self) -> None:
         greeting = f"Bot aktif.\n\n{HELP_TEXT}"
         for chat_id in sorted(self.allowed_chat_ids):
@@ -90,13 +96,13 @@ class BotRunner:
         self.logger.event("bot_started", status="running")
 
         offset: int | None = None
-        next_cycle = self.clock() + self.interval_seconds
+        next_cycle = self.clock() + self.interval_seconds()
         next_notify = self.clock() + NOTIFY_INTERVAL_SECONDS
         while True:
             now = self.clock()
             if now >= next_cycle:
                 self._safe_cycle()
-                next_cycle = self.clock() + self.interval_seconds
+                next_cycle = self.clock() + self.interval_seconds()
                 next_notify = self.clock() + NOTIFY_INTERVAL_SECONDS
             elif now >= next_notify:
                 self._safe_notify()

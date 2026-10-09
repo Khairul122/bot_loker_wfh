@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
+from .settings_store import DEFAULTS, get_setting, set_setting
 from .status_transitions import InvalidTransitionError
 
 OFFICE_DIR = Path(__file__).with_name("office")
@@ -42,6 +43,15 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
         "history": connection.execute(
             "SELECT COUNT(*) FROM application_status_history"
         ).fetchone()[0],
+        "settings": _settings_payload(connection),
+    }
+
+
+def _settings_payload(connection: sqlite3.Connection) -> dict:
+    """Current runtime-tunable settings (interval in hours, min bound for the UI)."""
+    return {
+        key: {"value": get_setting(connection, key), "min": lower}
+        for key, (_, lower) in DEFAULTS.items()
     }
 
 
@@ -168,6 +178,9 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/inbox.json":
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
+        if path == "/settings.json":
+            with self._connect() as connection:
+                return self._json(200, _settings_payload(connection))
         return super().do_GET()
 
     def do_POST(self):
@@ -191,6 +204,18 @@ class _Handler(SimpleHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             self.work.set_auto(bool(body.get("on")))
             return self._json(200, self.work.status())
+        if parts == ["settings"]:
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            key = str(body.get("key") or "")
+            if key not in DEFAULTS:
+                return self._json(400, {"error": "unknown_setting"})
+            try:
+                with self._connect() as connection:
+                    set_setting(connection, key, str(body.get("value")))
+                    return self._json(200, _settings_payload(connection))
+            except ValueError:
+                return self._json(400, {"error": "value_out_of_range"})
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")

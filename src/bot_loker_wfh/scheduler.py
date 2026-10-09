@@ -16,8 +16,9 @@ from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 
 
-MIN_INTERVAL_SECONDS = 4 * 60 * 60
+MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of source
 FetchFn = Callable[[], int]
+IntervalSource = float | Callable[[], float]
 
 
 class JobScheduler:
@@ -26,18 +27,19 @@ class JobScheduler:
         connection: sqlite3.Connection,
         *,
         fetchers: dict[str, FetchFn] | None = None,
-        interval_hours: float = 4,
+        interval_hours: IntervalSource = 4,
         logger: logging.Logger | None = None,
         raise_on_error: bool = True,
     ) -> None:
-        interval_seconds = int(interval_hours * 60 * 60)
-        if interval_seconds < MIN_INTERVAL_SECONDS:
-            raise ValueError("Scheduler interval must be at least four hours")
         self.connection = connection
         self.fetchers = fetchers if fetchers is not None else _default_fetchers(connection)
-        self.interval_seconds = interval_seconds
+        self._interval_hours = interval_hours
         self.raise_on_error = raise_on_error
         self.logger = StructuredLogger(logger or logging.getLogger(__name__))
+
+    def interval_seconds(self) -> int:
+        hours = self._interval_hours() if callable(self._interval_hours) else self._interval_hours
+        return max(int(float(hours) * 60 * 60), MIN_INTERVAL_SECONDS)
 
     def run_once(self) -> dict[str, int]:
         results: dict[str, int] = {}
@@ -69,7 +71,7 @@ class JobScheduler:
     def run_forever(self) -> None:
         while True:
             self.run_once()
-            time.sleep(self.interval_seconds)
+            time.sleep(self.interval_seconds())
 
 
 def _default_fetchers(connection: sqlite3.Connection) -> dict[str, FetchFn]:

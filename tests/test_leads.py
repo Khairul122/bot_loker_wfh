@@ -9,6 +9,7 @@ from bot_loker_wfh.leads import (
     FreelancerFetcher,
     Lead,
     LeadService,
+    PeoplePerHourFetcher,
     ProjectsCoIdFetcher,
     TelegramChannelFetcher,
     classify,
@@ -139,6 +140,47 @@ class SourceFetcherTest(unittest.TestCase):
         self.assertEqual(leads[0].description, "JUAL source code Laravel POS hubungi & DM")
         with self.assertRaises(ValueError):
             TelegramChannelFetcher(["bad/name?x=1"])
+
+    def test_peopleperhour_parses_initial_state_projects(self):
+        sample_html = (
+            '<html><head></head><body><content></content><script>'
+            'window.PPHReact={};'
+            'window.PPHReact.initialState={"entities":{"projects":{'
+            '"4525140":{"attributes":{'
+            '"proj_id":4525140,'
+            '"title":"Laravel Rest API Fix",'
+            '"proj_desc":"Need expert to debug NestJS / Laravel backend.",'
+            '"url":"https://www.peopleperhour.com/freelance-jobs/tech/laravel-4525140",'
+            '"budget":250,'
+            '"currency":"USD",'
+            '"posted_dt":"2026-09-19 10:00:00",'
+            '"proposalCount":5,'
+            '"proj_status":3'
+            '}},'
+            '"4525141":{"attributes":{'
+            '"proj_id":4525141,'
+            '"title":"Closed project",'
+            '"proj_status":8'
+            '}}'
+            '}}};'
+            '</script></body></html>'
+        )
+        fetcher = PeoplePerHourFetcher(
+            fetch_html=lambda url: sample_html,
+            max_pages=1,
+            delay_seconds=0,
+        )
+        leads = fetcher.fetch()
+        self.assertEqual(len(leads), 1)
+        lead = leads[0]
+        self.assertEqual(lead.source, "peopleperhour")
+        self.assertEqual(lead.external_id, "4525140")
+        self.assertEqual(lead.title, "Laravel Rest API Fix")
+        self.assertIn("NestJS", lead.description)
+        self.assertEqual(lead.url, "https://www.peopleperhour.com/freelance-jobs/tech/laravel-4525140")
+        self.assertEqual(lead.budget, "USD 250 | 5 bid")
+        self.assertEqual(lead.posted_at, "2026-09-19T10:00:00+00:00")
+        self.assertEqual(lead.bids, 5)
 
 
 class StaticFetcher:

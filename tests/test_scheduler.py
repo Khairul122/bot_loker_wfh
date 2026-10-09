@@ -19,11 +19,26 @@ class SchedulerTest(unittest.TestCase):
     def test_default_interval_is_at_least_four_hours(self):
         scheduler = JobScheduler(self.connection, fetchers={})
 
-        self.assertGreaterEqual(scheduler.interval_seconds, 4 * 60 * 60)
+        self.assertGreaterEqual(scheduler.interval_seconds(), 4 * 60 * 60)
 
-    def test_interval_below_four_hours_is_rejected(self):
-        with self.assertRaisesRegex(ValueError, "at least four hours"):
-            JobScheduler(self.connection, fetchers={}, interval_hours=3)
+    def test_interval_below_minimum_is_clamped(self):
+        scheduler = JobScheduler(self.connection, fetchers={}, interval_hours=0.001)
+
+        self.assertGreaterEqual(scheduler.interval_seconds(), 5 * 60)
+
+    def test_interval_hours_can_be_read_from_database(self):
+        from bot_loker_wfh.settings_store import set_scrape_interval_hours
+
+        set_scrape_interval_hours(self.connection, 0.5)
+        scheduler = JobScheduler(
+            self.connection,
+            fetchers={},
+            interval_hours=lambda: __import__(
+                "bot_loker_wfh.settings_store", fromlist=["get_scrape_interval_hours"]
+            ).get_scrape_interval_hours(self.connection),
+        )
+
+        self.assertEqual(scheduler.interval_seconds(), 30 * 60)
 
     def test_one_shot_runs_remoteok_and_remotive(self):
         calls = []

@@ -21,6 +21,7 @@ from .indonesia_jobs import DeallsFetcher, KalibrrFetcher
 from .leads import (
     FreelancerFetcher,
     LeadService,
+    PeoplePerHourFetcher,
     ProjectsCoIdFetcher,
     TelegramChannelFetcher,
 )
@@ -35,6 +36,7 @@ from .remoteok import RemoteOKFetcher
 from .remotive import RemotiveFetcher
 from .retention import FilteredOutRetention
 from .scheduler import JobScheduler
+from .settings_store import get_scrape_interval_hours
 from .telegram_client import TelegramClient
 
 
@@ -169,7 +171,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         database_path = initialize_database(settings.database_url)
         with sqlite3.connect(database_path) as connection:
-            JobScheduler(connection).run_forever()
+            JobScheduler(
+                connection,
+                interval_hours=lambda: get_scrape_interval_hours(connection),
+            ).run_forever()
         return 0
 
     if args.command == "process-jobs":
@@ -349,8 +354,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 connection, lead_id, profile, llm, portfolio=load_portfolio(), mark_interested=mark_interested
             ),
             form_assist_enabled=settings.form_assist_enabled,
-            # same floor as the scheduler: job sources are polled at most every 4 hours
-            interval_seconds=int(max(4.0, settings.fetch_interval_hours) * 3600),
+            # scrape interval lives in the DB so the owner can tune it live from the dashboard
+            interval_seconds=lambda: _read_scrape_interval(database_path),
             lock=threading.Lock(),
         )
         serve_office(work, args.port)
@@ -408,7 +413,7 @@ def _office_hunters(profile, settings: Settings) -> dict:
         )
         for source, fetcher_class in job_fetchers.items()
     }
-    lead_fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher()]  # global + Indonesia
+    lead_fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]  # global + Indonesia
     if settings.lead_telegram_channels:
         lead_fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
     for fetcher in lead_fetchers:
@@ -420,8 +425,16 @@ def _office_hunters(profile, settings: Settings) -> dict:
     return hunters
 
 
+def _read_scrape_interval(database_path: Path) -> float:
+    connection = sqlite3.connect(database_path)
+    try:
+        return get_scrape_interval_hours(connection) * 3600
+    finally:
+        connection.close()
+
+
 def _lead_service(connection, profile, settings: Settings) -> LeadService:
-    fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher()]
+    fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]
     if settings.lead_telegram_channels:
         fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
     return LeadService(connection, profile, fetchers=fetchers)
@@ -562,10 +575,14 @@ def _run_bot(settings: Settings) -> int:
     database_path = initialize_database(settings.database_url)
     llm = create_llm_from_settings(settings, str(database_path))
     connection = sqlite3.connect(database_path)
+
+    def scrape_interval_hours() -> float:
+        return get_scrape_interval_hours(connection)
+
     scheduler = (
         JobScheduler(
             connection,
-            interval_hours=settings.fetch_interval_hours,
+            interval_hours=scrape_interval_hours,
             raise_on_error=False,
         )
         if settings.external_jobs_enabled
@@ -580,7 +597,7 @@ def _run_bot(settings: Settings) -> int:
         lead_service=_lead_service(connection, profile, settings),
         pipeline=JobPipeline(connection, profile),
         scheduler=scheduler,
-        interval_seconds=int(settings.fetch_interval_hours * 3600),
+        interval_seconds=lambda: get_scrape_interval_hours(connection) * 3600,
     )
     print(
         "bot running "

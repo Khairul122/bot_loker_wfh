@@ -26,6 +26,7 @@ from .status_transitions import (
 
 DRAFTS_PER_CYCLE = 3
 PROPOSALS_PER_CYCLE = 3
+MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of configured interval
 
 
 @contextmanager
@@ -47,7 +48,7 @@ class OfficeWork:
         hunters: dict[str, Callable[[sqlite3.Connection], dict]],
         draft_service_for: Callable[[sqlite3.Connection], Any],
         form_assist_enabled: bool,
-        interval_seconds: int,
+        interval_seconds: float | Callable[[], float],
         lock: threading.Lock,
         proposal_writer: Callable[..., str] | None = None,
         spawn: Callable[..., Any] = subprocess.Popen,
@@ -57,7 +58,7 @@ class OfficeWork:
         self.hunters = hunters
         self.draft_service_for = draft_service_for
         self.form_assist_enabled = form_assist_enabled
-        self.interval_seconds = interval_seconds
+        self._interval_seconds = interval_seconds
         self.lock = lock  # shared with manual hunts: one search/draft at a time
         self.proposal_writer = proposal_writer
         self._lead_fill: Any = None  # the running fill-lead process, if any
@@ -200,6 +201,10 @@ class OfficeWork:
             next_in = max(0, int(self.next_at - self.clock()))
         return {"auto": self.auto, "busy": self.busy, "last": self.last, "next_in": next_in}
 
+    def interval_seconds(self) -> float:
+        raw = self._interval_seconds() if callable(self._interval_seconds) else self._interval_seconds
+        return max(float(raw), MIN_INTERVAL_SECONDS)
+
     def set_auto(self, on: bool) -> None:
         self.auto = on
         if on and self._thread is None:
@@ -215,7 +220,7 @@ class OfficeWork:
                 continue
             if self.next_at is None or self.clock() >= self.next_at:
                 self.run_cycle()
-                self.next_at = self.clock() + self.interval_seconds
+                self.next_at = self.clock() + self.interval_seconds()
             self._wake.wait(timeout=max(1.0, self.next_at - self.clock()))
             self._wake.clear()
 
