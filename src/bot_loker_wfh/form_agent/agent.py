@@ -99,17 +99,21 @@ class FormAgent:
             force_assist=force_assist,
         )
 
-    def run_lead_session(self, lead_id: str, *, keep_open_seconds: float = 0) -> str:
-        """Fill a freelance bid form with the owner's saved proposal; never submits."""
+    def run_lead_session(
+        self, lead_id: str, *, keep_open_seconds: float = 0, text: str = "proposal"
+    ) -> str:
+        """Fill a freelance bid (or comment) form with the saved draft; never submits."""
+        if text not in ("proposal", "comment"):
+            raise ValueError("text must be proposal or comment")
         row = self.connection.execute(
-            "SELECT url, source, title, description, proposal FROM leads WHERE id = ?",
+            f"SELECT url, source, title, description, {text} FROM leads WHERE id = ?",
             (lead_id,),
         ).fetchone()
         if not row:
             return "Proyek tidak ditemukan."
         url, source, title, description, proposal = row
         if not (proposal or "").strip():
-            return "Tulis proposal dulu sebelum mengisi formulir."
+            return f"Tulis {text} dulu (draft-lead) sebelum mengisi formulir."
         return self._session(
             apply_url=url,
             company=source,

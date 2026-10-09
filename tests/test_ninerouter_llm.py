@@ -123,3 +123,16 @@ class TestNineRouterLLM(unittest.TestCase):
             self.assertIn("gh/gpt-4o", result["vision"])
             self.assertNotIn("text-only-model", result["vision"])
             self.assertNotIn("text-only-model", result["combo"])
+
+
+class RouterCallableTest(unittest.TestCase):
+    def test_router_is_callable_like_a_provider(self):
+        from bot_loker_wfh.llm import LLMResult, LLMRouter
+
+        class Fake:
+            name = "fake"
+
+            def complete(self, messages, **kwargs):
+                return LLMResult(text="ok:" + messages[0]["content"], provider="fake", model="m")
+
+        self.assertEqual(LLMRouter([(Fake(), "m")])("hi"), "ok:hi")

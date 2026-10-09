@@ -6,7 +6,9 @@ filler stops before the submit button and the owner sends the bid themselves.
 
 from __future__ import annotations
 
+import re
 import sqlite3
+from collections import Counter
 from collections.abc import Callable
 
 from .cv_profile import SafeCvProfile
@@ -15,6 +17,27 @@ from .github_portfolio import relevant_repos
 LEAD_LIST_LIMIT = 40
 INDONESIAN_SOURCES = frozenset({"projects.co.id", "telegram"})
 LEAD_STATUSES = frozenset({"NEW", "INTERESTED", "IGNORED"})
+# Common Indonesian function words; English posts almost never contain them.
+INDONESIAN_WORDS = frozenset(
+    "yang dan untuk dengan dari ini itu ada saya kami kita bisa akan sudah butuh "
+    "membuat pembuatan buat aplikasi tidak atau juga sebuah pada dalam mohon harga "
+    "dibutuhkan mencari cari jasa sistem informasi website nya secara agar supaya".split()
+)
+
+
+def is_indonesian(text: str, source: str = "") -> bool:
+    """Language of the post itself; the source only breaks ties for very short posts."""
+    words = re.findall(r"[a-z]+", text.lower())
+    hits = sum(word in INDONESIAN_WORDS for word in words)
+    if len(words) < 8:
+        return hits >= 2 or source in INDONESIAN_SOURCES
+    return hits / len(words) >= 0.06  # ponytail: stopword ratio, swap for a real detector if it misfires
+
+
+def portfolio_stack(portfolio: dict, limit: int = 6) -> str:
+    """Main languages across the owner's public repos, e.g. "PHP (80 repos), Dart (30 repos)"."""
+    counts = Counter(r.get("language") for r in portfolio.get("repos", []) if r.get("language"))
+    return ", ".join(f"{lang} ({n} repos)" for lang, n in counts.most_common(limit))
 
 
 def list_leads(connection: sqlite3.Connection, source: str | None = None) -> list[dict]:
@@ -76,7 +99,8 @@ def template_proposal(
 
 
 def proposal_prompt(
-    title: str, description: str, budget: str | None, profile: SafeCvProfile, repos: list[dict], *, indonesian: bool
+    title: str, description: str, budget: str | None, profile: SafeCvProfile, repos: list[dict], *,
+    indonesian: bool, stack: str = "",
 ) -> str:
     language = "Bahasa Indonesia yang ramah dan profesional" if indonesian else "confident, friendly English"
     proof = "\n".join(
@@ -95,7 +119,8 @@ def proposal_prompt(
         "Rules: use ONLY the facts below. Never invent years of experience, client names, ratings, "
         "numbers or repos. No 'Dear Sir/Madam'. No price unless the budget is given.\n\n"
         f"Project: {title}\nBudget: {budget or '-'}\nDescription: {description[:1500]}\n\n"
-        f"Candidate: {profile.to_summary()}\n\nCandidate GitHub repos:\n{proof}"
+        f"Candidate: {profile.to_summary()}\nGitHub stack: {stack or '-'}\n\n"
+        f"Candidate GitHub repos:\n{proof}"
     )
 
 
@@ -114,17 +139,66 @@ def draft_proposal(
     if row is None:
         raise KeyError(lead_id)
     title, description, source, budget = row
-    indonesian = source in INDONESIAN_SOURCES
+    indonesian = is_indonesian(f"{title} {description}", source)
     repos = relevant_repos(portfolio or {}, f"{title} {description}")
     text = ""
     if llm is not None:
         try:
-            prompt = proposal_prompt(title, description, budget, profile, repos, indonesian=indonesian)
+            prompt = proposal_prompt(
+                title, description, budget, profile, repos,
+                indonesian=indonesian, stack=portfolio_stack(portfolio or {}),
+            )
             text = str(llm(prompt) or "").strip()
         except Exception:  # the template is always a safe fallback
             text = ""
     text = text or template_proposal(title, description, profile, repos, indonesian=indonesian)
     save_proposal(connection, lead_id, text, mark_interested=mark_interested)
+    return text
+
+
+def comment_prompt(title: str, description: str, repos: list[dict], *, indonesian: bool) -> str:
+    language = "Bahasa Indonesia yang santai tapi sopan" if indonesian else "friendly, natural English"
+    proof = repos[0]["url"] if repos else "-"
+    return (
+        f"Write a short public comment on a freelance project post in {language}, 40-70 words, plain text.\n"
+        "Show you read the post: mention one concrete detail from it, ask ONE clarifying question "
+        "that helps scope the work, and (only if it fits) mention this related repo of mine: "
+        f"{proof}. No price, no contact details, no 'hire me' pressure, no invented facts.\n\n"
+        f"Project: {title}\nDescription: {description[:1200]}"
+    )
+
+
+def template_comment(title: str, repos: list[dict], *, indonesian: bool) -> str:
+    proof = repos[0]["url"] if repos else ""
+    if indonesian:
+        text = f'Halo, saya tertarik dengan proyek "{title}". Boleh tahu fitur mana yang paling prioritas dan targetnya kapan?'
+        return text + (f" Contoh proyek serupa yang pernah saya buat: {proof}" if proof else "")
+    text = f'Hi, "{title}" looks like a good fit for me. Which feature matters most, and what is your target date?'
+    return text + (f" Here is similar work I built: {proof}" if proof else "")
+
+
+def draft_comment(
+    connection: sqlite3.Connection,
+    lead_id: str,
+    llm: Callable[[str], str] | None = None,
+    portfolio: dict | None = None,
+) -> str:
+    """A short public comment/question for the project post; saved in leads.comment."""
+    row = connection.execute("SELECT title, description, source FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if row is None:
+        raise KeyError(lead_id)
+    title, description, source = row
+    indonesian = is_indonesian(f"{title} {description}", source)
+    repos = relevant_repos(portfolio or {}, f"{title} {description}", limit=1)
+    text = ""
+    if llm is not None:
+        try:
+            text = str(llm(comment_prompt(title, description, repos, indonesian=indonesian)) or "").strip()
+        except Exception:
+            text = ""
+    text = text or template_comment(title, repos, indonesian=indonesian)
+    connection.execute("UPDATE leads SET comment = ? WHERE id = ?", (text, lead_id))
+    connection.commit()
     return text
 
 

@@ -138,3 +138,62 @@ class LoginWaitTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LanguageAndCommentTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = sqlite3.connect(":memory:")
+        apply_schema(self.connection)
+
+    def test_language_follows_post_text_not_source(self):
+        from bot_loker_wfh.lead_desk import is_indonesian
+
+        self.assertTrue(is_indonesian(
+            "Dibutuhkan programmer untuk pembuatan aplikasi kasir berbasis web dengan Laravel", "freelancer"))
+        self.assertFalse(is_indonesian(
+            "We need an experienced developer to build a booking web app with React and Laravel",
+            "projects.co.id"))
+
+    def test_indonesian_post_on_freelancer_gets_indonesian_bid_and_comment(self):
+        from bot_loker_wfh.lead_desk import draft_comment
+
+        self.connection.execute(
+            "INSERT INTO leads (id, source, external_id, kind, title, description, url) VALUES "
+            "('x', 'freelancer', 'x', 'project', 'Aplikasi kasir', "
+            "'Saya butuh pembuatan aplikasi kasir untuk toko dengan laporan harian yang bisa dicetak', 'u')"
+        )
+        portfolio = {"repos": [{"name": "aplikasi-kasir", "url": "https://github.com/Khairul122/aplikasi-kasir",
+                                "language": "PHP", "description": "", "topics": []}]}
+        prompts = []
+
+        proposal = draft_proposal(self.connection, "x", PROFILE, lambda p: prompts.append(p) or "", portfolio)
+        comment = draft_comment(self.connection, "x", None, portfolio)
+
+        self.assertTrue(proposal.startswith("Halo"))
+        self.assertIn("Bahasa Indonesia", prompts[0])
+        self.assertIn("PHP (1 repos)", prompts[0])
+        self.assertIn("github.com/Khairul122/aplikasi-kasir", comment)
+        self.assertEqual(self.connection.execute("SELECT comment FROM leads WHERE id='x'").fetchone()[0], comment)
+
+
+class OpenCodeProviderTest(unittest.TestCase):
+    def test_runs_opencode_with_prompt_file_outside_repo(self):
+        from bot_loker_wfh.llm import LLMError, OpenCodeProvider
+
+        seen = {}
+
+        class Done:
+            returncode, stdout = 0, "  a bid  \n"
+
+        def fake_run(cmd, cwd, **kwargs):
+            seen["cmd"], seen["prompt"] = cmd, Path(cmd[6]).read_text(encoding="utf-8")
+            return Done()
+
+        provider = OpenCodeProvider("9router/ComboOpenCode", run=fake_run)
+        self.assertEqual(provider("line1\nline2"), "a bid")
+        self.assertEqual(seen["cmd"][1:6], ["run", "-m", "9router/ComboOpenCode", "-f"])
+        self.assertEqual(seen["prompt"], "line1\nline2")
+
+        Done.returncode = 1
+        with self.assertRaises(LLMError):
+            provider("x")

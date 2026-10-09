@@ -28,7 +28,7 @@ from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
 from .github_portfolio import load_portfolio, sync_portfolio
-from .lead_desk import draft_proposal
+from .lead_desk import draft_comment, draft_proposal
 from .office_work import OfficeWork
 from .pipeline import JobPipeline
 from .remoteok import RemoteOKFetcher
@@ -57,6 +57,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--github-user", help="GitHub username for sync-github (default: GITHUB_USERNAME)")
     parser.add_argument("--engine", choices=("browsermcp", "playwright"), default="browsermcp",
                         help="Browser for fill-lead: your Chrome (BrowserMCP) or Playwright MCP")
+    parser.add_argument("--text", choices=("proposal", "comment"), default="proposal",
+                        help="Which saved draft fill-lead types into the page")
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
         "command",
@@ -77,6 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "add-company",
             "fill-form",
             "fill-lead",
+            "draft-lead",
             "sync-github",
             "cleanup-retention",
             "backup-db",
@@ -208,7 +211,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "fill-lead":
         if not args.lead_id:
             parser.error("fill-lead requires --lead-id")
-        return _fill_lead(settings, args.lead_id, args.engine)
+        return _fill_lead(settings, args.lead_id, args.engine, args.text)
+
+    if args.command == "draft-lead":
+        if not args.lead_id:
+            parser.error("draft-lead requires --lead-id")
+        profile = load_profile(settings.profile_path)
+        database_path = initialize_database(settings.database_url)
+        llm = create_llm_from_settings(settings, str(database_path))
+        portfolio = load_portfolio()
+        with sqlite3.connect(database_path) as connection:
+            try:
+                proposal = draft_proposal(connection, args.lead_id, profile, llm, portfolio=portfolio)
+                comment = draft_comment(connection, args.lead_id, llm, portfolio=portfolio)
+            except KeyError:
+                print(f"lead not found id={args.lead_id}")
+                return 1
+        print(f"--- proposal ---\n{proposal}\n\n--- comment ---\n{comment}")
+        return 0
 
     if args.command == "fill-form":
         if not args.application_id:
@@ -488,7 +508,7 @@ def _fill_form(
 PLAYWRIGHT_REVIEW_SECONDS = 30 * 60
 
 
-def _fill_lead(settings: Settings, lead_id: str, engine: str) -> int:
+def _fill_lead(settings: Settings, lead_id: str, engine: str, text: str = "proposal") -> int:
     """Fill a freelance bid form with the saved proposal. Never presses submit."""
     from .form_agent.agent import FormAgent
 
@@ -510,7 +530,7 @@ def _fill_lead(settings: Settings, lead_id: str, engine: str) -> int:
             db_path=str(database_path),
         )
         keep_open = PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
-        print(agent.run_lead_session(lead_id, keep_open_seconds=keep_open), flush=True)
+        print(agent.run_lead_session(lead_id, keep_open_seconds=keep_open, text=text), flush=True)
     except Exception as error:
         print(f"Error pengisian form proyek: {error}", flush=True)
         return 1

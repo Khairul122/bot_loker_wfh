@@ -35,6 +35,8 @@ class Settings:
     llm_timeout_seconds: float = 60.0
     llm_task_budget_seconds: float = 90.0
     llm_temperature_draft: float = 0.4
+    opencode_command: str = "opencode"
+    opencode_model: str = "9router/ComboOpenCode"
 
     form_engine: str = "playwright"
     browser_mcp_command: str = "npx -y @browsermcp/mcp@0.1.3"
@@ -106,6 +108,8 @@ class Settings:
             llm_temperature_draft=float(
                 source.get("LLM_TEMPERATURE_DRAFT") or 0.4
             ),
+            opencode_command=source.get("OPENCODE_COMMAND") or "opencode",
+            opencode_model=source.get("OPENCODE_MODEL") or "9router/ComboOpenCode",
             form_engine=source.get("FORM_ENGINE", "playwright"),
             browser_mcp_command=source.get(
                 "BROWSER_MCP_COMMAND", "npx -y @browsermcp/mcp@0.1.3"

@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
+import shlex
+import shutil
+import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -239,6 +245,69 @@ class OpenAICompatibleProvider:
         return res.text
 
 
+class OpenCodeProvider:
+    """`opencode run` as a provider; opencode itself is configured to route through 9Router."""
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        command: str = "opencode",
+        timeout: float = 120.0,
+        name: str = "opencode",
+        run: Callable[..., Any] | None = None,
+    ) -> None:
+        self.model = model
+        self.command = command
+        self.timeout = timeout
+        self.name = name
+        self.run = run or subprocess.run
+
+    def complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        json_mode: bool = False,
+        model: str | None = None,
+    ) -> LLMResult:
+        target_model = model or self.model
+        prompt = "\n\n".join(str(m.get("content", "")) for m in messages)
+        if json_mode:
+            prompt += "\n\nRespond with JSON only."
+        start_time = time.monotonic()
+        try:
+            # empty temp cwd: the opencode agent must not see or edit this repo.
+            # The prompt goes in a file: on Windows `opencode.cmd` runs via cmd.exe,
+            # which mangles multi-line arguments.
+            with tempfile.TemporaryDirectory() as cwd:
+                prompt_file = Path(cwd) / "prompt.md"  # absolute: opencode ignores our cwd for -f
+                prompt_file.write_text(prompt, encoding="utf-8")
+                argv = shlex.split(self.command, posix=os.name != "nt")
+                exe = shutil.which(argv[0]) or argv[0]
+                cmd = [exe, *argv[1:], "run", "-m", target_model, "-f", str(prompt_file),
+                       "Follow the instructions in the attached file. Reply with the answer only."]
+                proc = self.run(
+                    cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
+                    timeout=self.timeout,
+                )
+        except subprocess.TimeoutExpired as err:
+            raise LLMError("timeout", "opencode timed out") from err
+        except OSError as err:
+            raise LLMError("network_error", f"opencode not runnable: {err}") from err
+        text = (proc.stdout or "").strip()
+        if proc.returncode != 0 or not text:
+            raise LLMError("upstream_error", f"opencode exit {proc.returncode}")
+        return LLMResult(
+            text=text,
+            provider=self.name,
+            model=target_model,
+            latency_ms=int((time.monotonic() - start_time) * 1000),
+        )
+
+    def __call__(self, prompt: str) -> str:
+        return self.complete([{"role": "user", "content": prompt}]).text
+
+
 def fetch_9router_models_categorized(
     base_url: str = "http://localhost:20128/v1",
     api_key: str = "sk-dummy",
@@ -402,6 +471,10 @@ class LLMRouter:
 
         raise LLMError("all_providers_failed", "All configured AI models failed")
 
+    def __call__(self, prompt: str) -> str:
+        """Plain prompt -> text, so callers can treat the router like a single provider."""
+        return self.for_task("draft")(prompt)
+
     def for_task(
         self,
         task: str,
@@ -460,6 +533,27 @@ def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRo
 
         router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
         setattr(router, "provider_name", "9router")
+        return router
+
+    if prov == "opencode":
+        oc_model = getattr(settings, "opencode_model", "") or "9router/ComboOpenCode"
+        oc = OpenCodeProvider(
+            oc_model,
+            command=getattr(settings, "opencode_command", "") or "opencode",
+            timeout=getattr(settings, "llm_timeout_seconds", 120.0),
+        )
+        chain = [(oc, oc_model)]
+        # opencode down -> talk to 9Router directly
+        nine_model = getattr(settings, "ninerouter_model", "")
+        if nine_model:
+            nine = OpenAICompatibleProvider(
+                getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1"),
+                getattr(settings, "ninerouter_api_key", None) or "sk-dummy",
+                nine_model,
+            )
+            chain.append((nine, nine_model))
+        router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0) * 2)
+        setattr(router, "provider_name", "opencode")
         return router
 
     return None

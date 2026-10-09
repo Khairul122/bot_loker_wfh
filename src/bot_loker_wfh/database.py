@@ -39,6 +39,8 @@ def _apply_002_schema(connection: sqlite3.Connection) -> None:
     lead_columns = {row[1] for row in connection.execute("PRAGMA table_info(leads)").fetchall()}
     if "proposal" not in lead_columns:
         connection.execute("ALTER TABLE leads ADD COLUMN proposal TEXT")
+    if "comment" not in lead_columns:
+        connection.execute("ALTER TABLE leads ADD COLUMN comment TEXT")
 
     connection.executescript(
         """
