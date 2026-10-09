@@ -183,6 +183,14 @@ class BotRunnerTest(unittest.TestCase):
         self.assertEqual(len(self.client.messages), 1)
         self.assertIn("Siapkan draft", self.client.messages[0].inline_keyboard[0][0].label)
 
+    def test_failed_send_leaves_candidate_unnotified(self):
+        with patch.object(self.client, "send_message", side_effect=TelegramError("boom")):
+            self.assertEqual(self.runner.notify_candidates(), 0)
+
+        self.assertIsNone(
+            self.connection.execute("SELECT notified_at FROM jobs").fetchone()[0]
+        )
+
     def test_run_cycle_fetches_filters_and_notifies(self):
         insert_job(self.connection, 2, description="Python, NestJS and React", status="DISCOVERED")
 

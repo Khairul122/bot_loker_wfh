@@ -42,6 +42,7 @@ class FormAgent:
         profile_path: str = "data/profile.json",
         db_path: str | None = None,
         custom_client: Any | None = None,
+        ai_answers: bool = True,
     ):
         self.connection = connection
         self.router = router
@@ -56,6 +57,7 @@ class FormAgent:
         self.profile_path = profile_path
         self.db_path = db_path
         self.custom_client = custom_client
+        self.ai_answers = ai_answers
 
     def run_session(
         self,
@@ -259,7 +261,7 @@ class FormAgent:
             has_captcha = any(f.field_class == "captcha" for f in fields)
 
             # 5. Rencanakan
-            planner = FormPlanner(self.router, answers_store)
+            planner = FormPlanner(self.router, answers_store, ai_answers=self.ai_answers)
             resolver = ValueResolver.from_files(
                 self.applicant_path, self.answers_path, cover_letter
             )
@@ -291,6 +293,10 @@ class FormAgent:
                         job_summary=description,
                         candidate_summary=candidate_summary,
                     )
+                    # No usable answer (AI off or refused): leave the field for the owner
+                    # instead of typing the placeholder text into it.
+                    if not ans_text or ans_text == "NEEDS_USER":
+                        continue
                     final_actions.append(
                         act.__class__(
                             ref=act.ref,

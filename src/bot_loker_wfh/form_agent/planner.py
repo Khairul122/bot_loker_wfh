@@ -44,9 +44,12 @@ class FormPlanner:
         self,
         router: LLMRouter | None = None,
         answers_store: AnswersStore | None = None,
+        *,
+        ai_answers: bool = True,
     ):
         self.router = router
         self.answers_store = answers_store or AnswersStore([])
+        self.ai_answers = ai_answers
 
     def plan(
         self,
@@ -127,7 +130,7 @@ class FormPlanner:
         job_summary: str = "",
         candidate_summary: str = "",
     ) -> str:
-        if not self.router:
+        if not self.router or not self.ai_answers:
             return "NEEDS_USER"
 
         prompt = (

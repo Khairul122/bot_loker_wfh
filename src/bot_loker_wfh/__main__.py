@@ -475,6 +475,7 @@ def _fill_form(
                 applicant_path=settings.applicant_path,
                 answers_path=settings.answers_path,
                 db_path=str(database_path),
+                ai_answers=settings.form_ai_answers != "off",
             )
             page_num = 2 if next_page else 1
             report_text = agent.run_session(
@@ -528,6 +529,7 @@ def _fill_lead(settings: Settings, lead_id: str, engine: str, text: str = "propo
             applicant_path=settings.applicant_path,
             answers_path=settings.answers_path,
             db_path=str(database_path),
+            ai_answers=settings.form_ai_answers != "off",
         )
         # Stopping Playwright MCP closes the tab it opened (also in --extension mode),
         # so keep it alive until the owner reviews, submits and closes the tab.

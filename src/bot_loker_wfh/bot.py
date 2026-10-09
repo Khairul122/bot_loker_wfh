@@ -162,6 +162,7 @@ class BotRunner:
         ]
         sent = 0
         for job_id in job_ids:
+            delivered = False
             try:
                 for chat_id in sorted(self.allowed_chat_ids):
                     message = TelegramNotificationService(
@@ -169,15 +170,19 @@ class BotRunner:
                     ).candidate_message(job_id)
                     if message is not None:
                         self.client.send_message(message)
+                        delivered = True
             except TelegramError:
                 break
-            self.connection.execute(
-                "UPDATE jobs SET notified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
-                "WHERE id = ?",
-                (job_id,),
-            )
-            self.connection.commit()
-            sent += 1
+            # Only mark as notified when a message actually went out; otherwise the
+            # candidate would be silently skipped on every later cycle.
+            if delivered:
+                self.connection.execute(
+                    "UPDATE jobs SET notified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                    "WHERE id = ?",
+                    (job_id,),
+                )
+                self.connection.commit()
+                sent += 1
         return sent
 
     def notify_leads(self) -> int:
@@ -186,15 +191,19 @@ class BotRunner:
             return 0
         sent = 0
         for lead_id in self.lead_service.unnotified_ids(MAX_LEAD_NOTIFICATIONS_PER_BATCH):
+            delivered = False
             try:
                 for chat_id in sorted(self.allowed_chat_ids):
                     message = self.lead_service.message(lead_id, chat_id)
                     if message is not None:
                         self.client.send_message(message)
+                        delivered = True
             except TelegramError:
                 break
-            self.lead_service.mark_notified(lead_id)
-            sent += 1
+            # Same rule as candidates: never mark a lead notified if nothing was sent.
+            if delivered:
+                self.lead_service.mark_notified(lead_id)
+                sent += 1
         return sent
 
     # -------------------------------------------------------------- handlers

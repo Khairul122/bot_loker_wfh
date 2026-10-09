@@ -131,6 +131,18 @@ class TestFormAgent(unittest.TestCase):
         self.assertIn("Python developer with 5 years experience", user_msg)
         self.assertNotIn("Cover Letter", user_msg)
 
+    def test_ai_answers_off_returns_needs_user_without_calling_router(self):
+        from unittest.mock import MagicMock
+        from bot_loker_wfh.form_agent.planner import FormPlanner
+
+        router = MagicMock()
+        planner = FormPlanner(router, None, ai_answers=False)
+
+        answer = planner.generate_answer("Why do you want to work here?")
+
+        self.assertEqual(answer, "NEEDS_USER")
+        router.complete.assert_not_called()
+
 
 class FreelancerBidSnapshotTest(unittest.TestCase):
     def test_unlabeled_nodes_are_not_fields_and_spinbuttons_are(self):
