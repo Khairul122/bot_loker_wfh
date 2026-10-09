@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
-from .lead_desk import list_leads, save_proposal, set_lead_status, undrafted_leads
+from .lead_desk import lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads
 from . import office_desk as desk
 from .status_transitions import (
     InvalidTransitionError,
@@ -192,8 +192,9 @@ class OfficeWork:
             self.proposal_writer(connection, lead_id, mark_interested=False)
         return len(lead_ids)
 
-    def leads(self, connection: sqlite3.Connection, source: str | None) -> dict:
-        return {"items": list_leads(connection, source), "browser_fill": self.form_assist_enabled}
+    def leads(self, connection: sqlite3.Connection, source: str | None, view: str = "all") -> dict:
+        return {"items": list_leads(connection, source, view), "counts": lead_counts(connection, source),
+                "browser_fill": self.form_assist_enabled}
 
     def lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> dict:
         """interested | ignored | new | proposal | fill. Raises KeyError for unknown leads."""

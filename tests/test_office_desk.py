@@ -80,6 +80,32 @@ class DeskTest(unittest.TestCase):
         self.assertEqual(ranked[0]["title"], "Python Django dev")
         self.assertEqual(desk.prioritize(items, []), items)
 
+    def test_profile_has_three_periods_and_trend(self):
+        insert_job(self.connection, "a")
+        r = desk.create_report(self.connection, "reno")
+        desk.review_report(self.connection, r["id"], 4, "bagus")
+        p = desk.profile(self.connection, "reno")
+        self.assertEqual(list(p["periods"]), ["24 jam", "7 hari", "30 hari"])
+        self.assertEqual(p["periods"]["30 hari"]["metrics"][0][2], 1)
+        self.assertEqual([h["rating"] for h in p["history"]], [4])
+        self.assertEqual(p["notes"][0]["note"], "bagus")
+        with self.assertRaises(KeyError):
+            desk.profile(self.connection, "nobody")
+
+    def test_lead_board_filters(self):
+        from bot_loker_wfh.lead_desk import lead_counts, list_leads
+        rows = [("NEW", None), ("NEW", "2000-01-01T00:00:00.000Z"), ("INTERESTED", None), ("IGNORED", None)]
+        for i, (status, fetched) in enumerate(rows):
+            self.connection.execute(
+                "INSERT INTO leads (id, source, external_id, kind, title, description, url, status) "
+                "VALUES (?, 'freelancer', ?, 'project', 't', 'd', 'https://x', ?)", (f"l{i}", str(i), status))
+            if fetched:
+                self.connection.execute("UPDATE leads SET fetched_at = ? WHERE id = ?", (fetched, f"l{i}"))
+        self.assertEqual([x["id"] for x in list_leads(self.connection, view="new")], ["l0"])
+        self.assertEqual([x["id"] for x in list_leads(self.connection, view="old")], ["l1"])
+        self.assertEqual(lead_counts(self.connection),
+                         {"all": 3, "new": 1, "old": 1, "interested": 1, "proposal": 0, "ignored": 1})
+
     def test_ask_uses_real_facts_and_falls_back_without_llm(self):
         insert_job(self.connection, "a")
         prompts = []

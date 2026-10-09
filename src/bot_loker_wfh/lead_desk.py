@@ -40,10 +40,22 @@ def portfolio_stack(portfolio: dict, limit: int = 6) -> str:
     return ", ".join(f"{lang} ({n} repos)" for lang, n in counts.most_common(limit))
 
 
-def list_leads(connection: sqlite3.Connection, source: str | None = None) -> list[dict]:
+FRESH = "COALESCE(posted_at, fetched_at) >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 days')"
+# board filters: "new" and "old" split untouched projects at 3 days
+LEAD_VIEWS = {
+    "all": "status != 'IGNORED'",
+    "new": f"status = 'NEW' AND {FRESH}",
+    "old": f"status = 'NEW' AND NOT {FRESH}",
+    "interested": "status = 'INTERESTED'",
+    "proposal": "COALESCE(proposal, '') != '' AND status != 'IGNORED'",
+    "ignored": "status = 'IGNORED'",
+}
+
+
+def list_leads(connection: sqlite3.Connection, source: str | None = None, view: str = "all") -> list[dict]:
     sql = (
         "SELECT id, source, kind, title, description, budget, url, status, posted_at, "
-        "fetched_at, proposal FROM leads WHERE status != 'IGNORED'"
+        f"fetched_at, proposal FROM leads WHERE {LEAD_VIEWS.get(view, LEAD_VIEWS['all'])}"
     )
     params: tuple = ()
     if source:
@@ -57,6 +69,15 @@ def list_leads(connection: sqlite3.Connection, source: str | None = None) -> lis
             "posted_at", "fetched_at", "proposal")
     rows = connection.execute(sql, (*params, LEAD_LIST_LIMIT)).fetchall()
     return [{**dict(zip(keys, row)), "description": (row[4] or "")[:600]} for row in rows]
+
+
+def lead_counts(connection: sqlite3.Connection, source: str | None = None) -> dict[str, int]:
+    """How many projects each board filter would show (for the filter chips)."""
+    where, params = (" AND source = ?", (source,)) if source else ("", ())
+    return {
+        view: connection.execute(f"SELECT COUNT(*) FROM leads WHERE ({cond}){where}", params).fetchone()[0]
+        for view, cond in LEAD_VIEWS.items()
+    }
 
 
 def _matched_skills(profile: SafeCvProfile, text: str, limit: int = 4) -> list[str]:

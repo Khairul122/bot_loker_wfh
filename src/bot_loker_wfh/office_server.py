@@ -164,6 +164,7 @@ class _Handler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+        return True  # lets route helpers signal "handled"
 
     def _connect(self):
         return open_db(self.work.database_path)
@@ -174,6 +175,13 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 return self._json(200, {**collect_stats(connection), "work": self.work.status(),
                                         "desk": desk_state(connection)})
+        if path == "/employee.json":
+            employee = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+            with self._connect() as connection:
+                try:
+                    return self._json(200, desk.profile(connection, employee))
+                except KeyError:
+                    return self._json(404, {"error": "not_found"})
         if path == "/reports.json":
             employee = parse_qs(urlsplit(self.path).query).get("employee", [None])[0]
             with self._connect() as connection:
@@ -190,9 +198,10 @@ class _Handler(SimpleHTTPRequestHandler):
             return self._json(200, {"username": data.get("username"), "synced_at": data.get("synced_at"),
                                     "repos": len(data.get("repos", []))})
         if path == "/leads.json":
-            source = parse_qs(urlsplit(self.path).query).get("source", [None])[0]
+            query = parse_qs(urlsplit(self.path).query)
+            source, view = query.get("source", [None])[0], query.get("view", ["all"])[0]
             with self._connect() as connection:
-                return self._json(200, self.work.leads(connection, source))
+                return self._json(200, self.work.leads(connection, source, view))
         if path == "/inbox.json":
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))

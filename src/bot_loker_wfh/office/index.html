@@ -24,10 +24,17 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #brand{font-size:15px}
 #brand .dot{width:10px;height:10px;border-radius:50%;background:var(--idle)}
 #brand .dot.live{background:var(--good);box-shadow:0 0 0 4px rgba(92,184,122,.25)}
-#tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.tbtn{min-width:46px;height:46px;padding:0 14px;border-radius:16px;font-size:20px;display:inline-flex;align-items:center;gap:6px;font-weight:800}
-.tbtn span{font-size:14px}
-.tbtn:hover,.tbtn.on{background:var(--paper-2)}
+/* one quiet translucent toolbar instead of a wall of heavy buttons */
+#tools{display:flex;gap:2px;flex-wrap:nowrap;justify-content:flex-end;max-width:calc(100vw - 230px);overflow-x:auto;scrollbar-width:none;
+  padding:4px;border-radius:16px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(40,25,15,.12)}
+#tools::-webkit-scrollbar{display:none}
+.tbtn{min-width:40px;height:40px;padding:0 10px;border-radius:12px;font-size:18px;display:inline-flex;align-items:center;gap:6px;font-weight:800;flex:none;position:relative}
+#tools .tbtn{background:transparent;border:0;box-shadow:none;opacity:.88}
+.tbtn span{font-size:13px;color:var(--ink-soft)}
+.tbtn:hover,.tbtn.on{background:var(--paper-2);opacity:1}
+#tools .tbtn.on{box-shadow:inset 0 -2px 0 var(--accent)}
+@media (max-width:1500px){#tools .tbtn span:not(.badge){display:none}}
+#brand{background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 14px rgba(40,25,15,.12);border-width:1px}
 #lift{position:fixed;right:14px;top:50%;transform:translateY(-50%);padding:10px;display:none;flex-direction:column;gap:6px;text-align:center}
 #lift.show{display:flex;animation:pop .2s}
 #lift b{font-weight:900;font-size:14px}
@@ -35,7 +42,6 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #liftBtns button{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:12px;font-weight:800;font-size:13px;background:var(--paper-2);text-align:left}
 #liftBtns button:hover{background:var(--line)}
 #liftBtns button.here{background:var(--accent);color:#fff}
-.tbtn.on{border-color:var(--accent)}
 #cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(74,52,38,.45);display:none;pointer-events:none}
 #nav{position:fixed;left:14px;top:76px;max-height:calc(100vh - 76px - 112px);overflow-y:auto;display:none;flex-direction:column;gap:4px;padding:8px}
 #nav button{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:12px;font-weight:700;font-size:14px;text-align:left;white-space:nowrap}
@@ -79,14 +85,44 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .leads li a{display:block;padding:7px 10px;border-radius:12px;background:var(--paper-2);color:var(--ink);text-decoration:none;font-weight:800;font-size:13px}
 .leads li a:hover{background:var(--line)}
 .leads li small{display:block;color:var(--ink-soft);font-weight:700}
-#perf,#inbox,#results,#board{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
-#perf.show,#inbox.show,#results.show,#board.show{display:flex}
-#perf .panel,#inbox .panel,#results .panel,#board .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
-#inbox .panel{width:min(720px,100%)}
-#perf h2,#inbox h2,#results h2,#board h2{margin:0;font-size:22px;font-weight:900}
-#perf .sub,#inbox .sub,#results .sub,#board .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
+#perf,#inbox,#results,#board,#reports{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
+#perf.show,#inbox.show,#results.show,#board.show,#reports.show{display:flex}
+#perf .panel,#inbox .panel,#results .panel,#board .panel,#reports .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
+#inbox .panel,#reports .panel{width:min(760px,100%)}
+#perf h2,#inbox h2,#results h2,#board h2,#reports h2{margin:0;font-size:22px;font-weight:900}
+#perf .sub,#inbox .sub,#results .sub,#board .sub,#reports .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
+.real{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.prof{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:14px;margin-bottom:14px}
+.prof .periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin:12px 0}
+.prof .period{background:var(--paper-2);border-radius:14px;padding:10px}
+.prof .period b{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:4px}
+.prof .period div:not(.stars){display:flex;justify-content:space-between;font-weight:800;font-size:13px;margin:2px 0}
+.prof svg{width:100%;height:70px;display:block}
+.prof h4{margin:10px 0 4px;font-size:14px}
+.prof .note{min-height:0;background:var(--paper-2);border:0}
+.real .btn{justify-content:center;padding:8px 4px;font-size:12px}
+.real .btn.on{background:var(--accent);color:#fff}
+.pane{display:none;margin-top:8px;background:var(--paper-2);border-radius:14px;padding:8px}
+.pane.show{display:block}
+.pane input,.pane textarea{width:100%;padding:7px 10px;border-radius:10px;border:2px solid var(--line);font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
+.pane textarea{min-height:70px;resize:vertical}
+.pane small{display:block;font-weight:700;font-size:12px;color:var(--ink-soft);margin-bottom:6px}
+.pane .btn{margin-top:6px}
+.answer{white-space:pre-wrap;font-size:13px;font-weight:700;margin:8px 0 0;line-height:1.45}
+.answer:empty{display:none}
+.rate{display:flex;gap:2px;align-items:center;flex-wrap:wrap}
+.rate button{font-size:22px;color:#e7d6c2;width:32px;height:32px;border-radius:8px}
+.rate button.on{color:#f2b84b}
+.note{width:100%;min-height:54px;margin-top:6px;padding:7px 10px;border-radius:10px;border:2px solid var(--line);font:inherit;font-size:13px;background:var(--paper-2);color:var(--ink);resize:vertical}
+#menu{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);padding:12px;display:none;flex-direction:column;gap:8px;text-align:center}
+#menu.show{display:flex;animation:pop .2s}
+#menuBtns{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+#menuBtns button{display:flex;flex-direction:column;align-items:center;padding:8px 10px;border-radius:14px;background:var(--paper-2);font-size:26px;font-weight:800}
+#menuBtns button small{font-size:12px}
+#menuBtns button:hover{background:var(--line)}
 #inbox h3{font-size:15px;font-weight:900;margin:16px 0 8px}
-.badge{display:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#ef6a5a;color:#fff;font-size:12px;font-weight:900;place-items:center}
+.badge{display:none;min-width:17px;height:17px;padding:0 5px;border-radius:9px;background:#d9826f;color:#fff;font-size:11px;font-weight:900;place-items:center}
+#tools .badge{position:absolute;top:2px;right:2px}
 .badge.on{display:inline-grid}
 .job{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:12px 14px;margin-bottom:10px}
 .job .jt{font-weight:900;font-size:16px}
@@ -145,9 +181,10 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #toast{position:fixed;left:50%;top:116px;transform:translateX(-50%);padding:10px 16px;display:none;font-weight:800}
 #toast.show{display:block;animation:pop .25s}
 #hint{position:fixed;left:50%;top:74px;transform:translateX(-50%);font-weight:800;font-size:13px;color:var(--ink-soft);
-  background:rgba(255,248,238,.85);padding:6px 12px;border-radius:12px;transition:opacity 1s}
+  background:var(--glass);backdrop-filter:blur(8px);padding:6px 12px;border-radius:12px;transition:opacity 1s}
 #loading{position:fixed;inset:0;display:grid;place-items:center;background:var(--sky);font-weight:900;font-size:20px;transition:opacity .6s}
-body.night{--card:#3a3349;--paper:#2f2a3a;--paper-2:#3c3549;--ink:#f5e9da;--ink-soft:#c9b8a6;--line:#4d4560}
+:root{--glass:rgba(255,248,238,.72)}
+body.night{--card:#332e40;--paper:#2b2735;--paper-2:#383244;--ink:#e9dfd3;--ink-soft:#b3a597;--line:#433c52;--glass:rgba(43,39,53,.62)}
 body.night .bub{color:#4a3426}
 @media (max-width:760px){
   #nav{top:auto;bottom:86px;left:8px;max-height:calc(100vh - 86px - 70px)}
@@ -184,6 +221,7 @@ body.night .bub{color:#4a3426}
     <button class="panel tbtn" id="bAuto" title="Karyawan kerja otomatis">🤖<span>Auto</span></button>
     <button class="panel tbtn" id="bInbox" title="Persetujuan lamaran">📥<span>Persetujuan</span><b class="badge" id="inboxBadge"></b></button>
     <button class="panel tbtn" id="bBoard" title="Papan proyek freelance">💼<span>Proyek</span></button>
+    <button class="panel tbtn" id="bReports" title="Laporan kinerja di ruang owner">📋<span>Laporan</span><b class="badge" id="reportsBadge"></b></button>
     <button class="panel tbtn" id="bResults" title="Hasil kerja karyawan">📂<span>Hasil</span></button>
     <button class="panel tbtn" id="bPerf" title="Kinerja tim">📊<span>Kinerja</span></button>
     <button class="panel tbtn" id="bOver" title="Lihat seluruh gedung">🏢</button>
@@ -222,10 +260,26 @@ body.night .bub{color:#4a3426}
   <div class="acts">
     <button data-act="sapa">👋<small>Sapa</small></button>
     <button data-act="tos">✋<small>Tos</small></button>
-    <button data-act="kopi">☕<small>Kopi</small></button>
-    <button data-act="semangat">💪<small>Semangati</small></button>
+    <button data-act="pingpong">🏓<small>Pingpong</small></button>
+    <button data-act="makan">🍛<small>Makan</small></button>
   </div>
   <button class="hunt" id="cHuntBtn"></button>
+  <div class="real">
+    <button class="btn" id="cReport" title="Karyawan menyusun laporan 24 jam dari data asli lalu mengantarnya ke ruanganmu">📋 Laporan</button>
+    <button class="btn" id="cAskBtn" aria-controls="cAsk">💬 Tanya</button>
+    <button class="btn" id="cOrderBtn" aria-controls="cOrder">📝 Instruksi</button>
+    <button class="btn" id="cProfile" title="Panel kinerja lengkap karyawan ini">📊 Detail</button>
+  </div>
+  <div class="pane" id="cAsk">
+    <input id="cAskIn" maxlength="300" placeholder="Misal: hari ini dapat apa?" aria-label="Pertanyaan untuk karyawan">
+    <button class="btn ok" id="cAskGo">Kirim pertanyaan</button>
+    <p class="answer" id="cAnswer"></p>
+  </div>
+  <div class="pane" id="cOrder">
+    <small id="cOrderHint"></small>
+    <textarea id="cOrderIn" maxlength="500" aria-label="Instruksi untuk karyawan"></textarea>
+    <button class="btn ok" id="cOrderGo">💾 Simpan instruksi</button>
+  </div>
   <button class="btn" id="cBoard" style="width:100%;justify-content:center;margin-top:8px;display:none">💼 Buka papan proyek</button>
   <button class="btn" id="cResults" style="width:100%;justify-content:center;margin-top:8px">📂 Lihat hasil kerjanya</button>
   <ul class="leads" id="cHunt"></ul>
@@ -250,8 +304,25 @@ body.night .bub{color:#4a3426}
     <small>🔐 Login cukup sekali di Chrome-mu (BrowserMCP) atau di jendela Playwright. Bot hanya memakai sesi browser itu dan tidak pernah menyimpan password.</small>
   </div>
   <div class="chips" id="boardSources"></div>
+  <div class="chips" id="boardViews" aria-label="Filter proyek"></div>
   <div id="boardList"></div>
 </div></div>
+
+<div id="reports"><div class="panel" role="dialog" aria-label="Laporan kinerja">
+  <button class="xbtn" id="reportsClose" aria-label="Tutup">✕</button>
+  <h2>Laporan Kinerja</h2>
+  <div class="sub">Dihitung dari data asli bot. Nilai & catatanmu tersimpan dan memengaruhi semangat karyawan.</div>
+  <div class="foot" style="margin:0 0 12px"><span id="reportsTg"></span><button class="btn ok" id="reportsAll">📋 Minta laporan semua karyawan</button></div>
+  <div class="chips" id="reportsChips"></div>
+  <div id="reportsProfile"></div>
+  <div id="reportsList"></div>
+</div></div>
+
+<div id="menu" class="panel" role="group" aria-label="Menu kantin">
+  <b>🍛 Menu Kantin <span id="menuWith" style="color:var(--ink-soft)"></span></b>
+  <div id="menuBtns"></div>
+  <button class="btn no" id="menuClose">Batal</button>
+</div>
 
 <div id="results"><div class="panel" role="dialog" aria-label="Hasil kerja karyawan">
   <button class="xbtn" id="resultsClose" aria-label="Tutup">✕</button>
@@ -280,7 +351,7 @@ body.night .bub{color:#4a3426}
 </div>
 
 <div id="toast" class="panel"></div>
-<div id="hint">WASD jalan · klik lantai untuk pindah · klik karyawan untuk ngobrol · V mode POV · klik lift kaca untuk pindah lantai</div>
+<div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik lift kaca untuk pindah lantai · kantin & ruang owner di lantai atas · rumah di belakang gedung · V mode POV</div>
 <div id="loading">Menyiapkan kantor…</div>
 
 <script type="module">
@@ -299,8 +370,10 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const V = (x, z) => new THREE.Vector3(x, 0, z);
 
 // ---------- renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+// ask the browser for the discrete GPU; quality then adapts to the frame rate it actually gets
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+let maxRatio = Math.min(devicePixelRatio, 1.5);
+renderer.setPixelRatio(maxRatio);
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -322,7 +395,8 @@ const hemi = new THREE.HemisphereLight(0xfff4e0, 0x9cc48f, 1.5);
 const sun = new THREE.DirectionalLight(0xffe2b8, 2.3);
 sun.position.set(35, 60, 25);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1536, 1536);
+renderer.shadowMap.autoUpdate = false; // redrawn every other frame in frame()
 Object.assign(sun.shadow.camera, { left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 160 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.04;
@@ -335,10 +409,22 @@ gradient.needsUpdate = true;
 const matCache = new Map();
 const glow = []; // materials that light up at night
 // ponytail: ~20 point lights cost fill-rate on weak GPUs; drop the lamp lights first if it stutters
-const nightLights = []; // real light sources, only switched on at night
+// Every lamp and floor is a light *anchor*; only the LIGHT_POOL nearest the camera's focus get a real
+// PointLight. A fixed light count keeps the toon shaders compiled once and the per-pixel cost flat.
+const LIGHT_POOL = 6;
+const lightAnchors = [];
+const lightPool = Array.from({ length: LIGHT_POOL }, () => { const l = new THREE.PointLight(0xffc982, 0, 13, 1.5); l.visible = false; scene.add(l); return l; });
 function light(x, y, z, color = 0xffc982, power = 14, dist = 13, parent = scene) {
-  const l = new THREE.PointLight(color, power, dist, 1.5); l.position.set(x, y, z); l.visible = false;
-  parent.add(l); nightLights.push(l); return l;
+  lightAnchors.push({ local: new THREE.Vector3(x, y, z), parent, color, power, dist, p: null });
+}
+let lightT = 0;
+function updateLightPool(dt, focus) {
+  if (!night || (lightT -= dt) > 0) return;
+  lightT = 0.4;
+  for (const a of lightAnchors) if (!a.p) { a.parent.updateWorldMatrix(true, false); a.p = a.local.clone().applyMatrix4(a.parent.matrixWorld); }
+  const near = [...lightAnchors].sort((a, b) => a.p.distanceToSquared(focus) - b.p.distanceToSquared(focus));
+  const n = quality ? LIGHT_POOL : 3; // low quality keeps the count (no recompile) but darkens half
+  lightPool.forEach((l, i) => { const a = near[i]; if (!a) return; l.position.copy(a.p); l.color.set(a.color); l.power = i < n ? a.power : 0; l.distance = a.dist; });
 }
 function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
@@ -539,7 +625,7 @@ function buildKantin(g) {
     box(1.8, 0.08, 1, 0xe6c49a, tx, 0.74, tz, g); cyl(0.08, 0.2, 0.72, 0xb98d63, tx, 0.36, tz, g);
     for (const sx of [-0.45, 0.45]) for (const sz of [-1, 1]) {
       const x = tx + sx, z = tz + sz * 0.9;
-      chair(x, z, sz > 0 ? Math.PI : 0, g, 0xe0844a);
+      tag(chair(x, z, sz > 0 ? Math.PI : 0, g, 0xe0844a), { kind: 'spot', kindName: 'kantin' });
       const plate = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('🍛', false), depthWrite: false }));
       plate.scale.setScalar(0.42); plate.position.set(x, KANTIN * FH + 0.95, tz + sz * 0.3); plate.visible = false; scene.add(plate);
       roomSpots.push({ kind: 'makan', level: KANTIN, x, z, ry: sz > 0 ? Math.PI : 0, pose: 'eat', table: ti, plate, emo: '😋' });
@@ -795,7 +881,7 @@ const ping = group(34, 0, 4);
 box(2.8, 0.08, 1.5, 0x4c9a6a, 0, 0.78, 0, ping); box(0.04, 0.18, 1.5, 0xffffff, 0, 0.9, 0, ping);
 for (const [a, b] of [[-1.2, -0.6], [1.2, -0.6], [-1.2, 0.6], [1.2, 0.6]]) box(0.07, 0.78, 0.07, 0x555555, a, 0.39, b, ping);
 const pball = sph(0.06, 0xffffff, 34, 1.0, 4);
-animated.push(t => { const u = Math.sin(t * 3.2); pball.position.set(34 + u * 1.1, 0.9 + Math.abs(Math.cos(t * 3.2)) * 0.35, 4); pball.visible = spots.some(s => s.kind === 'ping' && s.by); });
+pball.visible = false; // driven by updatePong()
 sign('🎮', 'Arena Bermain', '#7aa6d8', '#fff', 22, 3.4, 9.1, scene, 4.4);
 flowers(36, 12); flowers(18, -18);
 
@@ -1138,9 +1224,13 @@ STAFF.forEach(def => {
   c.speed = rand(2.2, 2.8);
   staff.push(c);
 });
+let deskState = { ratings: {}, instructions: {}, undelivered: [], tray: 0 };
 function staffMood(c, now) {
   if (now < (c.sadUntil || 0)) return 'sedih';
-  const base = moodFor(c.perfNow);
+  let base = moodFor(c.perfNow);
+  // the owner's ratings of past reports (stored in the DB) lift or drag the mood a step
+  const rt = deskState.ratings[c.def.id];
+  if (rt && base !== 'sedih') base = LADDER[clamp(LADDER.indexOf(base) + (rt.avg >= 4 ? 1 : rt.avg <= 2 ? -1 : 0), 0, 4)];
   if (now > c.boostUntil || !c.boost) return base;
   if (base === 'sedih') return 'fokus';
   return LADDER[clamp(LADDER.indexOf(base) + c.boost, 0, 4)];
@@ -1155,7 +1245,27 @@ function refreshPerf() {
   (dyn.trophies || []).forEach((p, i) => p.visible = i < d.offer);
   (dyn.medals || []).forEach((p, i) => p.visible = i < d.interview);
   (dyn.notes || []).forEach((p, i) => p.visible = i < clamp(leadsBy().INTERESTED || 0, 0, 12));
+  reportStack.forEach((p, i) => p.visible = i < Math.min(deskState.tray, reportStack.length));
+  drawKpi();
   if (perfOpen) renderPerf();
+}
+// the KPI board in the owner's office: each employee's real score and the owner's average rating
+function drawKpi() {
+  if (!kpiBoard || !staff.length) return;
+  const g = kpiBoard.canvas.getContext('2d');
+  g.fillStyle = '#fffaf2'; g.fillRect(0, 0, 1024, 512);
+  g.fillStyle = '#4a3426'; g.font = '900 34px Nunito, sans-serif'; g.textBaseline = 'middle';
+  g.fillText(`📊 Papan Kinerja Tim${live ? '' : ' (data contoh)'}`, 24, 30);
+  staff.forEach((c, i) => {
+    const col = i < 9 ? 0 : 1, row = i % 9, x = 24 + col * 500, y = 78 + row * 47;
+    const s = c.perfNow?.score || 0, rt = deskState.ratings[c.def.id];
+    g.fillStyle = '#4a3426'; g.font = '800 24px Nunito, sans-serif'; g.fillText(c.name, x, y);
+    g.fillStyle = '#f1e2cf'; g.beginPath(); g.roundRect(x + 100, y - 13, 260, 26, 13); g.fill();
+    g.fillStyle = s >= 0.6 ? '#5cb87a' : s >= 0.4 ? '#f2b84b' : s >= 0.2 ? '#ef8a6b' : '#a9b4c8';
+    g.beginPath(); g.roundRect(x + 100, y - 13, Math.max(26, 260 * s), 26, 13); g.fill();
+    g.fillStyle = '#8a6b55'; g.font = '800 20px Nunito, sans-serif'; g.fillText(rt ? `★ ${rt.avg.toFixed(1)}` : '★ –', x + 372, y);
+  });
+  kpiBoard.tex.needsUpdate = true;
 }
 async function loadStats() {
   try {
@@ -1163,12 +1273,13 @@ async function loadStats() {
     if (!r.ok) throw 0;
     const prev = live ? derive() : null;
     S = await r.json(); live = true;
+    if (S.desk) deskState = S.desk;
     if (prev) { const d = derive(); if (d.cand > prev.cand) toast(`🎉 ${d.cand - prev.cand} lowongan cocok baru!`); if (d.interview > prev.interview) toast('🎤 Ada panggilan interview baru!'); if (d.offer > prev.offer) toast('🏆 OFFER MASUK!!'); }
   } catch { live = false; S = DEMO; }
   $('liveDot').classList.toggle('live', live);
   $('liveDot').title = live ? 'Data langsung dari bot' : 'Data contoh (jalankan: python -m bot_loker_wfh office)';
   refreshPerf();
-  if (typeof reactToWork === 'function') { reactToWork(); renderAuto(); renderBadge(); }
+  if (typeof reactToWork === 'function') { reactToWork(); renderAuto(); renderBadge(); scheduleDeliveries(); }
 }
 
 // ---------- sound: lo-fi music + effects, synthesized with Web Audio (no audio files) ----------
@@ -1276,6 +1387,62 @@ const me = new Char(myLook.name, { skin: myLook.skin, hair: myLook.hair, shirt: 
 me.speed = 3.6; me.energy = 80; me.joy = 60; me.isMe = true; me.idle = 0; me.hoopScore = 0;
 const ring = add(new THREE.TorusGeometry(0.55, 0.05, 6, 24), 0xffb26b, 0, 0.05, 0, me.p.root, { cast: false }); ring.rotation.x = Math.PI / 2;
 
+// ---------- housing estate: one house per character, behind the office ----------
+const houses = [];
+const HOUSE_ROWS = [{ z: -21, street: -16.5 }, { z: -31, street: -26 }];
+const EDGE_X = 29.5;
+function buildHouse(slot, name, color) {
+  const row = slot < 9 ? 0 : 1, hx = -24.8 + (slot % 9) * 6.2, hz = HOUSE_ROWS[row].z, front = hz + 2.5;
+  const g = group(hx, 0, hz), wall = 0xfdf3e4;
+  box(5, 0.1, 5, 0xd9b48a, 0, 0.05, 0, g, { cast: false });
+  box(5.2, 2.6, 0.2, wall, 0, 1.3, -2.5, g);
+  for (const s of [-1, 1]) box(0.2, 2.6, 5.2, wall, s * 2.5, 1.3, 0, g);
+  for (const s of [-1, 1]) box(1.9, 2.6, 0.2, wall, s * 1.6, 1.3, 2.5, g);
+  box(1.2, 0.6, 0.2, wall, 0, 2.3, 2.5, g);
+  // windows + lamp share one material: lit at night while the occupant is home and awake
+  const win = new THREE.MeshToonMaterial({ color: 0xbfe3f2, gradientMap: gradient, emissive: new THREE.Color(0xffc56b), emissiveIntensity: 0 });
+  for (const s of [-1, 1]) box(0.9, 0.8, 0.05, 0, s * 1.6, 1.5, 2.62, g, { material: win, cast: false });
+  box(0.05, 0.8, 1.2, 0, 2.62, 1.5, -0.6, g, { material: win, cast: false });
+  const roof = add(new THREE.ConeGeometry(3.9, 1.7, 4), color, 0, 3.45, 0, g); roof.rotation.y = Math.PI / 4;
+  const chimney = box(0.4, 0.9, 0.4, 0xb98d63, 1.2, 3.8, -1, g);
+  const door = group(-0.6, 0, 2.5, g); box(1.2, 2, 0.08, 0x9a6b4a, 0.6, 1, 0, door);
+  sign('🏠', name, '#' + color.toString(16).padStart(6, '0'), '#fff', 0, 2.3, 2.64, g, 2.2);
+  const bed = group(-1.35, 0, -1.25, g);
+  box(1.3, 0.35, 2.1, 0x9a6b4a, 0, 0.18, 0, bed); box(1.2, 0.25, 2, 0xffffff, 0, 0.47, 0, bed);
+  box(0.8, 0.14, 0.4, 0xfff6e0, 0, 0.66, -0.75, bed); box(1.22, 0.08, 1.2, color, 0, 0.63, 0.35, bed);
+  const sofaG = group(1.3, 0, 0.9, g);
+  box(1.6, 0.4, 0.7, 0x7aa6d8, 0, 0.3, 0, sofaG); box(1.6, 0.6, 0.2, 0x7aa6d8, 0, 0.7, 0.3, sofaG);
+  const tvG = group(1.3, 0, -2.2, g);
+  box(1.2, 0.5, 0.4, 0x8a6b55, 0, 0.25, 0, tvG); box(1.5, 0.85, 0.08, 0x2b2b35, 0, 1.15, 0, tvG);
+  const tvMat = new THREE.MeshBasicMaterial({ color: 0x15151c });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.36, 0.72), tvMat); screen.position.set(0, 1.15, 0.05); tvG.add(screen);
+  const fridge = group(-1.95, 0, 1.6, g);
+  box(0.7, 1.7, 0.65, 0xf4f7fa, 0, 0.85, 0, fridge); box(0.04, 0.5, 0.05, 0x9aa3ad, 0.36, 1.1, 0.2, fridge);
+  const lampG = group(0.2, 0, -2.0, g); cyl(0.04, 0.05, 1.5, 0x5a4a42, 0, 0.75, 0, lampG); sph(0.2, 0, 0, 1.6, 0, lampG, { material: win });
+  rug(0.4, 0.4, 1.1, 0xf6c89f, g);
+  const sx = hx <= 0 ? -EDGE_X : EDGE_X;
+  const via = row === 0 ? [V(hx, HOUSE_ROWS[0].street), V(hx, front + 0.9), V(hx, front - 0.7)]
+    : [V(sx, HOUSE_ROWS[0].street), V(sx, HOUSE_ROWS[1].street), V(hx, HOUSE_ROWS[1].street), V(hx, front + 0.9), V(hx, front - 0.7)];
+  const hb = [hx - 2.5, hx + 2.5, hz - 2.5, hz + 2.5];
+  ROOM_WALLS.push([hx - 2.6, hx + 2.6, hz - 2.6, hz - 2.4, 0], [hx - 2.6, hx - 2.4, hz - 2.6, hz + 2.6, 0], [hx + 2.4, hx + 2.6, hz - 2.6, hz + 2.6, 0],
+    [hx - 2.6, hx - 0.6, front - 0.1, front + 0.1, 0], [hx + 0.6, hx + 2.6, front - 0.1, front + 0.1, 0]);
+  const h = { name, x: hx, z: hz, front, roof, chimney, door, win, tvMat, via, box: hb, who: null };
+  const sp = (kind, x, z, ry, pose, emo, extra) => { const s = { kind, level: 0, x: hx + x, z: hz + z, ry, pose, emo, house: h, via, box: hb, by: null, id: spots.length, ...extra }; spots.push(s); return s; };
+  h.bed = sp('kasur', -1.35, -0.25, 0, 'lie', '😴', { energy: 14 });
+  h.tv = sp('tv', 1.3, 0.85, Math.PI, 'sit', '📺', { joy: 4, energy: 3 });
+  h.fridge = sp('kulkas', -1.15, 1.6, -Math.PI / 2, 'stand', '🥤', { energy: 8 });
+  tag(bed, { kind: 'spot', kindName: 'kasur', house: h }); tag(sofaG, { kind: 'spot', kindName: 'tv', house: h }); tag(tvG, { kind: 'spot', kindName: 'tv', house: h });
+  tag(fridge, { kind: 'spot', kindName: 'kulkas', house: h }); tag(roof, { kind: 'house', house: h }); tag(door, { kind: 'house', house: h });
+  houses.push(h);
+  return h;
+}
+// the owner lives in the middle of the first row, right behind the office
+staff.forEach((c, i) => { c.home = buildHouse(i < 4 ? i : i + 1, c.name, c.look.shirt); c.home.who = c; });
+me.home = buildHouse(4, myLook.name, parseInt(myLook.shirt.slice(1), 16) || 0xffb26b); me.home.who = me;
+for (const [x, z] of [[-15.5, -15.4], [15.5, -15.4], [-EDGE_X - 1.3, -21], [EDGE_X + 1.3, -21]]) lamp(x, z, scene, 2.8);
+path(0, -16.5, 2 * EDGE_X + 2, 2.6); path(0, -26, 2 * EDGE_X + 2, 2.6); path(-EDGE_X, -21.2, 2.6, 12); path(EDGE_X, -21.2, 2.6, 12);
+sign('🏘️', 'Komplek Rumah', '#d98b5f', '#fff', 0, 3.2, -14.9, scene, 4.4);
+
 function updateMe(dt, now) {
   const moving = me.walking;
   me.stepT = (me.stepT || 0) + (moving ? dt : 0);
@@ -1294,6 +1461,15 @@ function updateMe(dt, now) {
   $('meEnergy').style.width = me.energy + '%';
   $('meEnergy').style.background = me.energy < 35 ? 'var(--low)' : me.energy < 60 ? 'var(--mid)' : 'var(--accent-2)';
   // idle behaviour
+  if (me.eating && me.spot?.kind === 'makan' && !me.walking) {
+    me.eating.left -= dt;
+    if (me.eating.left <= 0) {
+      const f = me.eating.food; me.eating = null; me.spot.plate.visible = false;
+      me.energy = clamp(me.energy + f.energy, 0, 100); me.joy = clamp(me.joy + f.joy, 0, 100);
+      burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), [f.icon, '😋', '✨'], 6); say(me, 'Kenyang! 😋', 2.5); Snd.play('chime');
+      me.pose = 'sit';
+    }
+  } else if (me.eating && !me.spot) me.eating = null;
   me.idle = moving || me.emote || me.spot ? 0 : me.idle + dt;
   if (me.idle > 25) { me.idle = 0; me.doEmote(me.energy < 35 ? 'stretch' : 'nod', 2); say(me, me.energy < 35 ? 'Hoaam… ngopi dulu kali ya ☕' : pick(['Hmm, cek kinerja tim ah 📊', 'Semoga hari ini ada panggilan 🤞', 'Main ke taman yuk 🌳'])); }
 }
@@ -1301,7 +1477,7 @@ function updateMe(dt, now) {
 // keyboard
 const keys = {};
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
   keys[e.key.toLowerCase()] = true;
 });
 addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -1379,7 +1555,8 @@ function updateParts(dt) {
 }
 
 // ---------- staff AI ----------
-function freeSpot(filter) { const list = spots.filter(s => !s.by && filter(s)); return list.length ? pick(list) : null; }
+// house furniture belongs to its occupant; the owner's room is not a lounge for staff
+function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && s.level !== OWNER && filter(s)); return list.length ? pick(list) : null; }
 function sendTo(c, spot, onSit) {
   const target = spot.swing ? (() => { const w = new THREE.Vector3(); spot.swing.getWorldPosition(w); return V(w.x, w.z + 0.9); })() : V(spot.x, spot.z);
   c.goTo(spot.level, target.x, target.z, () => {
@@ -1388,17 +1565,30 @@ function sendTo(c, spot, onSit) {
     if (spot.kind === 'kopi' || spot.kind === 'kafe') c.doEmote('drink', 3);
     c.showEmo(spot.emo);
     onSit && onSit(c, spot);
-  });
+  }, { via: spot.via || [], box: spot.box });
   spot.by = c;
 }
+const today = () => new Date().toDateString();
 function updateStaff(c, dt, now) {
-  const m = staffMood(c, now); if (m !== c.mood) c.setMood(m);
-  if (c.state === 'chat') return;
+  const m = c.state === 'sleep' ? 'ngantuk' : staffMood(c, now);
+  if (m !== c.mood) c.setMood(m, c.state === 'sleep' ? '💤' : undefined);
+  if (c.state === 'chat' || c.state === 'report' || c.state === 'visit') return;
+  // night: everyone goes home; morning: back to the desk
+  if (night && (c.state === 'work' || c.state === 'back' || (c.state === 'break' && !c.path.length))) return goHome(c);
+  if (!night && ['home', 'sleep', 'commute'].includes(c.state)) return wakeUp(c);
   c.timer -= dt;
+  if (c.state === 'home' && c.timer <= 0 && !c.path.length) {
+    c.state = 'sleep';
+    sendTo(c, c.home.bed, () => { c.setMood('ngantuk', '💤'); say(c, pick(['Selamat tidur… 😴', 'Besok lanjut lagi 💤', 'Lampu dimatiin ya 🌙'])); });
+    return;
+  }
   if (c.state === 'work' && c.timer <= 0) {
+    if (new Date().getHours() === 12 && c.ateDay !== today() && Math.random() < 0.7) { c.ateDay = today(); if (goEat(c)) return; }
+    if (Math.random() < 0.1 && goToilet(c)) return;
     const p = { ngantuk: 0.8, lelah: 0.7, sedih: 0.6, fokus: 0.35, senang: 0.45, semangat: 0.5 }[c.mood];
     if (Math.random() < p) {
       const tired = c.mood === 'lelah' || c.mood === 'ngantuk';
+      if (tired && c.ateDay !== today() && Math.random() < 0.4) { c.ateDay = today(); if (goEat(c)) return; }
       const spot = freeSpot(s => s !== me.spot && (tired ? (s.energy || 0) >= 6 : (s.joy || 0) >= 3 || s.kind === 'kafe'));
       if (spot) { c.state = 'break'; c.timer = rand(18, 32); sendTo(c, spot); say(c, tired ? pick(['Istirahat bentar ya 😮‍💨', 'Butuh kopi…', 'Rebahan dulu ah']) : pick(['Main dulu yuk! 🎮', 'Cari angin sebentar 🌳', 'Refreshing ~'])); return; }
     }
@@ -1406,8 +1596,50 @@ function updateStaff(c, dt, now) {
     if (Math.random() < 0.5) say(c, pick(c.perfNow.lines));
   } else if (c.state === 'break' && c.timer <= 0 && !c.path.length) {
     c.boost = Math.max(c.boost, 1); c.boostUntil = now + 40;
-    goBack(c);
+    const next = c.afterBreak; c.afterBreak = null;
+    next ? next(c) : goBack(c);
   }
+}
+function goHome(c) {
+  c.state = 'commute'; c.afterBreak = null; c.drop();
+  say(c, pick(['Pulang dulu ya bos 🏠', 'Sampai besok! 👋', 'Waktunya istirahat 🌙']), 3);
+  sendTo(c, c.home.tv, () => { c.state = 'home'; c.timer = rand(15, 35); });
+}
+function wakeUp(c) {
+  if (c.state === 'sleep') { c.doEmote('stretch', 2); say(c, pick(['Pagi! ☀️ Berangkat kerja', 'Hoaam… pagi bos ☀️']), 3); }
+  goBack(c);
+}
+const foodSprite = icon => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex(icon, false), depthWrite: false })); s.scale.setScalar(0.45); return s; };
+const freeSeats = () => spots.filter(s => s.kind === 'makan' && !s.by);
+// order at the counter, carry the tray to a seat, eat; the plate shows on the table meanwhile
+function goEat(c, seat = pick(freeSeats()), food = pick(FOODS), timer = rand(12, 20)) {
+  if (!seat) return false;
+  c.state = 'break'; c.timer = 999; c.afterBreak = null;
+  const at = pick(ORDER_AT);
+  c.goTo(KANTIN, at.x, at.z, () => {
+    c.targetRy = Math.PI; say(c, `${food.name} satu ya bu 🙏`, 2.5);
+    setTimeout(() => {
+      if (c.state !== 'break' || (seat.by && seat.by !== c)) return goBack(c);
+      c.carry(foodSprite(food.icon));
+      sendTo(c, seat, () => { c.drop(); showPlate(seat, food); c.timer = timer; });
+    }, 1500);
+  });
+  seat.by = c; // reserved while queuing (goTo's stop() released everything first)
+  return true;
+}
+function showPlate(seat, food) { seat.plate.material.map = emojiTex(food.icon, false); seat.plate.material.needsUpdate = true; seat.plate.visible = true; }
+function goToilet(c) {
+  const st = stalls.find(s => !s.spot.by); if (!st) return false;
+  c.state = 'break'; c.timer = 999;
+  say(c, pick(['Ke toilet bentar 🚻', 'Permisi sebentar 🚻']), 2.5);
+  sendTo(c, st.spot, () => { c.timer = rand(6, 9); });
+  c.afterBreak = c2 => {
+    const sink = spots.find(s => s.kind === 'wastafel');
+    if (sink.by && sink.by !== c2) return goBack(c2);
+    c2.state = 'break'; c2.timer = 999;
+    sendTo(c2, sink, () => { c2.timer = 3; });
+  };
+  return true;
 }
 function goBack(c) {
   c.state = 'back';
@@ -1418,6 +1650,7 @@ function goBack(c) {
 let chatWith = null;
 const REACT = { semangat: 'jump', senang: 'wave', fokus: 'nod', lelah: 'sigh', sedih: 'sigh', ngantuk: 'startle' };
 function startChat(c) {
+  if (c.state === 'report') { say(c, 'Bentar bos, aku antar laporan dulu 📋', 3); return; }
   endChat();
   chatWith = c; openCard(c);
   const dx = me.pos.x - c.pos.x, dz = me.pos.z - c.pos.z;
@@ -1448,36 +1681,238 @@ function act(kind) {
   const c = chatWith; if (!c) return;
   const now = clock.elapsedTime;
   const at = new THREE.Vector3(c.pos.x, c.y, c.pos.z);
-  Snd.play({ sapa: 'pop', tos: 'clap', kopi: 'pop', semangat: 'chime' }[kind]);
+  if (kind === 'pingpong') {
+    if (pingSpots.every(s => s.by && s.by !== me)) { toast('Meja pingpong lagi dipakai 🏓'); return; }
+    endChat(); say(c, 'Ayo bos, siapa takut! 🏓', 3); useSpot('ping');
+    const other = pingSpots.find(s => !s.by); if (other) joinPong(c, other, rand(70, 100));
+    return;
+  }
+  if (kind === 'makan') { endChat(); say(c, 'Wah ditraktir bos? Ayo! 🍛', 3); openMenu(c); return; }
+  Snd.play({ sapa: 'pop', tos: 'clap' }[kind]);
   if (kind === 'sapa') { me.doEmote('wave'); c.doEmote('wave'); say(c, pick(['Haii! 👋', 'Halo bos!', 'Eh, ada kamu 😄'])); burst(at, ['✨'], 4); c.boost = 1; me.joy += 4; }
   if (kind === 'tos') { me.doEmote('high5', 1.4); c.doEmote('high5', 1.4); setTimeout(() => { c.doEmote('cheer', 1.5); burst(at, ['✋', '✨', '⭐'], 8); }, 500); say(c, pick(['Toss! ✋', 'Yeay kompak!', 'Mantap!'])); c.boost = 2; me.joy += 8; }
-  if (kind === 'kopi') { c.doEmote('drink', 2.5); burst(at, ['☕', '💨'], 5); say(c, c.mood === 'ngantuk' || c.mood === 'lelah' ? 'Wah pas banget, makasih! ☕' : 'Makasih kopinya 😋'); c.boost = 2; me.joy += 4; }
-  if (kind === 'semangat') { me.doEmote('cheer'); c.doEmote('jump', 2); burst(at, ['💪', '❤️', '🔥'], 8); say(c, pick(['Siap, gas terus! 🔥', 'Makasih udah percaya 🥹', 'Aku cariin yang terbaik!'])); c.boost = 2; me.joy += 6; }
   me.joy = clamp(me.joy, 0, 100);
   c.boostUntil = now + 60;
-  c.setMood(staffMood({ ...c, state: 'x' }, now)); c.showEmo({ sapa: '😄', tos: '🙌', kopi: '☕', semangat: '🔥' }[kind]);
+  c.setMood(staffMood({ ...c, state: 'x' }, now)); c.showEmo({ sapa: '😄', tos: '🙌' }[kind]);
   openCard(c);
 }
 
+// ---------- pingpong: a real rally between whoever stands at both ends ----------
+const pingSpots = spots.filter(s => s.kind === 'ping');
+const pong = { players: null, u: 0, from: 0, hits: 0, len: 5, score: [0, 0], pause: 0, wait: 0 };
+function joinPong(c, spot, timer = rand(30, 50)) {
+  if (spot.by || ['chat', 'report', 'sleep'].includes(c.state)) return;
+  c.state = 'break'; c.afterBreak = null; c.timer = timer;
+  sendTo(c, spot, () => say(c, pick(['Ayo! 🏓', 'Siap servis! 🏓']), 2));
+}
+function updatePong(dt) {
+  const [a, b] = pingSpots.map(s => s.by && s.by.spot === s && s.by.pose === 'play' ? s.by : null);
+  if (!a || !b) {
+    pong.players = null; pball.visible = false;
+    const alone = a || b;
+    pong.wait = alone ? pong.wait + dt : 0;
+    if (alone && pong.wait > 3) { pong.wait = -25; invitePartner(alone); }
+    return;
+  }
+  if (!pong.players || pong.players[0] !== a || pong.players[1] !== b) Object.assign(pong, { players: [a, b], score: [0, 0], hits: 0, u: 0, from: 0, pause: 1, len: 3 + Math.floor(Math.random() * 7) });
+  pball.visible = true;
+  const xs = [32.6, 35.4];
+  if (pong.pause > 0) { pong.pause -= dt; pball.position.set(xs[pong.from], 1.2 + Math.abs(Math.sin(pong.pause * 6)) * 0.2, 4); return; }
+  pong.u += dt / 0.7;
+  const k = Math.min(pong.u, 1), miss = pong.hits >= pong.len;
+  const x0 = xs[pong.from], x1 = xs[1 - pong.from];
+  pball.position.set(x0 + (x1 - x0) * k * (miss ? 1.3 : 1), 0.86 + Math.abs(Math.sin(k * Math.PI * 2)) * 0.32 - (miss ? Math.max(0, k - 0.75) * 3 : 0), 4 + (miss ? k * 0.5 : 0));
+  if (pong.u < 1) return;
+  pong.u = 0;
+  const [p0, p1] = pong.players, mine = p0 === me || p1 === me;
+  if (!miss) { pong.hits++; pong.from = 1 - pong.from; pong.players[pong.from].swingT = 0.35; if (mine) Snd.play('click'); return; }
+  const w = pong.from, winner = pong.players[w], loser = pong.players[1 - w];
+  pong.score[w]++;
+  winner.doEmote('cheer', 1.3); loser.doEmote('sigh', 1.1);
+  say(winner, `${pong.score[0]} - ${pong.score[1]} ${pick(['Yes! 🏓', 'Poin! 😎', 'Hehe 😆'])}`, 2.2);
+  if (mine) { Snd.play(winner === me ? 'chime' : 'boop'); $('score').textContent = `🏓 ${pong.score[pong.players.indexOf(me)]}-${pong.score[1 - pong.players.indexOf(me)]}`; }
+  if (pong.score[w] >= 5) {
+    say(winner, 'Menang! 🏆', 3); burst(new THREE.Vector3(winner.pos.x, 0, winner.pos.z), ['🏆', '🎉', '✨'], 8);
+    if (winner === me) me.joy = clamp(me.joy + 15, 0, 100);
+    if (winner.def) { winner.boost = 2; winner.boostUntil = clock.elapsedTime + 60; }
+    pong.score = [0, 0];
+  }
+  Object.assign(pong, { hits: 0, from: 1 - w, pause: 1.3, len: 3 + Math.floor(Math.random() * 7) });
+}
+function invitePartner(c) {
+  const other = pingSpots.find(s => !s.by); if (!other) return;
+  const mate = pick(staff.filter(s => s !== c && s.state === 'work' && s.mood !== 'ngantuk'));
+  if (!mate) return;
+  say(c, `${mate.name}, main pingpong yuk! 🏓`, 3);
+  setTimeout(() => joinPong(mate, other, c === me ? rand(70, 100) : rand(25, 40)), 1200);
+}
+
+// ---------- conversations: multi-turn, about real work, sometimes ending in a plan ----------
+// who hands work to whom in the pipeline, so desk visits make sense
+const HANDOFF = { reno: 'sari', rima: 'sari', gery: 'sari', leva: 'sari', kalia: 'sari', dela: 'sari', sari: 'eli', eli: 'cora',
+  cora: 'tegar', lulu: 'cora', tegar: 'faris', faris: 'subi', subi: 'tara', tara: 'ivan', ivan: 'tara', lido: 'cora', nara: 'cora', tama: 'cora' };
+const first = c => (c.perfNow?.lines || ['Aman semua'])[0];
+function dialogFor(a, b) {
+  const h = new Date().getHours(), rt = deskState.ratings[a.def.id], order = deskState.instructions[a.def.id];
+  const topics = [
+    () => [[a, `${b.name}, update nih: ${first(a)}`], [b, `Oke! Dari aku: ${first(b)}`], [a, pick(['Sip, kita kejar bareng 💪', 'Mantap, lanjut! 👍'])], [b, pick(['Gas! 🚀', 'Siap 🙌'])]],
+    () => [[a, pick(['Capek juga ya hari ini 😮‍💨', 'Mata udah sepet nih 😵'])], [b, 'Ngopi dulu yuk ☕'], [a, 'Boleh! Abis ini ya'], [b, '👍'], { plan: 'kopi' }],
+    () => [[a, 'Rematch pingpong nanti? 🏓'], [b, pick(['Siap kalah lagi? 😆', 'Ayo, kali ini aku menang!'])], [a, 'Lihat aja nanti 😤'], { plan: 'ping' }],
+    () => [[a, h < 11 ? 'Pagi! Udah sarapan? ☀️' : h < 14 ? 'Makan siang di kantin yuk 🍛' : h < 18 ? 'Bentar lagi pulang nih 🌆' : 'Lembur nih kita 🌙'], [b, h >= 11 && h < 14 ? 'Ayo, aku lapar banget!' : 'Haha iya 😄'], { plan: h >= 11 && h < 14 ? 'makan' : null }],
+    rt && (() => [[a, `Bos kasih nilai laporanku ⭐${rt.avg.toFixed(1)} lho`], [b, rt.avg >= 4 ? 'Keren! Ajarin dong caranya 🤩' : 'Semangat, nanti pasti naik 💪'], [a, rt.avg >= 4 ? 'Hehe, rajin lapor aja 😎' : 'Makasih ya 🥹']]),
+    order && (() => [[a, `Bos minta aku: "${order.length > 50 ? order.slice(0, 47) + '…' : order}"`], [b, 'Oke, nanti aku bantu juga 🤝'], [a, 'Makasih! 🙏']]),
+  ].filter(Boolean);
+  return pick(topics)();
+}
+// lines play one by one; the listener turns to the speaker; a shared plan sends both off together
+function converse(lines, onDone) {
+  const people = [...new Set(lines.filter(Array.isArray).map(([c]) => c))];
+  people.forEach(c => { c.talking = true; c.talkAt = clock.elapsedTime; });
+  let i = 0;
+  const step = () => {
+    const ln = lines[i++];
+    const apart = people.some(p => people.some(q => p.level !== q.level || p.pos.distanceTo(q.pos) > 4.5));
+    if (!ln || apart) { people.forEach(c => c.talking = false); onDone && onDone(); return; }
+    if (!Array.isArray(ln)) { followPlan(ln.plan, people); return step(); }
+    const [who, text] = ln;
+    for (const o of people) if (o !== who && ['stand', 'work'].includes(o.pose) && o.state !== 'work') o.face(who.pos.x, who.pos.z);
+    say(who, text, 2.8); who.doEmote(pick(['nod', 'wave', 'nod']), 1.2);
+    setTimeout(step, 2400);
+  };
+  step();
+}
+function followPlan(plan, [a, b]) {
+  if (!plan || !b || night) return;
+  setTimeout(() => {
+    const free = c => c.state === 'break' || c.state === 'work' || c.state === 'visit';
+    if (!free(a) || !free(b)) return;
+    if (plan === 'makan') { const seats = freeSeats(); const s1 = seats[0], s2 = seats.find(s => s !== s1 && s.table === s1?.table); if (s1 && s2) { goEat(a, s1); goEat(b, s2); } }
+    if (plan === 'kopi') { const k = spots.filter(s => (s.kind === 'kopi' || s.kind === 'kafe') && !s.by); if (k.length) { a.state = b.state = 'break'; a.timer = b.timer = rand(15, 25); sendTo(a, k[0]); if (k[1]) sendTo(b, k[1]); } }
+    if (plan === 'ping' && pingSpots.every(s => !s.by)) { joinPong(a, pingSpots[0]); joinPong(b, pingSpots[1]); }
+  }, 600);
+}
+let chatterT = 6;
+function updateChatter(dt) {
+  if ((chatterT -= dt) > 0) return;
+  chatterT = rand(4, 8);
+  const now = clock.elapsedTime;
+  const idle = staff.filter(c => ['break', 'home'].includes(c.state) && !c.talking && c.spot && !c.path.length && !['play', 'lie'].includes(c.pose) && c.spot.kind !== 'toilet');
+  for (const a of idle) for (const b of idle) {
+    if (a === b || a.level !== b.level || a.pos.distanceTo(b.pos) > 3.5 || now - (a.talkAt || -99) < 20 || now - (b.talkAt || -99) < 20) continue;
+    return converse(dialogFor(a, b));
+  }
+}
+// now and then someone walks over to the colleague they hand work to and talks it through
+let visitT = 15;
+function updateVisits(dt) {
+  if (night || (visitT -= dt) > 0) return;
+  visitT = rand(20, 40);
+  const a = pick(staff.filter(c => c.state === 'work' && !c.talking && clock.elapsedTime - (c.talkAt || -99) > 40));
+  const b = a && byId(HANDOFF[a.def.id]);
+  if (!b || b.state !== 'work' || b.talking || b.path.length) return;
+  a.state = 'visit';
+  say(a, `Ke meja ${b.name} bentar ya`, 2);
+  a.goTo(b.level, b.pos.x + 1.1, b.pos.z + 1.3, () => {
+    if (a.state !== 'visit') return;
+    a.face(b.pos.x, b.pos.z);
+    converse(dialogFor(a, b), () => { if (a.state === 'visit') goBack(a); });
+  });
+}
+
+// ---------- reports walked to the owner's desk ----------
+const delivering = new Set();
+function scheduleDeliveries() {
+  if (!live) return;
+  for (const r of deskState.undelivered) {
+    const slot = DELIVER_AT.find(p => !p.by); if (!slot) return;
+    const c = byId(r.employee);
+    if (delivering.has(r.id) || !c || ['report', 'chat'].includes(c.state) || c.ride) continue;
+    deliver(c, r, slot);
+  }
+}
+function deliver(c, r, slot) {
+  delivering.add(r.id); slot.by = c;
+  c.state = 'report'; c.afterBreak = null; c.drop();
+  c.carry(new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.03, 0.3), mat(0xffffff)));
+  c.showEmo('📋'); say(c, pick(['Antar laporan ke bos dulu 📋', 'Laporanku sudah jadi! 📋']), 3);
+  const done = ok => { delivering.delete(r.id); slot.by = null; c.drop(); goBack(c); if (ok) loadStats(); };
+  c.goTo(OWNER, slot.x, slot.z, () => {
+    c.targetRy = Math.PI; c.doEmote('give', 1.8);
+    say(c, `Bos, laporanku: ${r.lines[0] || 'beres semua'} 📋`, 5);
+    if (me.level === OWNER) { me.face(c.pos.x, c.pos.z); me.doEmote('nod', 1.5); }
+    setTimeout(async () => {
+      const res = await post(`reports/${encodeURIComponent(r.id)}/delivered`);
+      Snd.play('pop'); if (res.ok) toast(`📋 ${c.name} menaruh laporan di meja owner`);
+      done(res.ok);
+    }, 1700);
+  });
+}
+
+// ---------- kantin: the owner orders food too ----------
+let menuWith = null;
+FOODS.forEach(f => {
+  const b = document.createElement('button'); b.innerHTML = `${f.icon}<small>${f.name}</small>`;
+  b.onclick = () => { closeMenu(); playerEat(f, menuWith); };
+  $('menuBtns').appendChild(b);
+});
+function openMenu(c = null) { menuWith = c; $('menuWith').textContent = c ? `· bareng ${c.name}` : ''; $('menu').classList.add('show'); }
+function closeMenu() { $('menu').classList.remove('show'); }
+$('menuClose').onclick = () => { closeMenu(); menuWith = null; };
+function playerEat(food, mate) {
+  // a table with two free seats when someone eats with the owner
+  const free = freeSeats();
+  const pair = mate && free.find(a => free.some(b => b !== a && b.table === a.table));
+  const seat = pair || free[0];
+  if (!seat) { toast('Kantin lagi penuh, coba sebentar lagi 🍛'); return; }
+  me.leaveSpot();
+  const at = ORDER_AT[1];
+  me.goTo(KANTIN, at.x, at.z, () => {
+    me.targetRy = Math.PI; say(me, `${food.name} satu ya bu 🙏`, 2.5); Snd.play('pop');
+    setTimeout(() => {
+      me.carry(foodSprite(food.icon));
+      sendTo(me, seat, () => { me.drop(); showPlate(seat, food); me.eating = { food, left: 7 }; say(me, 'Selamat makan! 😋', 2.5); });
+    }, 1200);
+  });
+  seat.by = me;
+  if (mate) {
+    const seat2 = free.find(s => s !== seat && s.table === seat.table) || free.find(s => s !== seat);
+    if (seat2) goEat(mate, seat2, pick(FOODS), rand(25, 35));
+  }
+}
+
+// ---------- the owner's desk ----------
+function sitOwner(openPanel = true) {
+  const s = spots.find(x => x.kind === 'owner');
+  if (openPanel) toggleReports(true);
+  if (s.by === me) return;
+  me.leaveSpot();
+  sendTo(me, s, () => { say(me, 'Cek laporan tim dulu 📋', 2.5); Snd.play('pop'); });
+}
+
+// ---------- houses: walk in through the door ----------
+function goHouse(h) { me.goTo(0, h.x + 0.4, h.z + 0.6, null, { via: h.via, box: h.box }); }
+
 // ---------- player spot interactions ----------
-function useSpot(kindName, clickedObj) {
+function useSpot(kindName, house) {
   endChat();
   if (kindName === 'hoop') return goShoot();
+  if (kindName === 'kantin') return openMenu();
+  if (kindName === 'owner') return sitOwner();
   if (kindName === 'lift') {
     me.goTo(me.level, DOOR_X, 0);
     me.path.push({ p: V(ELEV_X, 0) }); // enter through the door, not the glass
     me.onArrive = () => say(me, 'Mau ke lantai berapa? 🛗');
     return;
   }
-  const cands = spots.filter(s => s.kind === kindName && (!s.by || s.by === me));
+  const cands = spots.filter(s => s.kind === kindName && (!s.by || s.by === me) && (!house || s.house === house));
   if (!cands.length) { toast('Lagi dipakai, coba yang lain 🙂'); return; }
   const s = cands.reduce((a, b) => dist(a) < dist(b) ? a : b);
   function dist(s) { return s.swing ? 0 : Math.hypot(s.x - me.pos.x, s.z - me.pos.z) + Math.abs(s.level - me.level) * 20; }
   me.leaveSpot();
   sendTo(me, s, () => {
-    say(me, { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di atap… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️' }[s.kind] || '😊');
+    say(me, { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di atap… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️', toilet: 'Permisi… 🚻', wastafel: 'Cuci tangan dulu 🧼', kasur: 'Rebahan dulu… 😴', tv: 'Nonton TV ah 📺', kulkas: 'Ambil minum dingin 🥤' }[s.kind] || '😊');
     Snd.play('pop');
-    if (s.kind === 'kafe' || s.kind === 'kopi') { me.energy = clamp(me.energy + 30, 0, 100); burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), ['☕', '💨', '✨']); }
+    if (s.kind === 'kafe' || s.kind === 'kopi' || s.kind === 'kulkas') { me.energy = clamp(me.energy + (s.kind === 'kulkas' ? 15 : 30), 0, 100); burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), s.kind === 'kulkas' ? ['🥤', '🧃', '✨'] : ['☕', '💨', '✨']); }
   });
 }
 let shooting = false;
@@ -1527,7 +1962,10 @@ const PLACES = [
   { icon: '🎮', name: 'Arena Bermain', go: () => me.goTo(0, 24, 0) },
   { icon: '☕', name: 'Kafe Santai', go: () => useSpot('kafe') },
   { hr: 1 },
-  ...DIVS.map((d, i) => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), go: () => me.goTo(i, 2, 4) })),
+  { icon: '🏠', name: 'Rumahku', go: () => goHouse(me.home) },
+  { icon: '🏘️', name: 'Komplek Rumah', go: () => me.goTo(0, 0, -16.5) },
+  { hr: 1 },
+  ...DIVS.map((d, i) => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), go: () => i === OWNER ? sitOwner(false) : me.goTo(i, 2, 4) })),
   { icon: '🌿', name: 'Taman Atap', go: () => me.goTo(ROOF, 0, 1) },
 ];
 const narrow = () => innerWidth <= 760;
@@ -1552,13 +1990,22 @@ function openCard(c) {
   $('cRing').style.setProperty('--p', Math.round(p.score * 100)); $('cRing').style.setProperty('--c', scoreColor(p.score));
   $('cMood').textContent = MOODS[c.mood].emo; $('cMood').title = MOODS[c.mood].label;
   $('cStars').innerHTML = starsHtml(p.score);
-  $('cPills').innerHTML = p.pills.map(([i, v]) => `<span class="pill">${i} ${v}</span>`).join('') + `<span class="pill">${MOODS[c.mood].label}</span>`;
-  const h = c.def.hunt;
-  $('cHuntBtn').style.display = h ? 'block' : 'none';
+  const rt = deskState.ratings[c.def.id], order = deskState.instructions[c.def.id];
+  $('cPills').innerHTML = p.pills.map(([i, v]) => `<span class="pill">${i} ${v}</span>`).join('') + `<span class="pill">${MOODS[c.mood].label}</span>`
+    + (rt ? `<span class="pill" title="Rata-rata nilaimu untuk laporannya">⭐ ${rt.avg.toFixed(1)}</span>` : '') + (order ? '<span class="pill" title="Punya instruksi darimu">📝</span>' : '');
+  const h = c.def.hunt, cmd = ROLE_CMD[c.def.id];
+  $('cHuntBtn').style.display = h || cmd ? 'block' : 'none';
   if (h) {
     $('cHuntBtn').disabled = !!hunting;
     $('cHuntBtn').textContent = hunting === c ? `⏳ ${c.name} lagi mencari…` : hunting ? `⏳ ${hunting.name} lagi mencari, tunggu ya`
       : `🔎 ${c.lastHunt ? 'Cari lagi' : `Cari ${h.what} di ${h.site} sekarang`}`;
+  } else if (cmd) { $('cHuntBtn').disabled = !!c.cmdBusy; $('cHuntBtn').textContent = c.cmdBusy ? '⏳ Sedang dikerjakan…' : cmd[0]; }
+  if (cardFor !== c) {
+    cardFor = c;
+    ['cAsk', 'cOrder'].forEach(id => $(id).classList.remove('show'));
+    ['cAskBtn', 'cOrderBtn'].forEach(id => $(id).classList.remove('on'));
+    $('cAnswer').textContent = ''; $('cAskIn').value = '';
+    $('cOrderIn').value = order || ''; $('cOrderHint').textContent = ORDER_HINT(c);
   }
   showLeads(c.lastHunt || []);
   $('cBoard').style.display = h?.what === 'proyek' ? 'flex' : 'none';
@@ -1612,7 +2059,177 @@ async function hunt(c) {
   }
   if (chatWith) openCard(chatWith);
 }
-$('cHuntBtn').onclick = () => chatWith && hunt(chatWith);
+$('cHuntBtn').onclick = () => { const c = chatWith; if (!c) return; c.def.hunt ? hunt(c) : ROLE_CMD[c.def.id]?.[1](c); };
+
+// ---------- real orders: each role's own command, reports, questions, standing instructions ----------
+let cardFor = null;
+const ORDER_HINT = c => c.def.hunt ? 'Kata kunci prioritas: hasil pencarian yang cocok kutampilkan paling atas. Contoh: python, django, laravel'
+  : c.def.id === 'sari' ? 'Kata kunci prioritas: lowongan cocok yang mengandung kata ini dibuatkan surat lebih dulu oleh Cora.'
+  : c.def.id === 'cora' ? 'Ditambahkan ke setiap prompt surat lamaran & proposal. Contoh: tonjolkan pengalaman membangun REST API'
+  : 'Dipakai sebagai konteks saat kamu bertanya ke karyawan ini.';
+async function busyCmd(c, emo, start, run) {
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  c.cmdBusy = true; c.showEmo(emo); say(c, start, 60); if (chatWith === c) openCard(c);
+  try { await run(); } finally { c.cmdBusy = false; if (chatWith === c) openCard(c); }
+}
+const screenNow = c => busyCmd(c, '🧮', 'Aku nilai antrean lowongannya sekarang 🧮', async () => {
+  const res = await post('work/screen');
+  if (res.ok) { c.doEmote('cheer', 2); say(c, `Selesai! ${res.data.matched} lowongan baru lolos ✅`); Snd.play('chime'); await loadStats(); }
+  else { c.doEmote('sigh', 1.5); say(c, res.status === 409 ? 'Tim lagi sibuk, nanti ya 🙏' : 'Gagal menilai 😢'); }
+});
+const telegramNow = c => busyCmd(c, '📨', 'Aku rangkum lalu kirim ke Telegram-mu 📨', async () => {
+  const res = await post('work/telegram');
+  if (res.ok && res.data.sent) { c.doEmote('cheer', 2); say(c, 'Ringkasan terkirim ke Telegram-mu 📨'); Snd.play('chime'); }
+  else { c.doEmote('sigh', 1.5); say(c, res.ok ? 'Telegram belum diatur: isi TELEGRAM_BOT_TOKEN & TELEGRAM_ALLOWED_CHAT_IDS di .env' : 'Telegram tidak bisa dihubungi 😢', 7); }
+});
+const ROLE_CMD = {
+  sari: ['🧮 Nilai antrean lowongan sekarang', screenNow], eli: ['🧮 Saring antrean lowongan sekarang', screenNow],
+  cora: ['✍️ Tulis 3 draf surat lamaran', () => draftMore()], lulu: ['✍️ Bantu Cora tulis 3 draf', () => draftMore()],
+  tara: ['📬 Catat balasan perusahaan', () => toggleInbox(true, 'sent')], ivan: ['🎤 Lihat lamaran yang interview', () => toggleInbox(true, 'sent')],
+  faris: ['📥 Buka lamaran yang disetujui', () => toggleInbox(true)], subi: ['📥 Buka lamaran yang disetujui', () => toggleInbox(true)],
+  tegar: ['📨 Kirim ringkasan ke Telegram', telegramNow],
+};
+function togglePane(id, btn) { const on = !$(id).classList.contains('show'); $(id).classList.toggle('show', on); $(btn).classList.toggle('on', on); if (on) $(id).querySelector('input,textarea').focus(); }
+$('cAskBtn').onclick = () => togglePane('cAsk', 'cAskBtn');
+$('cOrderBtn').onclick = () => togglePane('cOrder', 'cOrderBtn');
+$('cReport').onclick = async () => {
+  const c = chatWith; if (!c) return;
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  const res = await post(`reports/request/${c.def.id}`);
+  if (!res.ok) { toast('Gagal membuat laporan'); return; }
+  say(c, 'Siap bos, aku susun laporannya lalu antar ke ruanganmu 📋', 4);
+  toast(`📋 ${c.name} menyusun laporan 24 jam${res.data.telegram ? ' · terkirim juga ke Telegram' : ''}`);
+  endChat(); await loadStats();
+};
+async function askNow() {
+  const c = chatWith, q = $('cAskIn').value.trim(); if (!c || !q) return;
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  $('cAskGo').disabled = true; $('cAnswer').textContent = '💭 …'; c.showEmo('💭'); c.doEmote('nod', 1.5);
+  const res = await post(`ask/${c.def.id}`, { question: q });
+  $('cAskGo').disabled = false;
+  const a = res.ok ? res.data.answer : 'Maaf bos, aku lagi nggak bisa jawab 😢';
+  if (chatWith === c) $('cAnswer').textContent = a + (res.ok && !res.data.ai ? '' : '');
+  say(c, a.length > 140 ? a.slice(0, 137) + '…' : a, 8); c.showEmo(res.ok ? '💡' : '😢');
+}
+$('cAskGo').onclick = askNow;
+$('cAskIn').onkeydown = e => { if (e.key === 'Enter') askNow(); };
+$('cOrderGo').onclick = async () => {
+  const c = chatWith; if (!c) return;
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  const res = await post(`instructions/${c.def.id}`, { text: $('cOrderIn').value });
+  if (!res.ok) { toast('Gagal menyimpan instruksi'); return; }
+  const t = res.data.text;
+  if (t) deskState.instructions[c.def.id] = t; else delete deskState.instructions[c.def.id];
+  c.doEmote('nod', 1.5); Snd.play('pop');
+  say(c, t ? `Siap bos! Aku ikuti: "${t.length > 60 ? t.slice(0, 57) + '…' : t}"` : 'Oke, instruksinya aku hapus 👌', 5);
+  openCard(c);
+};
+
+// ---------- reports panel ----------
+let reportsOpen = false, reportsFor = '';
+function toggleReports(v = !reportsOpen, emp = reportsFor) { reportsOpen = v; $('reports').classList.toggle('show', v); if (v) renderReports(emp); }
+$('cProfile').onclick = () => { const c = chatWith; if (c) { endChat(); toggleReports(true, c.def.id); } };
+// one employee's own panel: three periods side by side, score trend with ratings, owner notes
+async function renderProfile(emp) {
+  const box = $('reportsProfile');
+  if (!emp || !live) { box.replaceChildren(); return; }
+  let p;
+  try { p = await (await fetch('employee.json?id=' + encodeURIComponent(emp), { cache: 'no-store' })).json(); } catch { box.replaceChildren(); return; }
+  if (reportsFor !== emp) return;
+  const c = byId(emp), wrap = el('div', 'prof');
+  const head = el('div', 'who'), face = el('div', 'face', c ? MOODS[c.mood].emo : '📊'); if (c) face.style.cssText = faceStyle(c);
+  const info = el('div'); info.append(el('div', 'jt', `${c ? c.name : emp} · ${c ? c.def.role : p.role}`));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'tag ' + (p.rating ? (p.rating.avg >= 4 ? 'good' : p.rating.avg <= 2 ? 'low' : 'mid') : 'idle'), p.rating ? `⭐ ${p.rating.avg.toFixed(1)} dari ${p.rating.n} laporan` : '⭐ Belum dinilai'));
+  if (c) meta.append(el('span', 'tag', `${MOODS[c.mood].emo} ${MOODS[c.mood].label}`));
+  info.append(meta); head.append(face, info); wrap.append(head);
+  const periods = el('div', 'periods');
+  for (const [label, m] of Object.entries(p.periods)) {
+    const col = el('div', 'period'); col.append(el('b', null, label));
+    m.metrics.forEach(([i, l, v]) => { const row = el('div'); row.append(el('span', null, `${i} ${l}`), el('span', null, String(v))); col.append(row); });
+    const st = el('div', 'stars'); st.style.fontSize = '13px'; st.innerHTML = starsHtml(clamp(m.score, 0, 1)); col.append(st);
+    periods.append(col);
+  }
+  wrap.append(periods);
+  if (p.history.length > 1) {
+    wrap.append(el('h4', null, '📈 Tren skor laporan'));
+    const n = p.history.length, X = i => 8 + i * (584 / (n - 1)), Y = s => 62 - s * 54;
+    const pts = p.history.map((h, i) => `${X(i)},${Y(h.score)}`).join(' ');
+    const dots = p.history.map((h, i) => h.rating ? `<circle cx="${X(i)}" cy="${Y(h.score)}" r="5" fill="${h.rating >= 4 ? '#5cb87a' : h.rating <= 2 ? '#ef8a6b' : '#f2b84b'}"><title>Nilaimu ${h.rating}</title></circle>` : '').join('');
+    const svg = el('div'); svg.innerHTML = `<svg viewBox="0 0 600 70" preserveAspectRatio="none" role="img" aria-label="Tren skor"><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>${dots}</svg>`;
+    wrap.append(svg);
+  }
+  if (p.instruction) wrap.append(el('h4', null, '📝 Instruksimu'), el('p', 'note', p.instruction));
+  if (p.notes.length) { wrap.append(el('h4', null, '🗒️ Catatanmu terakhir')); p.notes.forEach(x => wrap.append(el('p', 'note', `${'★'.repeat(x.rating || 0)} ${x.note} · ${ago(x.at)}`))); }
+  const row = el('div', 'jact');
+  const req = el('button', 'btn ok', '📋 Minta laporan sekarang');
+  req.onclick = async () => { req.disabled = true; const r = await post(`reports/request/${emp}`); req.disabled = false; if (r.ok) { toast(`📋 ${c ? c.name : emp} menyusun laporan dan berjalan ke ruanganmu`); await loadStats(); renderReports(emp); } };
+  const talk = el('button', 'btn', '💬 Ajak ngobrol'); talk.onclick = () => { toggleReports(false); if (c) { overview = false; startChat(c); } };
+  row.append(req, talk); wrap.append(row);
+  box.replaceChildren(wrap);
+}
+$('bReports').onclick = () => toggleReports();
+$('reportsClose').onclick = () => toggleReports(false);
+$('reports').onclick = e => { if (e.target === $('reports')) toggleReports(false); };
+$('reportsAll').onclick = async () => {
+  if (!live) { toast('Jalankan: python -m bot_loker_wfh office'); return; }
+  $('reportsAll').disabled = true;
+  const res = await post('reports/request/all');
+  $('reportsAll').disabled = false;
+  if (!res.ok) { toast('Gagal membuat laporan'); return; }
+  toast('📋 Semua karyawan menyusun laporan dan berjalan ke ruanganmu'); await loadStats(); renderReports();
+};
+async function renderReports(emp = reportsFor) {
+  reportsFor = emp;
+  renderProfile(emp);
+  $('reportsChips').replaceChildren(...[['', '✨ Semua'], ...staff.map(c => [c.def.id, `${MOODS[c.mood].emo} ${c.name}`])].map(([id, label]) => {
+    const b = el('button', 'chipb' + (id === emp ? ' on' : ''), label); b.onclick = () => renderReports(id); return b;
+  }));
+  const list = $('reportsList');
+  if (!live) { list.replaceChildren(el('div', 'empty', '🔌 Jalankan: python -m bot_loker_wfh office untuk laporan asli')); return; }
+  let d;
+  try { d = await (await fetch('reports.json' + (emp ? '?employee=' + encodeURIComponent(emp) : ''), { cache: 'no-store' })).json(); }
+  catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  if (reportsFor !== emp) return;
+  $('reportsTg').textContent = d.telegram ? '📨 Laporan juga dikirim ke Telegram-mu' : '📨 Telegram belum diatur (.env)';
+  list.replaceChildren(...(d.items.length ? d.items.map(reportCard) : [el('div', 'empty', '🌱 Belum ada laporan. Laporan pagi dibuat otomatis jam 08.00, atau minta sekarang.')]));
+}
+function reportCard(r) {
+  const c = byId(r.employee), card = el('div', 'job');
+  const head = el('div', 'who');
+  const face = el('div', 'face', c ? MOODS[c.mood].emo : '📋'); if (c) face.style.cssText = faceStyle(c);
+  const info = el('div'); info.append(el('div', 'jt', `${c ? c.name : r.employee} · ${c ? c.def.role : ''}`));
+  const meta = el('div', 'meta');
+  meta.append(el('span', 'tag ' + (r.kind === 'daily' ? 'mid' : 'idle'), r.kind === 'daily' ? '🌅 Laporan pagi' : '🙋 Kamu minta'),
+    el('span', null, `🕒 ${ago(r.created_at)} · ${r.hours} jam terakhir`));
+  if (!r.delivered_at) meta.append(el('span', 'tag low', '🚶 Sedang diantar'));
+  info.append(meta); head.append(face, info); card.append(head);
+  const pills = el('div', 'pills'); r.metrics.forEach(([i, l, v]) => pills.append(el('span', 'pill', `${i} ${l}: ${v}`))); card.append(pills);
+  card.append(el('p', 'letter', r.lines.join(' ')));
+  const st = el('div', 'stars'); st.innerHTML = starsHtml(clamp(r.score, 0, 1)); st.title = 'Skor dari data'; card.append(st);
+  let rating = r.rating || 0;
+  const rate = el('div', 'rate'); rate.append(el('span', 'jc', 'Nilaimu: '));
+  const stars = [1, 2, 3, 4, 5].map(n => { const b = el('button', null, '★'); b.setAttribute('aria-label', `Nilai ${n}`); b.onclick = () => { rating = n; paint(); }; rate.append(b); return b; });
+  const paint = () => stars.forEach((b, i) => b.classList.toggle('on', i < rating)); paint();
+  const note = el('textarea', 'note'); note.placeholder = 'Catatan untuk karyawan ini (opsional)'; note.maxLength = 1000; note.value = r.note || '';
+  const save = el('button', 'btn ok', r.rating ? '💾 Perbarui nilai' : '💾 Simpan nilai');
+  save.onclick = async () => {
+    if (!rating) { toast('Pilih bintang dulu ⭐'); return; }
+    save.disabled = true;
+    const res = await post(`reports/${encodeURIComponent(r.id)}/review`, { rating, note: note.value });
+    save.disabled = false;
+    if (!res.ok) { toast('Gagal menyimpan'); return; }
+    save.textContent = '💾 Perbarui nilai'; Snd.play('pop');
+    if (c) {
+      if (rating >= 4) { c.boost = 2; c.boostUntil = clock.elapsedTime + 120; c.doEmote('cheer', 2); say(c, pick(['Makasih bos! 🥹', 'Yeay dinilai bagus! ⭐', 'Aku makin semangat! 🔥'])); }
+      else if (rating <= 2) { c.sadUntil = clock.elapsedTime + 30; c.doEmote('sigh', 2); say(c, note.value.trim() ? 'Siap bos, catatannya aku perbaiki 🙏' : 'Maaf bos, aku perbaiki 🙏'); }
+      else { c.doEmote('nod', 1.5); say(c, 'Noted bos 👌'); }
+    }
+    toast(`⭐ Nilai untuk ${c ? c.name : r.employee} tersimpan`); loadStats();
+  };
+  card.append(rate, note, save);
+  return card;
+}
 function closeCard() { $('card').classList.remove('show'); }
 $('cardClose').onclick = endChat;
 document.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
@@ -1630,7 +2247,7 @@ function renderPerf() {
     <div style="flex:1;min-width:0"><div class="n">${c.name}</div><div class="r">${c.def.role}</div><div class="stars" style="font-size:14px">${starsHtml(c.perfNow.score)}</div>
     <div class="pills">${c.perfNow.pills.map(([ic, v]) => `<span class="pill">${ic} ${v}</span>`).join('')}</div></div>
     <div class="ring" style="--p:${Math.round(c.perfNow.score * 100)};--c:${scoreColor(c.perfNow.score)}"><div>${DIVS.find(x => x.id === c.def.div).icon}</div></div></button>`).join('');
-  $('team').querySelectorAll('.ecard').forEach(b => b.onclick = () => { togglePerf(false); overview = false; startChat(staff.find(c => c.def.id === b.dataset.id)); });
+  $('team').querySelectorAll('.ecard').forEach(b => b.onclick = () => { togglePerf(false); toggleReports(true, b.dataset.id); });
 }
 function togglePerf(v = !perfOpen) { perfOpen = v; $('perf').classList.toggle('show', v); if (v) renderPerf(); }
 $('bPerf').onclick = () => togglePerf();
@@ -1671,6 +2288,7 @@ function renderBadge() {
   $('inboxBadge').textContent = n; $('inboxBadge').classList.toggle('on', n > 0);
   if (inboxOpen && n !== lastPending) renderInbox();
   lastPending = n;
+  $('reportsBadge').textContent = deskState.tray; $('reportsBadge').classList.toggle('on', deskState.tray > 0);
 }
 async function setAuto(on) {
   const res = await post('auto', { on });
@@ -1710,7 +2328,12 @@ function reactToWork() {
 }
 
 let inboxOpen = false, lastPending = 0;
-async function toggleInbox(v = !inboxOpen) { inboxOpen = v; $('inbox').classList.toggle('show', v); if (v) await renderInbox(); }
+async function toggleInbox(v = !inboxOpen, focus) {
+  inboxOpen = v; $('inbox').classList.toggle('show', v);
+  if (!v) return;
+  await renderInbox();
+  if (focus === 'sent') ($('inboxSent') || $('inboxList')).scrollIntoView({ block: 'start' });
+}
 $('bInbox').onclick = () => toggleInbox();
 $('inboxClose').onclick = () => toggleInbox(false);
 $('inbox').onclick = e => { if (e.target === $('inbox')) toggleInbox(false); };
@@ -1723,6 +2346,7 @@ async function renderInbox() {
   const parts = [];
   if (d.pending.length) parts.push(el('h3', null, '🕵️ Menunggu persetujuanmu'), ...d.pending.map(i => jobCard(i, 'pending', d.form_assist)));
   if (d.approved.length) parts.push(el('h3', null, '🚀 Disetujui · tinggal dilamar'), ...d.approved.map(i => jobCard(i, 'approved', d.form_assist)));
+  if (d.sent?.length) { const h3 = el('h3', null, '📬 Sudah dilamar · catat balasan perusahaan (Tara)'); h3.id = 'inboxSent'; parts.push(h3, ...d.sent.map(i => jobCard(i, 'sent', d.form_assist))); }
   if (!parts.length) parts.push(el('div', 'empty', d.waiting ? '🌱 Belum ada draf. Minta Cora menulis dulu 👇' : '🌱 Kotak masih kosong. Nyalakan 🤖 Auto atau suruh tim Pencari Kerja mencari.'));
   const foot = el('div', 'foot');
   foot.append(el('span', null, d.waiting ? `✍️ ${d.waiting} lowongan cocok lain belum ada suratnya` : '✨ Semua lowongan cocok sudah ada drafnya'));
@@ -1738,7 +2362,13 @@ function jobCard(i, kind, formAssist) {
   const row = el('div', 'jact');
   const link = el('a', 'btn', kind === 'pending' ? '👀 Lihat lowongan' : '🌐 Buka & lamar'); link.href = i.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; row.append(link);
   const btn = (text, cls, fn) => { const b = el('button', 'btn ' + cls, text); b.onclick = () => { row.querySelectorAll('button').forEach(x => x.disabled = true); fn(); }; row.append(b); };
-  if (kind === 'pending') { btn(formAssist ? '✅ Setujui & isi formulir' : '✅ Setujui & lamar', 'ok', () => decide(i, 'approve')); btn('❌ Tolak', 'no', () => decide(i, 'reject')); }
+  if (kind === 'sent') {
+    card.querySelector('.jc').textContent += ` · ${(TAG[i.status] || ['', i.status])[1]}`;
+    const next = { SUBMITTED: ['viewed', 'interview', 'rejected', 'noresponse'], VIEWED: ['interview', 'rejected', 'noresponse'], INTERVIEW: ['offer', 'rejected'] }[i.status] || [];
+    const label = { viewed: '👀 Dilihat', interview: '🎤 Interview', offer: '🏆 Offer!', rejected: '💔 Ditolak', noresponse: '🔕 Tak ada kabar' };
+    next.forEach(a => btn(label[a], a === 'offer' || a === 'interview' ? 'ok' : a === 'rejected' ? 'no' : '', () => decide(i, a)));
+  }
+  else if (kind === 'pending') { btn(formAssist ? '✅ Setujui & isi formulir' : '✅ Setujui & lamar', 'ok', () => decide(i, 'approve')); btn('❌ Tolak', 'no', () => decide(i, 'reject')); }
   else { if (formAssist) btn('🧾 Isi formulir lagi', '', () => decide(i, 'apply')); btn('✔️ Sudah dilamar', 'ok', () => decide(i, 'applied')); }
   card.append(row);
   return card;
@@ -1752,6 +2382,14 @@ async function decide(item, action) {
     else { say(f, 'Disetujui! Buka lowongannya lalu lamar ya 👉', 6); toast('✅ Disetujui. Klik "Buka & lamar", kirim lamarannya, lalu tandai "Sudah dilamar"'); }
   } else if (action === 'reject') {
     const e = byId('eli'); e.doEmote('nod', 1.5); say(e, 'Oke, yang ini aku lewati 👌'); Snd.play('pop');
+  } else if (['viewed', 'interview', 'offer', 'rejected', 'noresponse'].includes(action)) {
+    const t = byId('tara'), v = byId('ivan');
+    if (action === 'interview' || action === 'offer') {
+      [t, v].forEach(c => { c.boost = 2; c.boostUntil = clock.elapsedTime + 120; c.doEmote('cheer', 2.5); });
+      burst(at(v), action === 'offer' ? ['🏆', '🎉', '💰'] : ['🎤', '✨', '🎉'], 10); Snd.play('coin');
+      say(v, action === 'offer' ? 'OFFER!! Selamat bos! 🏆' : 'Interview! Yuk latihan bareng aku 🎤', 6);
+    } else { t.doEmote(action === 'rejected' ? 'sigh' : 'nod', 1.5); say(t, action === 'rejected' ? 'Semangat bos, masih banyak yang lain 🤗' : 'Sudah aku catat 📒', 4); Snd.play('pop'); }
+    toast('📬 Status lamaran diperbarui');
   } else if (action === 'applied') {
     const s = byId('subi'); s.boost = 2; s.boostUntil = clock.elapsedTime + 90; s.doEmote('cheer', 3); burst(at(s), ['🚀', '✨', '🎉'], 10);
     say(s, 'Lamaran terkirim! Semoga lolos 🤞', 6); Snd.play('coin'); toast('🚀 Lamaran tercatat terkirim. Tara akan memantau statusnya');
@@ -1811,22 +2449,32 @@ $('bBoard').onclick = () => toggleBoard();
 $('boardClose').onclick = () => toggleBoard(false);
 $('board').onclick = e => { if (e.target === $('board')) toggleBoard(false); };
 $('cBoard').onclick = () => chatWith && toggleBoard(true, chatWith.def.hunt.src);
+const BOARD_VIEWS = [['all', '📋 Semua aktif'], ['new', '🆕 Baru (≤3 hari)'], ['old', '🕰️ Lama'], ['interested', '💛 Diminati'], ['proposal', '✍️ Ada draf bid'], ['ignored', '🙈 Diabaikan']];
+let boardView = 'all';
+function paintBoardViews(counts) {
+  $('boardViews').replaceChildren(...BOARD_VIEWS.map(([v, label]) => {
+    const b = el('button', 'chipb' + (v === boardView ? ' on' : ''), counts ? `${label} · ${counts[v] ?? 0}` : label);
+    b.onclick = () => { boardView = v; renderBoard(boardSource); }; return b;
+  }));
+}
 async function renderBoard(source = boardSource) {
   boardSource = source;
   $('boardSources').replaceChildren(...BOARD_SOURCES.map(([src, label]) => {
     const b = el('button', 'chipb' + (src === source ? ' on' : ''), label); b.onclick = () => renderBoard(src); return b;
   }));
+  paintBoardViews();
   const list = $('boardList');
   if (!live) { list.replaceChildren(el('div', 'empty', '🔌 Jalankan: python -m bot_loker_wfh office')); return; }
   list.replaceChildren(el('div', 'empty', '⏳ Memuat proyek…'));
   let d;
   try {
-    const r = await fetch('leads.json' + (source ? '?source=' + encodeURIComponent(source) : ''), { cache: 'no-store' });
+    const r = await fetch(`leads.json?view=${boardView}` + (source ? '&source=' + encodeURIComponent(source) : ''), { cache: 'no-store' });
     if (r.status === 404) { list.replaceChildren(el('div', 'empty', '🔄 Server office masih versi lama. Hentikan (Ctrl+C) lalu jalankan ulang: python -m bot_loker_wfh office')); return; }
     d = await r.json();
   } catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
   if (boardSource !== source) return;
-  list.replaceChildren(...(d.items.length ? d.items.map(l => leadCard(l, d.browser_fill)) : [el('div', 'empty', '🌱 Belum ada proyek. Suruh Lido, Nara atau Tama mencari dari kartunya.')]));
+  paintBoardViews(d.counts);
+  list.replaceChildren(...(d.items.length ? d.items.map(l => leadCard(l, d.browser_fill)) : [el('div', 'empty', boardView === 'all' ? '🌱 Belum ada proyek. Suruh Lido, Nara atau Tama mencari dari kartunya.' : '🌱 Tidak ada proyek untuk filter ini.')]));
 }
 async function leadPost(lead, action, body) {
   const res = await post(`leads/${encodeURIComponent(lead.id)}/${action}`, body || {});
@@ -1874,7 +2522,8 @@ function leadCard(l, browserFill) {
     const next = l.status === 'INTERESTED' ? 'new' : 'interested';
     if ((await leadPost(l, next)).ok) { l.status = next.toUpperCase(); b.textContent = l.status === 'INTERESTED' ? '💔 Batal minat' : '💛 Minati'; Snd.play('pop'); loadStats(); }
   });
-  btn('🙈 Abaikan', 'no', async () => { if ((await leadPost(l, 'ignored')).ok) { card.remove(); Snd.play('pop'); loadStats(); } });
+  if (l.status === 'IGNORED') btn('↩️ Kembalikan', '', async () => { if ((await leadPost(l, 'new')).ok) { card.remove(); Snd.play('pop'); loadStats(); } });
+  else btn('🙈 Abaikan', 'no', async () => { if ((await leadPost(l, 'ignored')).ok) { card.remove(); Snd.play('pop'); loadStats(); } });
   const open = el('a', 'btn', '🌐 Buka & apply'); open.href = l.url; open.target = '_blank'; open.rel = 'noopener noreferrer'; acts.append(open);
   if (browserFill) {
     for (const [engine, label] of [['browsermcp', '🧾 Isi di Chrome-ku'], ['playwright', '🎭 Isi pakai Playwright']]) {
@@ -1986,8 +2635,11 @@ function setNight(v) {
   glow.forEach(m => m.emissiveIntensity = v ? 1 : 0.15);
   screens.forEach(s => s.material.emissiveIntensity = v ? 0.9 : 0.35);
   stars.visible = v; water.material.color.set(v ? 0x3e5c86 : 0x8fd3e8);
+  lightPool.forEach(l => l.visible = v); lightT = 0;
+  fireflies.visible = v; birds.forEach(b => b.visible = !v);
+  moon.visible = v;
 }
-$('bNight').onclick = () => setNight(!night);
+$('bNight').onclick = () => { nightManual = true; setNight(!night); };
 let overview = false;
 $('bOver').onclick = () => { overview = !overview; endChat(); };
 let toastT;
@@ -2015,7 +2667,8 @@ function interact(h) {
   $('custom').classList.remove('show');
   if (ud.kind === 'char' && ud.char !== me) { overview = false; startChat(ud.char); return; }
   if (ud.kind === 'char' && ud.char === me) { me.doEmote(pick(['wave', 'dance', 'cheer'])); say(me, MOODS[me.mood].emo + ' ' + MOODS[me.mood].label); return; }
-  if (ud.kind === 'spot') { overview = false; useSpot(ud.kindName); return; }
+  if (ud.kind === 'spot') { overview = false; useSpot(ud.kindName, ud.house); return; }
+  if (ud.kind === 'house') { overview = false; endChat(); goHouse(ud.house); return; }
   endChat();
   const w = walkables.find(x => x.mesh === h.object);
   const level = w ? w.level : 0;
@@ -2027,7 +2680,11 @@ function interact(h) {
   burst(new THREE.Vector3(x, level * FH - 1.8, z), ['📍'], 1);
 }
 renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
+let lastHover = 0;
 renderer.domElement.addEventListener('pointermove', e => {
+  const nowMs = performance.now();
+  if (!(fp && downAt && e.buttons) && nowMs - lastHover < 70) return; // raycasting thousands of meshes per mouse event is the main input lag
+  lastHover = nowMs;
   if (fp && downAt && e.buttons) {
     yaw -= e.movementX * 0.005; pitch = clamp(pitch - e.movementY * 0.004, -1.2, 1.1);
     $('tip').style.display = 'none'; return;
@@ -2035,7 +2692,8 @@ renderer.domElement.addEventListener('pointermove', e => {
   const h = hitAt(e); const ud = h?.object.userData || {};
   const tip = $('tip');
   if (ud.kind === 'char') { tip.style.display = 'block'; tip.textContent = ud.char === me ? myLook.name : `${ud.char.name} · ${ud.char.def.role}`; }
-  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift' }[ud.kindName] || 'Main'; }
+  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = ({ bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja' }[ud.kindName] || 'Main') + (ud.house ? ` · rumah ${ud.house.name}` : ''); }
+  else if (ud.kind === 'house') { tip.style.display = 'block'; tip.textContent = `🏠 Rumah ${ud.house.name} · masuk`; }
   else tip.style.display = 'none';
   tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
   renderer.domElement.style.cursor = ud.kind ? 'pointer' : 'default';
@@ -2069,7 +2727,75 @@ function updateCutaway() {
   floors.forEach((g, i) => g.visible = i <= lvl);
   roof.visible = ROOF <= lvl;
   for (const c of chars) c.p.root.visible = !(c.level > lvl && (c.level > 0 || inTower(c.pos))) || !!c.ride;
+  // lift the roof off the house the owner is standing in
+  for (const h of houses) h.roof.visible = h.chimney.visible = fp || me.level !== 0 || !inR(me.pos.x, me.pos.z, h.box, 0);
 }
+
+// ---------- living world: doors, TVs, windows, smoke, birds, fireflies ----------
+let meHouse = null;
+const smoke = [];
+const smokeMat = new THREE.MeshBasicMaterial({ color: 0xe8e8ee, transparent: true, opacity: 0.6, depthWrite: false });
+const smokeGeo = new THREE.SphereGeometry(0.22, 8, 6);
+function updateWorld(dt, t) {
+  for (const h of houses) {
+    const near = chars.some(c => c.level === 0 && Math.abs(c.pos.x - h.x) < 1.3 && Math.abs(c.pos.z - h.front) < 1.5);
+    h.door.rotation.y += ((near ? 1.5 : 0) - h.door.rotation.y) * Math.min(1, dt * 6);
+    const home = h.who === me ? me.level === 0 && inR(me.pos.x, me.pos.z, h.box, 0) : h.who?.state === 'home';
+    h.win.emissiveIntensity += ((night && home ? 1.2 : 0) - h.win.emissiveIntensity) * Math.min(1, dt * 3);
+    const tvOn = h.tv.by && h.tv.by.spot === h.tv;
+    if (tvOn) h.tvMat.color.setHSL((t * 0.07) % 1, 0.55, 0.42 + Math.sin(t * 9) * 0.07 + (Math.random() < 0.04 ? 0.15 : 0));
+    else h.tvMat.color.setHex(0x15151c);
+    // a chimney puffs while somebody is at home in the evening
+    if (night && (home || h.who?.state === 'sleep') && h.chimney.visible && Math.random() < dt * 1.2) {
+      const p = new THREE.Mesh(smokeGeo, smokeMat.clone()); p.position.set(h.x + 1.2, 4.4, h.z - 1); p.userData.life = 3; scene.add(p); smoke.push(p);
+    }
+  }
+  for (let i = smoke.length - 1; i >= 0; i--) {
+    const p = smoke[i]; p.userData.life -= dt;
+    p.position.y += dt * 0.7; p.position.x += dt * 0.25; p.scale.setScalar(1 + (3 - p.userData.life) * 0.6);
+    p.material.opacity = Math.max(0, p.userData.life / 5);
+    if (p.userData.life <= 0) { scene.remove(p); p.material.dispose(); smoke.splice(i, 1); }
+  }
+  for (const s of stalls) { const occ = s.spot.by && s.spot.by.spot === s.spot; s.hinge.rotation.y += ((occ ? 0 : -1.2) - s.hinge.rotation.y) * Math.min(1, dt * 5); }
+  for (const s of spots) if (s.plate?.visible && (!s.by || s.by.spot !== s)) s.plate.visible = false;
+  // birds circle by day, fireflies drift over the park at night
+  birds.forEach((b, i) => {
+    const a = t * 0.18 + b.userData.o;
+    b.position.set(Math.cos(a) * b.userData.r, 30 + Math.sin(t * 0.5 + i) * 2, Math.sin(a) * b.userData.r - 10);
+    b.rotation.y = -a; b.children.forEach((w, k) => w.rotation.x = (k ? 1 : -1) * Math.sin(t * 9 + i) * 0.6);
+  });
+  if (fireflies.visible) {
+    const p = fireflies.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) { const o = ffBase[i]; p.setXYZ(i, o.x + Math.sin(t * 0.7 + i) * 0.8, o.y + Math.sin(t * 1.3 + i * 2) * 0.4, o.z + Math.cos(t * 0.6 + i) * 0.8); }
+    p.needsUpdate = true; fireflies.material.opacity = 0.6 + Math.sin(t * 3) * 0.3;
+  }
+  water.position.y = -0.6 + Math.sin(t * 0.8) * 0.05;
+  // greet the owner when walking into somebody's house
+  const hNow = me.level === 0 ? houses.find(h => inR(me.pos.x, me.pos.z, h.box, 0)) || null : null;
+  if (hNow !== meHouse) {
+    meHouse = hNow;
+    const o = hNow?.who;
+    if (o === me) toast('🏠 Rumahmu · klik kasur untuk tidur, TV untuk nonton, kulkas untuk minum');
+    else if (o?.state === 'home') { o.doEmote('wave', 2); say(o, pick([`Eh bos ${myLook.name}! Mampir 😄`, 'Selamat datang di rumahku 🏠', 'Ambil minum di kulkas aja bos 🥤'])); }
+    else if (o?.state === 'sleep') say(o, 'Zzz… 💤', 2.5);
+    else if (o) toast(`🏠 Rumah ${o.name} · orangnya lagi di kantor`);
+  }
+}
+const birds = [];
+for (let i = 0; i < 7; i++) {
+  const b = group(0, 30, 0); b.userData = { o: i * 0.5, r: 38 + (i % 3) * 4 };
+  for (const s of [-1, 1]) { const w = new THREE.Group(); w.position.x = s * 0.05; b.add(w); box(0.7, 0.04, 0.3, 0x4a4a5a, s * 0.35, 0, 0, w, { cast: false }); }
+  birds.push(b);
+}
+const ffBase = [];
+const ffGeo = new THREE.BufferGeometry();
+const ffPos = [];
+for (let i = 0; i < 60; i++) { const v = new THREE.Vector3(rand(-40, -16), rand(0.6, 2.4), rand(-12, 16)); ffBase.push(v); ffPos.push(v.x, v.y, v.z); }
+ffGeo.setAttribute('position', new THREE.Float32BufferAttribute(ffPos, 3));
+const fireflies = new THREE.Points(ffGeo, new THREE.PointsMaterial({ color: 0xfff27a, size: 0.35, transparent: true, opacity: 0.8, depthWrite: false }));
+fireflies.visible = false; scene.add(fireflies);
+const moon = new THREE.Mesh(new THREE.SphereGeometry(6, 20, 14), new THREE.MeshBasicMaterial({ color: 0xfff6d8, fog: false }));
+moon.position.set(-90, 95, -120); moon.visible = false; scene.add(moon);
 
 // ---------- camera follow ----------
 const lastTarget = new THREE.Vector3();
@@ -2082,7 +2808,7 @@ function updateCamera(dt) {
     camera.lookAt(camera.position.x + Math.sin(yaw) * Math.cos(pitch), camera.position.y + Math.sin(pitch), camera.position.z + Math.cos(yaw) * Math.cos(pitch));
     return;
   }
-  const want = overview ? new THREE.Vector3(5, 12, 0) : new THREE.Vector3(me.pos.x, me.y + 1.2, me.pos.z);
+  const want = overview ? new THREE.Vector3(3, 15, -6) : new THREE.Vector3(me.pos.x, me.y + 1.2, me.pos.z);
   const delta = want.sub(controls.target).multiplyScalar(Math.min(1, dt * 3));
   controls.target.add(delta); camera.position.add(delta);
   if (overview && camera.position.distanceTo(controls.target) < 50) camera.position.addScaledVector(camera.position.clone().sub(controls.target).normalize(), dt * 30);
@@ -2090,6 +2816,29 @@ function updateCamera(dt) {
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
+// ---------- adaptive quality: step down until ~45 fps, step back up when there is headroom ----------
+let frameNo = 0, fpsAcc = 0, fpsN = 0, quality = 2;
+function adaptQuality(dt) {
+  fpsAcc += dt; fpsN++;
+  if (fpsAcc < 3) return;
+  const fps = fpsN / fpsAcc; fpsAcc = fpsN = 0;
+  if (fps < 42 && quality > 0) setQuality(quality - 1);
+  else if (fps > 58 && quality < 2) setQuality(quality + 1);
+}
+function setQuality(q) {
+  quality = q;
+  renderer.setPixelRatio(q === 2 ? maxRatio : q === 1 ? Math.min(maxRatio, 1.15) : 0.85);
+  lightT = 0;
+}
+// a software renderer (no GPU) cannot keep up: say so once and start at the lowest setting
+(() => {
+  const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+  if (/swiftshader|llvmpipe|basic render|software/i.test(name)) {
+    setQuality(0);
+    setTimeout(() => toast('⚠️ Browser tidak memakai GPU. Aktifkan "Gunakan akselerasi grafis" di pengaturan browser lalu buka ulang'), 2500);
+  }
+})();
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   keyMove(dt);
@@ -2097,6 +2846,10 @@ function frame() {
   for (const c of staff) updateStaff(c, dt, t);
   updateMe(dt, t);
   for (const c of chars) c.update(dt, t);
+  updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
+  updateLightPool(dt, fp ? camera.position : controls.target);
+  if ((frameNo = (frameNo + 1) % 2) === 0 || fp) renderer.shadowMap.needsUpdate = true;
+  adaptQuality(dt);
   swings.forEach(s => { if (!spots.some(sp => sp.swing === s && sp.by && sp.by.pose === 'swing')) s.rotation.x *= 0.96; });
   clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 110) c.position.x = -110; });
   trees.forEach(tr => tr.rotation.z = Math.sin(t * 0.8 + tr.userData.sway) * 0.02);
@@ -2107,9 +2860,9 @@ function frame() {
 }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); $('custom').classList.remove('show'); }
+  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); toggleReports(false); closeMenu(); $('custom').classList.remove('show'); }
   if (k === 'v') setFP(!fp);
   if ((k === 'e' || k === 'q') && inLift(me.pos) && !me.ride) {
     const to = clamp(me.level + (k === 'e' ? 1 : -1), 0, ROOF);
@@ -2135,7 +2888,11 @@ function setFP(v) {
 }
 $('bPov').onclick = () => setFP(!fp);
 
-const h = new Date().getHours(); setNight(h >= 18 || h < 6);
+// follow the real clock until the owner flips day/night by hand
+const clockNight = () => { const h = new Date().getHours(); return h >= 18 || h < 6; };
+let nightManual = false;
+setNight(clockNight());
+setInterval(() => { if (!nightManual && clockNight() !== night) setNight(clockNight()); }, 60000);
 await loadStats();
 // poll faster while the team works on its own, so reactions show up promptly
 (function poll() { setTimeout(async () => { await loadStats(); poll(); }, S.work?.auto ? 8000 : 60000); })();

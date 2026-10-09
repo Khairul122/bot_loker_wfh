@@ -246,6 +246,33 @@ def ratings(connection: sqlite3.Connection) -> dict:
     return out
 
 
+def profile(connection: sqlite3.Connection, employee: str) -> dict:
+    """One employee's own page: today vs this week vs this month, score trend, owner feedback."""
+    if employee not in ROLES:
+        raise KeyError(employee)
+    history = [
+        {"score": score, "rating": rating, "at": at}
+        for score, rating, at in reversed(connection.execute(
+            "SELECT score, rating, created_at FROM office_reports WHERE employee = ? "
+            "ORDER BY created_at DESC LIMIT 20", (employee,)).fetchall())
+    ]
+    notes = [
+        {"rating": r, "note": n, "at": at} for r, n, at in connection.execute(
+            "SELECT rating, note, created_at FROM office_reports WHERE employee = ? AND note IS NOT NULL "
+            "ORDER BY created_at DESC LIMIT 5", (employee,)).fetchall()
+    ]
+    return {
+        "employee": employee,
+        "role": ROLES[employee],
+        "periods": {label: measure(connection, employee, hours) for label, hours in
+                    (("24 jam", 24), ("7 hari", 24 * 7), ("30 hari", 24 * 30))},
+        "history": history,
+        "notes": notes,
+        "rating": ratings(connection).get(employee),
+        "instruction": get_instruction(connection, employee),
+    }
+
+
 # ---------------------------------------------------------------- instructions
 
 def get_instruction(connection: sqlite3.Connection, employee: str) -> str:
