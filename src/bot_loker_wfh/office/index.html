@@ -79,12 +79,12 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .leads li a{display:block;padding:7px 10px;border-radius:12px;background:var(--paper-2);color:var(--ink);text-decoration:none;font-weight:800;font-size:13px}
 .leads li a:hover{background:var(--line)}
 .leads li small{display:block;color:var(--ink-soft);font-weight:700}
-#perf,#inbox,#results{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
-#perf.show,#inbox.show,#results.show{display:flex}
-#perf .panel,#inbox .panel,#results .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
+#perf,#inbox,#results,#board{position:fixed;inset:0;background:rgba(74,52,38,.28);display:none;align-items:center;justify-content:center;padding:16px}
+#perf.show,#inbox.show,#results.show,#board.show{display:flex}
+#perf .panel,#inbox .panel,#results .panel,#board .panel{width:min(980px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:22px}
 #inbox .panel{width:min(720px,100%)}
-#perf h2,#inbox h2,#results h2{margin:0;font-size:22px;font-weight:900}
-#perf .sub,#inbox .sub,#results .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
+#perf h2,#inbox h2,#results h2,#board h2{margin:0;font-size:22px;font-weight:900}
+#perf .sub,#inbox .sub,#results .sub,#board .sub{color:var(--ink-soft);font-weight:700;font-size:14px;margin:2px 0 16px}
 #inbox h3{font-size:15px;font-weight:900;margin:16px 0 8px}
 .badge{display:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#ef6a5a;color:#fff;font-size:12px;font-weight:900;place-items:center}
 .badge.on{display:inline-grid}
@@ -111,6 +111,13 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;color:var(--ink-soft);font-weight:700}
 .tag{display:inline-flex;gap:4px;align-items:center;padding:2px 9px;border-radius:10px;font-size:12px;font-weight:900;background:var(--paper-2);color:var(--ink)}
 .tag.good{background:rgba(92,184,122,.2)}.tag.mid{background:rgba(242,184,75,.25)}.tag.low{background:rgba(239,138,107,.25)}.tag.idle{background:rgba(169,180,200,.25)}
+.acct{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;background:var(--paper-2);border-radius:16px;padding:10px 12px;margin-bottom:12px}
+.acct label{display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px}
+.acct input{flex:1;min-width:0;padding:6px 10px;border-radius:10px;border:2px solid var(--line);font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
+.acct small{grid-column:1/-1;color:var(--ink-soft);font-weight:700;font-size:12px}
+.proposal{width:100%;min-height:150px;margin-top:8px;padding:10px 12px;border-radius:12px;border:2px solid var(--line);font:inherit;font-size:13px;line-height:1.5;background:var(--paper-2);color:var(--ink);resize:vertical}
+.share{display:none;gap:6px;flex-wrap:wrap;margin-top:6px}
+.share.show{display:flex}
 .empty{padding:26px 10px;text-align:center;font-weight:800;color:var(--ink-soft)}
 .funnel{display:flex;align-items:flex-end;gap:8px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px}
 .step{flex:1;min-width:92px;text-align:center}
@@ -176,6 +183,7 @@ body.night .bub{color:#4a3426}
     <button class="panel tbtn" id="bPov" title="Mata owner (V)">👁️<span>POV</span></button>
     <button class="panel tbtn" id="bAuto" title="Karyawan kerja otomatis">🤖<span>Auto</span></button>
     <button class="panel tbtn" id="bInbox" title="Persetujuan lamaran">📥<span>Persetujuan</span><b class="badge" id="inboxBadge"></b></button>
+    <button class="panel tbtn" id="bBoard" title="Papan proyek freelance">💼<span>Proyek</span></button>
     <button class="panel tbtn" id="bResults" title="Hasil kerja karyawan">📂<span>Hasil</span></button>
     <button class="panel tbtn" id="bPerf" title="Kinerja tim">📊<span>Kinerja</span></button>
     <button class="panel tbtn" id="bOver" title="Lihat seluruh gedung">🏢</button>
@@ -218,6 +226,7 @@ body.night .bub{color:#4a3426}
     <button data-act="semangat">💪<small>Semangati</small></button>
   </div>
   <button class="hunt" id="cHuntBtn"></button>
+  <button class="btn" id="cBoard" style="width:100%;justify-content:center;margin-top:8px;display:none">💼 Buka papan proyek</button>
   <button class="btn" id="cResults" style="width:100%;justify-content:center;margin-top:8px">📂 Lihat hasil kerjanya</button>
   <ul class="leads" id="cHunt"></ul>
 </div>
@@ -227,6 +236,21 @@ body.night .bub{color:#4a3426}
   <h2>Kotak Persetujuan</h2>
   <div class="sub" id="inboxSub">Lowongan yang cocok, siap kamu putuskan</div>
   <div id="inboxList"></div>
+</div></div>
+
+<div id="board"><div class="panel" role="dialog" aria-label="Papan proyek freelance">
+  <button class="xbtn" id="boardClose" aria-label="Tutup">✕</button>
+  <h2>Papan Proyek Freelance</h2>
+  <div class="sub">Proyek dari Freelancer.com 🌍, Projects.co.id 🏠 dan Telegram 🏠. Kamu yang memutuskan dan menekan kirim.</div>
+  <div class="acct">
+    <label>🌍 <input id="acFreelancer" type="url" placeholder="Link profil Freelancer.com kamu"><a class="btn" id="acFreelancerGo" target="_blank" rel="noopener noreferrer">Buka</a></label>
+    <label>💼 <input id="acLinkedin" type="url" placeholder="Link profil LinkedIn kamu"><a class="btn" id="acLinkedinGo" target="_blank" rel="noopener noreferrer">Buka</a></label>
+    <label>🐙 <input id="acGithub" type="text" placeholder="Username GitHub" maxlength="39" autocomplete="off"><button class="btn" id="acGithubSync">🔄 Sinkron</button></label>
+    <small id="acGithubInfo">Repo GitHub dipakai Cora sebagai bukti portofolio di setiap proposal.</small>
+    <small>🔐 Login cukup sekali di Chrome-mu (BrowserMCP) atau di jendela Playwright. Bot hanya memakai sesi browser itu dan tidak pernah menyimpan password.</small>
+  </div>
+  <div class="chips" id="boardSources"></div>
+  <div id="boardList"></div>
 </div></div>
 
 <div id="results"><div class="panel" role="dialog" aria-label="Hasil kerja karyawan">
@@ -950,8 +974,8 @@ const STAFF = [
   { id: 'ivan', name: 'Ivan', role: 'Pelatih Interview', div: 'pantau', look: { skin: 0xc68a5e, hair: 0x2b211c, shirt: 0x6b5a8a, pants: 0x3d3d4a },
     perf: d => ({ score: d.interview ? r01(0.6 + 0.15 * d.interview + 0.4 * d.offer) : (d.sent ? 0.3 : 0.1), pills: [['🎤', d.interview], ['🏆', d.offer]], lines: d.offer ? ['ADA OFFER!! 🎉🎉'] : d.interview ? ['Yuk latihan interview bareng aku!'] : ['Siap latihan kapan aja 💪'] }) },
   { id: 'lido', name: 'Lido', role: 'Pemburu Freelancer.com 🌍', div: 'freelance', hunt: { src: 'freelancer', site: 'Freelancer.com', what: 'proyek' }, look: { skin: 0xf1c9a5, hair: 0xd9a05b, shirt: 0xc9a227, pants: 0x4a4a5a }, perf: leadScout('freelancer', 200) },
-  { id: 'nara', name: 'Nara', role: 'Pemburu Projects.co.id 🇮🇩', div: 'freelance', hunt: { src: 'projects.co.id', site: 'Projects.co.id', what: 'proyek' }, look: { skin: 0xe0ac7e, hair: 0x2b211c, shirt: 0xef6a5a, pants: 0x4a4a5a, bun: 1 }, perf: leadScout('projects.co.id', 30) },
-  { id: 'tama', name: 'Tama', role: 'Pengintai Telegram 🇮🇩', div: 'freelance', hunt: { src: 'telegram', site: 'channel Telegram', what: 'proyek' }, look: { skin: 0xc68a5e, hair: 0x1f1a17, shirt: 0x2aabee, pants: 0x3d3d4a }, perf: leadScout('telegram', 30) },
+  { id: 'nara', name: 'Nara', role: 'Pemburu Projects.co.id 🏠', div: 'freelance', hunt: { src: 'projects.co.id', site: 'Projects.co.id', what: 'proyek' }, look: { skin: 0xe0ac7e, hair: 0x2b211c, shirt: 0xef6a5a, pants: 0x4a4a5a, bun: 1 }, perf: leadScout('projects.co.id', 30) },
+  { id: 'tama', name: 'Tama', role: 'Pengintai Telegram 🏠', div: 'freelance', hunt: { src: 'telegram', site: 'channel Telegram', what: 'proyek' }, look: { skin: 0xc68a5e, hair: 0x1f1a17, shirt: 0x2aabee, pants: 0x3d3d4a }, perf: leadScout('telegram', 30) },
 ];
 
 function moodFor(perf) {
@@ -1395,6 +1419,7 @@ function openCard(c) {
       : `🔎 ${c.lastHunt ? 'Cari lagi' : `Cari ${h.what} di ${h.site} sekarang`}`;
   }
   showLeads(c.lastHunt || []);
+  $('cBoard').style.display = h?.what === 'proyek' ? 'flex' : 'none';
   $('card').classList.add('show');
 }
 
@@ -1516,12 +1541,15 @@ $('bAuto').onclick = () => live ? setAuto(!S.work?.auto) : toast('Jalankan: pyth
 
 // the background cycle runs on the server; employees act out what it is doing
 let prevBusy = null, lastWorkAt;
-const workerFor = src => src === 'draft' ? byId('cora') : staff.find(c => c.def.hunt?.src === src);
+const workerFor = src => src === 'draft' || src === 'proposal' ? byId('cora') : staff.find(c => c.def.hunt?.src === src);
 function reactToWork() {
   const w = S.work; if (!w) return;
   if (w.busy !== prevBusy) {
     const c = w.busy && workerFor(w.busy);
-    if (c) { c.showEmo(w.busy === 'draft' ? '✍️' : '🔎'); say(c, w.busy === 'draft' ? 'Aku tulis surat lamarannya ya ✍️' : `Lagi cek ${c.def.hunt.site}… 🔎`, 8); }
+    if (c) {
+      c.showEmo(c.def.hunt ? '🔎' : '✍️');
+      say(c, w.busy === 'draft' ? 'Aku tulis surat lamarannya ya ✍️' : w.busy === 'proposal' ? 'Aku tulis draf bid dari profil & GitHub-mu ✍️' : `Lagi cek ${c.def.hunt.site}… 🔎`, 8);
+    }
     prevBusy = w.busy;
   }
   const L = w.last;
@@ -1533,8 +1561,9 @@ function reactToWork() {
   if (L.matched > 0) {
     c.boost = 2; c.boostUntil = clock.elapsedTime + 90; c.doEmote('cheer', 2.5);
     burst(at(c), L.source === 'draft' ? ['✍️', '📝', '✨'] : ['🏢', '✨', '🎉'], 8); Snd.play('coin');
-    say(c, L.source === 'draft' ? `${L.matched} draf siap kamu cek di 📥` : `Dapet ${L.matched} yang cocok! 🎉`);
-    toast(L.source === 'draft' ? `✍️ Cora menyiapkan ${L.matched} draf lamaran — cek 📥 Persetujuan` : `${c.def.hunt.what === 'proyek' ? '💼' : '🏢'} ${c.name} menemukan ${L.matched} ${c.def.hunt.what} cocok`);
+    say(c, L.source === 'draft' ? `${L.matched} draf siap kamu cek di 📥` : L.source === 'proposal' ? `${L.matched} draf bid siap di 💼` : `Dapet ${L.matched} yang cocok! 🎉`);
+    toast(L.source === 'draft' ? `✍️ Cora menyiapkan ${L.matched} draf lamaran — cek 📥 Persetujuan`
+      : L.source === 'proposal' ? `✍️ Cora menulis ${L.matched} draf bid proyek — cek 💼 Proyek` : `${c.def.hunt.what === 'proyek' ? '💼' : '🏢'} ${c.name} menemukan ${L.matched} ${c.def.hunt.what} cocok`);
   } else { c.doEmote('nod', 1.5); say(c, 'Belum ada yang baru, nanti aku cek lagi'); }
 }
 
@@ -1594,6 +1623,149 @@ async function draftMore() {
   if (res.ok) { c.doEmote('cheer', 2); say(c, `${res.data.drafted} draf siap kamu cek!`); Snd.play('chime'); }
   else { c.doEmote('sigh', 1.5); say(c, res.status === 409 ? 'Tim lagi sibuk, sebentar lagi ya' : 'Gagal nulis 😢 coba lagi'); }
   await loadStats(); renderInbox();
+}
+
+// ---------- freelance project board ----------
+const BOARD_SOURCES = [['', '✨ Semua'], ['freelancer', '🌍 Freelancer.com'], ['projects.co.id', '🏠 Projects.co.id'], ['telegram', '🏠 Telegram']];
+const SOURCE_FLAG = { freelancer: '🌍', 'projects.co.id': '🏠', telegram: '🏠' };
+const ACCT_KEY = 'kantor-loker-akun';
+let boardOpen = false, boardSource = '';
+let acct = {};
+try { acct = JSON.parse(localStorage.getItem(ACCT_KEY) || '{}'); } catch {}
+for (const [k, id] of [['freelancer', 'acFreelancer'], ['linkedin', 'acLinkedin']]) {
+  const input = $(id), go = $(id + 'Go');
+  const sync = () => {
+    const ok = /^https:\/\//.test(input.value.trim());
+    go.href = ok ? input.value.trim() : (k === 'linkedin' ? 'https://www.linkedin.com/in/' : 'https://www.freelancer.com/dashboard');
+  };
+  input.value = acct[k] || ''; sync();
+  input.oninput = () => { acct[k] = input.value.trim(); sync(); try { localStorage.setItem(ACCT_KEY, JSON.stringify(acct)); } catch {} };
+}
+async function loadGithubInfo() {
+  try {
+    const g = await (await fetch('github.json', { cache: 'no-store' })).json();
+    if (g.username && !$('acGithub').value) $('acGithub').value = g.username;
+    $('acGithubInfo').textContent = g.repos
+      ? `🐙 ${g.repos} repo GitHub tersimpan (sinkron ${ago(g.synced_at)}). Cora memilih repo yang paling relevan untuk setiap proposal.`
+      : '🐙 Isi username GitHub lalu klik Sinkron, supaya proposal menyertakan bukti portofolio.';
+  } catch {}
+}
+$('acGithubSync').onclick = async () => {
+  const b = $('acGithubSync'), username = $('acGithub').value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(username)) { toast('Isi username GitHub yang valid'); return; }
+  b.disabled = true; b.textContent = '⏳ Sinkron…';
+  const res = await post('github/sync', { username });
+  b.disabled = false; b.textContent = '🔄 Sinkron';
+  if (!res.ok) { toast(res.status === 400 ? 'Username GitHub tidak valid' : 'GitHub tidak bisa dihubungi, coba lagi'); Snd.play('sad'); return; }
+  const c = byId('cora'); c.doEmote('cheer', 2); say(c, `${res.data.repos} repo-mu sudah aku pelajari 📚`); Snd.play('coin');
+  toast(`🐙 ${res.data.repos} repo GitHub tersimpan untuk bahan proposal`);
+  loadGithubInfo();
+};
+function toggleBoard(v = !boardOpen, source = boardSource) {
+  boardOpen = v; $('board').classList.toggle('show', v);
+  if (v) { renderBoard(source); if (live) loadGithubInfo(); }
+}
+$('bBoard').onclick = () => toggleBoard();
+$('boardClose').onclick = () => toggleBoard(false);
+$('board').onclick = e => { if (e.target === $('board')) toggleBoard(false); };
+$('cBoard').onclick = () => chatWith && toggleBoard(true, chatWith.def.hunt.src);
+async function renderBoard(source = boardSource) {
+  boardSource = source;
+  $('boardSources').replaceChildren(...BOARD_SOURCES.map(([src, label]) => {
+    const b = el('button', 'chipb' + (src === source ? ' on' : ''), label); b.onclick = () => renderBoard(src); return b;
+  }));
+  const list = $('boardList');
+  if (!live) { list.replaceChildren(el('div', 'empty', '🔌 Jalankan: python -m bot_loker_wfh office')); return; }
+  list.replaceChildren(el('div', 'empty', '⏳ Memuat proyek…'));
+  let d;
+  try {
+    const r = await fetch('leads.json' + (source ? '?source=' + encodeURIComponent(source) : ''), { cache: 'no-store' });
+    if (r.status === 404) { list.replaceChildren(el('div', 'empty', '🔄 Server office masih versi lama. Hentikan (Ctrl+C) lalu jalankan ulang: python -m bot_loker_wfh office')); return; }
+    d = await r.json();
+  } catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  if (boardSource !== source) return;
+  list.replaceChildren(...(d.items.length ? d.items.map(l => leadCard(l, d.browser_fill)) : [el('div', 'empty', '🌱 Belum ada proyek. Suruh Lido, Nara atau Tama mencari dari kartunya.')]));
+}
+async function leadPost(lead, action, body) {
+  const res = await post(`leads/${encodeURIComponent(lead.id)}/${action}`, body || {});
+  if (!res.ok) { Snd.play('sad'); toast('Gagal, coba lagi'); }
+  return res;
+}
+function leadCard(l, browserFill) {
+  const card = el('div', 'job'), title = el('div', 'jt'), a = el('a', null, l.title);
+  a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; title.append(a);
+  card.append(title, el('div', 'jc', `${SOURCE_FLAG[l.source] || '•'} ${l.source} · ${l.budget || 'Budget belum ditulis'}`));
+  const meta = el('div', 'meta');
+  if (l.status === 'INTERESTED') meta.append(el('span', 'tag good', '💛 Kamu minati'));
+  else if (l.proposal) meta.append(el('span', 'tag mid', '✍️ Draf bid dari Cora'));
+  if (l.kind === 'source_code') meta.append(el('span', 'tag', '💾 Source code'));
+  meta.append(el('span', null, '🕒 ' + ago(l.posted_at || l.fetched_at)));
+  card.append(meta);
+  if (l.description) { const det = el('details'); det.append(el('summary', null, '📄 Deskripsi proyek'), el('p', 'letter', l.description)); card.append(det); }
+
+  // proposal: Cora drafts it, the owner edits it
+  const prop = el('div');
+  const showProposal = text => {
+    const ta = el('textarea', 'proposal'); ta.value = text; ta.setAttribute('aria-label', 'Proposal');
+    const row = el('div', 'jact');
+    const save = el('button', 'btn', '💾 Simpan proposal');
+    save.onclick = async () => { save.disabled = true; if ((await leadPost(l, 'proposal', { text: ta.value })).ok) { l.proposal = ta.value; toast('💾 Proposal tersimpan'); Snd.play('pop'); } save.disabled = false; };
+    const copy = el('button', 'btn', '📋 Salin');
+    copy.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); toast('📋 Proposal disalin, tinggal tempel di form bid'); } catch { ta.select(); } };
+    row.append(save, copy);
+    prop.replaceChildren(ta, row);
+  };
+  if (l.proposal) showProposal(l.proposal);
+
+  const acts = el('div', 'jact');
+  const btn = (text, cls, fn) => { const b = el('button', 'btn ' + cls, text); b.onclick = () => fn(b); acts.append(b); return b; };
+  if (!l.proposal) btn('✍️ Minta Cora tulis proposal', 'ok', async b => {
+    b.disabled = true; b.textContent = '⏳ Cora sedang menulis…';
+    const c = byId('cora'); c.showEmo('✍️'); say(c, 'Aku tulis proposalnya ya ✍️', 20);
+    const res = await leadPost(l, 'proposal');
+    if (!res.ok) { b.disabled = false; b.textContent = '✍️ Minta Cora tulis proposal'; return; }
+    l.proposal = res.data.proposal; l.status = 'INTERESTED';
+    c.doEmote('cheer', 2); say(c, 'Proposal siap! Cek dan edit sesukamu 📝'); Snd.play('chime');
+    showProposal(l.proposal); b.remove();
+  });
+  btn(l.status === 'INTERESTED' ? '💔 Batal minat' : '💛 Minati', '', async b => {
+    const next = l.status === 'INTERESTED' ? 'new' : 'interested';
+    if ((await leadPost(l, next)).ok) { l.status = next.toUpperCase(); b.textContent = l.status === 'INTERESTED' ? '💔 Batal minat' : '💛 Minati'; Snd.play('pop'); loadStats(); }
+  });
+  btn('🙈 Abaikan', 'no', async () => { if ((await leadPost(l, 'ignored')).ok) { card.remove(); Snd.play('pop'); loadStats(); } });
+  const open = el('a', 'btn', '🌐 Buka & apply'); open.href = l.url; open.target = '_blank'; open.rel = 'noopener noreferrer'; acts.append(open);
+  if (browserFill) {
+    for (const [engine, label] of [['browsermcp', '🧾 Isi di Chrome-ku'], ['playwright', '🎭 Isi pakai Playwright']]) {
+      btn(label, '', async b => {
+        if (!l.proposal) { toast('✍️ Tulis proposal dulu, lalu form bid bisa diisi otomatis'); return; }
+        b.disabled = true;
+        const res = await leadPost(l, 'fill', { engine });
+        b.disabled = false;
+        if (!res.ok) return;
+        if (res.data.mode === 'busy') { toast('🪟 Jendela pengisi form sebelumnya masih terbuka. Selesaikan atau tutup dulu jendela itu'); return; }
+        const f = byId('faris'); f.showEmo('🧾'); f.doEmote('cheer', 2); Snd.play('chime');
+        say(f, engine === 'playwright' ? 'Aku buka jendela Playwright & isi form bid-nya. Kamu yang klik kirim ya 🎭' : 'Aku isi form bid di Chrome-mu. Cek lalu kamu yang klik kirim ya 🧾', 8);
+        toast(engine === 'playwright'
+          ? '🎭 Jendela Playwright terbuka. Kalau diminta, login di jendela itu: form langsung diisi setelah login. Kamu yang klik kirim'
+          : '🧾 Pastikan ekstensi BrowserMCP di Chrome sudah Connect. Form diisi, kamu yang klik kirim');
+      });
+    }
+  }
+  const shareRow = el('div', 'share');
+  btn('📤 Bagikan', '', () => shareRow.classList.toggle('show'));
+  const text = `${l.title} (${l.budget || 'budget belum ditulis'})`;
+  const enc = encodeURIComponent;
+  for (const [label, url] of [
+    ['💬 WhatsApp', `https://wa.me/?text=${enc(text + '\n' + l.url)}`],
+    ['✈️ Telegram', `https://t.me/share/url?url=${enc(l.url)}&text=${enc(text)}`],
+    ['💼 LinkedIn', `https://www.linkedin.com/sharing/share-offsite/?url=${enc(l.url)}`],
+  ]) { const s = el('a', 'btn', label); s.href = url; s.target = '_blank'; s.rel = 'noopener noreferrer'; shareRow.append(s); }
+  const cp = el('button', 'btn', '🔗 Salin link');
+  cp.onclick = async () => { try { await navigator.clipboard.writeText(l.url); toast('🔗 Link disalin'); } catch {} };
+  shareRow.append(cp);
+  if (navigator.share) { const ns = el('button', 'btn', '📱 Lainnya'); ns.onclick = () => navigator.share({ title: l.title, text, url: l.url }).catch(() => {}); shareRow.append(ns); }
+  card.append(prop, acts, shareRow);
+  return card;
 }
 
 // ---------- results: what each employee actually produced ----------
@@ -1795,7 +1967,7 @@ addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; cam
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); $('custom').classList.remove('show'); }
+  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); $('custom').classList.remove('show'); }
   if (k === 'v') setFP(!fp);
   if ((k === 'e' || k === 'q') && inLift(me.pos) && !me.ride) {
     const to = clamp(me.level + (k === 'e' ? 1 : -1), 0, ROOF);

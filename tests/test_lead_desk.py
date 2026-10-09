@@ -93,5 +93,23 @@ class LeadFillTest(unittest.TestCase):
         )
 
 
+class LoginWaitTest(unittest.TestCase):
+    def test_waits_until_the_login_link_is_gone_and_stops_when_browser_closes(self):
+        from bot_loker_wfh.form_agent.agent import LOGIN_GATE, FormAgent
+
+        class FakeClient:
+            def __init__(self, pages):
+                self.pages = list(pages)
+
+            def peek_snapshot(self):
+                return self.pages.pop(0) if self.pages else None
+
+        logged_out = '- link "Log In" [ref=e40]'
+        self.assertTrue(LOGIN_GATE.search(logged_out))
+        self.assertTrue(FormAgent._wait_for_login(
+            FakeClient([logged_out, '- textbox "Bid amount" [ref=e9]']), 5, poll_seconds=0))
+        self.assertFalse(FormAgent._wait_for_login(FakeClient([logged_out]), 5, poll_seconds=0))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,3 +7,4 @@ tmp/
 backups/
 .env
 *.egg-info/
+.playwright-mcp/

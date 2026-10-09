@@ -84,6 +84,7 @@ Each floor is one division of the pipeline; employees' moods and the "Kinerja" p
 - 📥 **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
 - 📂 **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
 - Every scout and Lido can also run one real search on demand from their card.
+- 💼 **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or a Playwright MCP window (`PLAYWRIGHT_MCP_COMMAND`, persistent profile in `data/playwright-mcp-profile`). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
 
 ## Operational Documentation for MVP
 

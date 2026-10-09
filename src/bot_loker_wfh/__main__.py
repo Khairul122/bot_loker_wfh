@@ -27,6 +27,7 @@ from .leads import (
 from .lever import LeverFetcher
 from .llm import AnthropicProvider, create_llm_from_settings
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
+from .github_portfolio import load_portfolio, sync_portfolio
 from .lead_desk import draft_proposal
 from .office_work import OfficeWork
 from .pipeline import JobPipeline
@@ -53,6 +54,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--force-assist", action="store_true", help="Force assist mode for fill-form")
     parser.add_argument("--next-page", action="store_true", help="Fill next page for multi-page form")
     parser.add_argument("--lead-id", help="Lead ID for fill-lead")
+    parser.add_argument("--github-user", help="GitHub username for sync-github (default: GITHUB_USERNAME)")
     parser.add_argument("--engine", choices=("browsermcp", "playwright"), default="browsermcp",
                         help="Browser for fill-lead: your Chrome (BrowserMCP) or Playwright MCP")
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
@@ -75,6 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "add-company",
             "fill-form",
             "fill-lead",
+            "sync-github",
             "cleanup-retention",
             "backup-db",
             "restore-db",
@@ -193,6 +196,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "run-bot":
         return _run_bot(settings)
+
+    if args.command == "sync-github":
+        username = args.github_user or settings.github_username
+        if not username:
+            parser.error("sync-github needs --github-user or GITHUB_USERNAME")
+        data = sync_portfolio(username)
+        print(f"github portfolio saved repos={len(data['repos'])} path=data/github_portfolio.json")
+        return 0
 
     if args.command == "fill-lead":
         if not args.lead_id:
@@ -314,7 +325,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             database_path,
             hunters=_office_hunters(profile, settings),
             draft_service_for=lambda connection: DraftService(connection, profile, llm=llm),
-            proposal_writer=lambda connection, lead_id: draft_proposal(connection, lead_id, profile, llm),
+            proposal_writer=lambda connection, lead_id, mark_interested=True: draft_proposal(
+                connection, lead_id, profile, llm, portfolio=load_portfolio(), mark_interested=mark_interested
+            ),
             form_assist_enabled=settings.form_assist_enabled,
             # same floor as the scheduler: job sources are polled at most every 4 hours
             interval_seconds=int(max(4.0, settings.fetch_interval_hours) * 3600),

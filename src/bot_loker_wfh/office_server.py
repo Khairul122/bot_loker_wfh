@@ -9,6 +9,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
 from .status_transitions import InvalidTransitionError
 
@@ -156,6 +157,10 @@ class _Handler(SimpleHTTPRequestHandler):
             view, source = query.get("view", [""])[0], query.get("source", [None])[0]
             with self._connect() as connection:
                 return self._json(200, {"items": employee_results(connection, view, source)})
+        if path == "/github.json":
+            data = load_portfolio()
+            return self._json(200, {"username": data.get("username"), "synced_at": data.get("synced_at"),
+                                    "repos": len(data.get("repos", []))})
         if path == "/leads.json":
             source = parse_qs(urlsplit(self.path).query).get("source", [None])[0]
             with self._connect() as connection:
@@ -171,6 +176,16 @@ class _Handler(SimpleHTTPRequestHandler):
         if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
             return self._json(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
+        if parts == ["github", "sync"]:
+            length = int(self.headers.get("Content-Length") or 0)
+            username = str(json.loads(self.rfile.read(length) or b"{}").get("username") or "").strip()
+            try:
+                data = sync_portfolio(username)
+            except ValueError:
+                return self._json(400, {"error": "invalid_username"})
+            except OSError:
+                return self._json(502, {"error": "github_unreachable"})
+            return self._json(200, {"username": username, "synced_at": data["synced_at"], "repos": len(data["repos"])})
         if parts == ["auto"]:
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")

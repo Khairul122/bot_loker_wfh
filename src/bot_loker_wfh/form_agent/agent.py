@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import re
 from typing import Any
 from urllib.parse import urlparse
+
+# A visible "Log In" / "Masuk" link means the bid form is hidden behind a login.
+LOGIN_GATE = re.compile(r'(link|button) "(log ?in|sign in|masuk)"', re.IGNORECASE)
+LOGIN_WAIT_SECONDS = 10 * 60
 
 from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
 from bot_loker_wfh.cv_profile import load_profile
@@ -117,6 +122,18 @@ class FormAgent:
             keep_open_seconds=keep_open_seconds,
         )
 
+    @staticmethod
+    def _wait_for_login(client: Any, max_seconds: float, poll_seconds: float = 5.0) -> bool:
+        deadline = time.time() + max_seconds
+        while time.time() < deadline:
+            time.sleep(poll_seconds)
+            text = client.peek_snapshot()
+            if text is None:
+                return False  # browser was closed
+            if not LOGIN_GATE.search(text) and "login" not in text.lower().split("page url:")[-1][:80]:
+                return True
+        return False
+
     def _session(
         self,
         *,
@@ -197,6 +214,17 @@ class FormAgent:
                             )
                             time.sleep(2.0)
                             break
+
+            # Bid pages hide the form until the owner is logged in: wait for them in
+            # this same window (it stays open), then reload the project page.
+            if keep_open_seconds and hasattr(client, "peek_snapshot"):
+                if LOGIN_GATE.search(client.peek_snapshot() or ""):
+                    print("Belum login. Silakan login di jendela browser yang terbuka; "
+                          "form akan diisi otomatis setelah kamu login.", flush=True)
+                    if not self._wait_for_login(client, LOGIN_WAIT_SECONDS):
+                        return "Login tidak terdeteksi dalam 10 menit. Form tidak diisi."
+                    client.call_tool("browser_navigate", {"url": apply_url})
+                    time.sleep(3.0)
 
             # 4. Baca form
             snapshot = client.call_tool("browser_snapshot", {})

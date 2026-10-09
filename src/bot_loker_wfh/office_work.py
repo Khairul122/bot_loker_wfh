@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
-from .lead_desk import list_leads, save_proposal, set_lead_status
+from .lead_desk import list_leads, save_proposal, set_lead_status, undrafted_leads
 from .status_transitions import (
     InvalidTransitionError,
     TransitionActor,
@@ -25,6 +25,7 @@ from .status_transitions import (
 )
 
 DRAFTS_PER_CYCLE = 3
+PROPOSALS_PER_CYCLE = 3
 
 
 @contextmanager
@@ -48,7 +49,7 @@ class OfficeWork:
         form_assist_enabled: bool,
         interval_seconds: int,
         lock: threading.Lock,
-        proposal_writer: Callable[[sqlite3.Connection, str], str] | None = None,
+        proposal_writer: Callable[..., str] | None = None,
         spawn: Callable[..., Any] = subprocess.Popen,
         clock: Callable[[], float] = time.time,
     ) -> None:
@@ -59,6 +60,7 @@ class OfficeWork:
         self.interval_seconds = interval_seconds
         self.lock = lock  # shared with manual hunts: one search/draft at a time
         self.proposal_writer = proposal_writer
+        self._lead_fill: Any = None  # the running fill-lead process, if any
         self.spawn = spawn
         self.clock = clock
         self.auto = False
@@ -155,6 +157,13 @@ class OfficeWork:
 
     # ------------------------------------------------------------------ freelance desk
 
+    def draft_proposals(self, connection: sqlite3.Connection, limit: int = PROPOSALS_PER_CYCLE) -> int:
+        """Cora pre-writes bids for the best new projects; they stay NEW until the owner acts."""
+        lead_ids = undrafted_leads(connection, limit)
+        for lead_id in lead_ids:
+            self.proposal_writer(connection, lead_id, mark_interested=False)
+        return len(lead_ids)
+
     def leads(self, connection: sqlite3.Connection, source: str | None) -> dict:
         return {"items": list_leads(connection, source), "browser_fill": self.form_assist_enabled}
 
@@ -177,7 +186,9 @@ class OfficeWork:
             engine = "playwright" if body.get("engine") == "playwright" else "browsermcp"
             if not self.form_assist_enabled or not (row[1] or "").strip():
                 return {"mode": "manual", "url": row[0]}
-            spawn_fill_lead(lead_id, engine, spawn=self.spawn)
+            if self._lead_fill is not None and getattr(self._lead_fill, "poll", lambda: 0)() is None:
+                return {"mode": "busy", "url": row[0]}
+            self._lead_fill = spawn_fill_lead(lead_id, engine, spawn=self.spawn)
             return {"mode": "form", "engine": engine, "url": row[0]}
         raise ValueError(f"unknown action: {action}")
 
@@ -229,5 +240,13 @@ class OfficeWork:
                         self.last = {"source": "draft", "matched": drafted, "at": self.clock()}
                     except Exception:
                         self.last = {"source": "draft", "error": True, "at": self.clock()}
+                if self.proposal_writer is not None and self.auto:
+                    self.busy = "proposal"
+                    with self.lock:
+                        try:
+                            written = self.draft_proposals(connection)
+                            self.last = {"source": "proposal", "matched": written, "at": self.clock()}
+                        except Exception:
+                            self.last = {"source": "proposal", "error": True, "at": self.clock()}
         finally:
             self.busy = None

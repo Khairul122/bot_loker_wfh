@@ -156,6 +156,19 @@ class McpBrowserClient:
             "Ekstensi BrowserMCP belum terhubung setelah menunggu."
         )
 
+    def peek_snapshot(self) -> str | None:
+        """Read-only snapshot text for waiting loops; not counted against max_tool_calls."""
+        try:
+            res = self._send_request("tools/call", {"name": "browser_snapshot", "arguments": {}})
+        except Exception:
+            return None
+        payload = res.get("result", {})
+        if "error" in res or not isinstance(payload, dict) or payload.get("isError"):
+            return None
+        return " ".join(
+            item.get("text", "") for item in payload.get("content", []) if isinstance(item, dict)
+        )
+
     def hold_open(self, max_seconds: float, poll_seconds: float = 10.0) -> None:
         """Keep the server (and the browser it launched) alive until the owner closes it.
 
