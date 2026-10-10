@@ -157,7 +157,7 @@ class BotRunnerTest(unittest.TestCase):
         self.assertIsNotNone(row[1])
         self.assertEqual(
             self.connection.execute(
-                "SELECT to_status FROM application_status_history ORDER BY changed_at, rowid"
+                "SELECT to_status FROM application_status_history ORDER BY changed_at, ctid"
             ).fetchall()[-1][0],
             "SUBMITTED",
         )

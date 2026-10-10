@@ -98,7 +98,7 @@ class KalibrrFetcherTest(unittest.TestCase):
 
     def test_remote_jobs_flow_through_the_eligibility_pipeline(self):
         self.fetcher([{"count": 1, "jobs": [kalibrr_job(1)]}]).fetch_and_store()
-        self.connection.execute("UPDATE jobs SET posted_at = strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now')")
+        self.connection.execute("UPDATE jobs SET posted_at = utc_now_iso()")
 
         counts = JobPipeline(self.connection, PROFILE).process_discovered()
 

@@ -209,7 +209,7 @@ class Connection:
 def connect(schema: str | None = None) -> Connection:
     """Open a connection to Supabase Postgres (optionally pinned to one schema, for tests)."""
     schema = schema or os.getenv("BOT_DB_SCHEMA")
-    options = f"-c search_path={schema}" if schema else None
+    options = "-c extra_float_digits=3" + (f" -c search_path={schema}" if schema else "")
     raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None)
     return Connection(raw)
 

@@ -16,7 +16,6 @@ from bot_loker_wfh.office_server import _Handler
 from bot_loker_wfh.office_state import load_state, save_state
 from bot_loker_wfh.office_work import OfficeWork
 from bot_loker_wfh import database
-from bot_loker_wfh.settings_store import SupabaseUnavailable
 
 
 class OfficeStateTest(unittest.TestCase):
