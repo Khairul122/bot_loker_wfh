@@ -12,12 +12,14 @@ import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 from . import office_desk as desk
 from . import database
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import USERNAME_RE, load_portfolio, sync_portfolio
+from .lead_desk import RevisionFailed
 from .office_work import open_db
 from .office_state import load_state, save_state
 from .office_events import bus as office_events
@@ -36,7 +38,7 @@ ALLOWED_SETTINGS = frozenset({
     "ninerouter_fallback_models", "llm_model_draft", "llm_model_form",
     "llm_model_answer", "llm_timeout_seconds", "llm_task_budget_seconds",
     "llm_temperature_draft",
-    "form_engine", "browser_mcp_command", "playwright_mcp_command",
+    "browser_mcp_command",
     "form_min_confidence", "form_max_actions", "form_max_tool_calls",
     "form_timeout_seconds", "form_connect_timeout_seconds", "form_ai_answers",
     "applicant_path", "answers_path", "scrape_interval_hours",
@@ -50,7 +52,6 @@ _NUMERIC_SETTINGS = {
 }
 _ENUM_SETTINGS = {
     "llm_provider": {"template", "9router"},
-    "form_engine": {"playwright", "browsermcp"},
     "form_ai_answers": {"review", "off"},
 }
 
@@ -166,9 +167,7 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
         "llm_temperature_draft": settings.llm_temperature_draft,
         
         # Form Engine
-        "form_engine": settings.form_engine,
         "browser_mcp_command": settings.browser_mcp_command,
-        "playwright_mcp_command": settings.playwright_mcp_command,
         "form_min_confidence": settings.form_min_confidence,
         "form_max_actions": settings.form_max_actions,
         "form_max_tool_calls": settings.form_max_tool_calls,
@@ -457,9 +456,6 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/ats/list":
             with self._connect() as connection:
                 return self._json(200, {"ats": self._list_ats(connection)})
-        if path == "/form/test":
-            engine = parse_qs(urlsplit(self.path).query).get("engine", ["playwright"])[0]
-            return self._json(200, self._test_form_engine(engine))
         return super().do_GET()
 
     def _body(self) -> dict:
@@ -508,6 +504,10 @@ class _Handler(SimpleHTTPRequestHandler):
                     data = sync_portfolio(username, connection)
             except ValueError:
                 return self._json(400, {"error": "invalid_username"})
+            except HTTPError as error:
+                if error.code == 404:
+                    return self._json(404, {"error": "github_user_not_found"})
+                return self._json(502, {"error": "github_unreachable"})
             except OSError:
                 return self._json(502, {"error": "github_unreachable"})
             except database.Error:
@@ -561,8 +561,13 @@ class _Handler(SimpleHTTPRequestHandler):
             try:
                 with self._connect() as connection:
                     return self._json(200, self.work.lead_action(connection, parts[1], parts[2], body))
-            except (KeyError, ValueError):
+            except KeyError:
                 return self._json(404, {"error": "not_found"})
+            except RevisionFailed as error:
+                return self._json(502, {"error": "llm_unavailable", "message": str(error)})
+            except ValueError as error:
+                message = str(error)  # user-safe reasons written in lead_desk / office_work
+                return self._json(404 if message.startswith("unknown action") else 400, {"error": message})
         if len(parts) == 3 and parts[0] == "inbox":
             try:
                 with self._connect() as connection:
@@ -731,34 +736,6 @@ class _Handler(SimpleHTTPRequestHandler):
             ]
         except Exception:
             return []
-
-    def _test_form_engine(self, engine):
-        """Test form engine."""
-        try:
-            from bot_loker_wfh.config import Settings
-            settings = Settings.from_environment()
-            
-            if engine == "browsermcp":
-                from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
-                client = McpBrowserClient(command=settings.browser_mcp_command)
-                client.start()
-                try:
-                    client.wait_for_extension(timeout=10.0)
-                    client.stop()
-                    return {"ok": True, "engine": "browsermcp", "message": "BrowserMCP siap"}
-                except McpNotConnectedError:
-                    client.stop()
-                    return {"ok": False, "engine": "browsermcp", "error": "Ekstensi belum Connect"}
-                except Exception as err:
-                    client.stop()
-                    return {"ok": False, "engine": "browsermcp", "error": str(err)}
-            else:
-                # Playwright - just check if command works
-                cmd = shlex.split(settings.playwright_mcp_command)
-                result = subprocess.run(cmd + ["--help"], capture_output=True, text=True, timeout=10)
-                return {"ok": result.returncode == 0, "engine": "playwright", "message": "Playwright MCP tersedia" if result.returncode == 0 else "Playwright MCP tidak ditemukan"}
-        except Exception as err:
-            return {"ok": False, "engine": engine, "error": str(err)}
 
     def log_message(self, *args):
         pass

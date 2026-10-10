@@ -182,8 +182,6 @@ After you approve an application, tap **Buka & isi form** (or `/isi <application
 Setup (once, on the computer that runs `run-bot`):
 
 ```powershell
-python -m pip install -e ".[form]"
-python -m playwright install chromium
 Copy-Item resume/applicant.example.json data/applicant.json   # then edit: name, email, phone, resume_path, links
 ```
 
@@ -284,7 +282,7 @@ If any of the above appear in a log line, it is a bug. Report and do not share t
 To enable full automation:
 
 1. Keep the `run-bot` process alive (Windows Task Scheduler, a VPS with systemd, or Docker) so it can poll 24/7
-2. Auto-submit (Playwright) is intentionally not enabled; see `docs/auto-submit-risk-assessment.md`
+2. Auto-submit of job applications is intentionally not enabled; see `docs/auto-submit-risk-assessment.md`
 3. Set up monitoring for the structured logs (e.g., via ELK stack or cloud logging)
 
 ## Support
@@ -320,14 +318,14 @@ python -m pytest
 ```
 
 
-### Freelance bid & comment drafts (opencode / 9Router)
+### Freelance bid & comment drafts (9Router)
 
 The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
 
 ```powershell
 python -m bot_loker_wfh draft-lead --lead-id <id>
-python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright --text proposal
-python -m bot_loker_wfh fill-lead --lead-id <id> --engine browsermcp --text comment
+python -m bot_loker_wfh fill-lead --lead-id <id> --text proposal
+python -m bot_loker_wfh fill-lead --lead-id <id> --text comment
 ```
 
 `fill-lead` types the draft into the page and never presses submit.

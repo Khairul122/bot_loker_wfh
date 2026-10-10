@@ -148,12 +148,12 @@ class SettingsHttpTest(unittest.TestCase):
         self.assertEqual(status, 400)
 
     def test_batch_post_stores_every_value_in_one_request(self):
-        status, data = self.call("settings", {"values": {"llm_model_draft": "A", "form_engine": "browsermcp", "form_max_actions": "42"}})
+        status, data = self.call("settings", {"values": {"llm_model_draft": "A", "form_ai_answers": "off", "form_max_actions": "42"}})
         self.assertEqual(status, 200)
         with database.connect() as connection:
             stored = dict(connection.execute("SELECT key, value FROM app_settings").fetchall())
-        self.assertEqual((stored["llm_model_draft"], stored["form_engine"], stored["form_max_actions"]), ("A", "browsermcp", "42"))
-        self.assertEqual(data["form_engine"]["value"], "browsermcp")
+        self.assertEqual((stored["llm_model_draft"], stored["form_ai_answers"], stored["form_max_actions"]), ("A", "off", "42"))
+        self.assertEqual(data["form_ai_answers"]["value"], "off")
 
     def test_batch_with_one_bad_value_stores_nothing(self):
         status, data = self.call("settings", {"values": {"llm_model_draft": "B", "form_max_actions": "abc"}})
@@ -175,6 +175,37 @@ class SettingsHttpTest(unittest.TestCase):
         self.assertEqual(self.call("office/prefs", {"key": "look", "value": '{"name": "x", "skin": "red"}'})[0], 400)
         self.assertEqual(self.call("office/prefs", {"key": "sound", "value": "yes"})[0], 400)
         self.assertEqual(self.call("office/prefs", {"key": "drop", "value": "1"})[0], 400)
+
+    def test_profile_is_saved_and_validated(self):
+        for key, value in (("freelancer", "https://www.freelancer.com/u/me"), ("linkedin", "https://www.linkedin.com/in/me"), ("github", "octocat")):
+            self.assertEqual(self.call("office/prefs", {"key": key, "value": value})[0], 200)
+        data = self.call("office/prefs.json")[1]
+        self.assertEqual((data["github"], data["linkedin"]), ("octocat", "https://www.linkedin.com/in/me"))
+        self.assertEqual(self.call("office/prefs", {"key": "linkedin", "value": "javascript:alert(1)"})[0], 400)
+        self.assertEqual(self.call("office/prefs", {"key": "github", "value": "bad name!"})[0], 400)
+
+    def test_github_sync_stores_portfolio_in_database(self):
+        repo = {"name": "demo", "description": "d", "language": "Python", "topics": [], "stargazers_count": 1, "fork": False, "archived": False,
+                "html_url": "https://github.com/octocat/demo", "pushed_at": "2026-01-01T00:00:00Z"}
+        with mock.patch("bot_loker_wfh.github_portfolio.fetch_repos", return_value=[repo]):
+            status, data = self.call("github/sync", {"username": "octocat"})
+        self.assertEqual((status, data["repos"]), (200, 1))
+        stored = self.call("github.json")[1]
+        self.assertEqual((stored["username"], stored["repos"]), ("octocat", 1))
+
+    def test_github_sync_uses_saved_username_when_none_given(self):
+        self.call("office/prefs", {"key": "github", "value": "octocat"})
+        with mock.patch("bot_loker_wfh.github_portfolio.fetch_repos", return_value=[]) as fetch:
+            status, data = self.call("github/sync", {})
+        self.assertEqual((status, data["username"]), (200, "octocat"))
+        fetch.assert_called_once()
+
+    def test_github_unknown_user_is_404_not_unreachable(self):
+        from urllib.error import HTTPError
+        error = HTTPError("https://api.github.com/users/nobody/repos", 404, "Not Found", {}, None)
+        with mock.patch("bot_loker_wfh.github_portfolio.fetch_repos", side_effect=error):
+            status, data = self.call("github/sync", {"username": "nobody"})
+        self.assertEqual((status, data["error"]), (404, "github_user_not_found"))
 
 
 if __name__ == "__main__":

@@ -179,18 +179,6 @@ function renderBrowserPanel() {
     el('h4', '', '🌐 BrowserMCP Configuration'),
     createInput('browser_mcp_command', 'Perintah BrowserMCP', 'text', s.browser_mcp_command || 'npx -y @browsermcp/mcp@0.1.3', 'Versi terkunci untuk stabilitas snapshot'),
     
-    el('hr', '', ''),
-    
-    el('h4', '', '🎭 Playwright MCP (Alternative)'),
-    createInput('playwright_mcp_command', 'Perintah Playwright MCP', 'text', s.playwright_mcp_command || 'npx -y @playwright/mcp@0.0.80 --extension --output-dir data/playwright-mcp', ''),
-    
-    el('hr', '', ''),
-    
-    el('h4', '', '🔧 Engine Pengisian Form'),
-    createSelect('form_engine_browser', 'Engine Aktif', [
-      { value: 'playwright', label: '🎭 Playwright MCP (browser terpisah)' },
-      { value: 'browsermcp', label: '🌐 BrowserMCP (Chrome asli Anda)' },
-    ], s.form_engine || 'playwright', null, 'form_engine'),
     
     el('hr', '', ''),
     
@@ -224,13 +212,7 @@ function renderFormPanel() {
   const s = settingsData || {};
   
   container.append(
-    el('h4', '', '📝 Form Engine Settings'),
-    createSelect('form_engine', 'Engine Default', [
-      { value: 'playwright', label: '🎭 Playwright MCP' },
-      { value: 'browsermcp', label: '🌐 BrowserMCP (Chrome asli)' },
-    ], s.form_engine || 'playwright'),
-    
-    el('hr', '', ''),
+    el('h4', '', '📝 Pengisian Form (BrowserMCP)'),
     
     el('h4', '', '🎯 AI Answers Configuration'),
     createSelect('form_ai_answers', 'Jawaban AI untuk Pertanyaan Terbuka', [
@@ -262,12 +244,6 @@ function renderFormPanel() {
     el('hr', '', ''),
     
     el('div', 'settings-actions', [
-      createButton('🧪 Test Form Engine', 'btn ok', async () => {
-        const engine = $('#form_engine')?.value || s.form_engine || 'playwright';
-        const res = await get('form/test?engine=' + encodeURIComponent(engine));
-        if (res.ok && res.data.ok !== false) toast('✅ Engine siap: ' + res.data.engine);
-        else toast('❌ ' + (res.data.error || 'Gagal'));
-      }),
       createButton('📋 List ATS Registry', 'btn', async () => {
         const res = await get('ats/list');
         if (res.ok) showATSModal(res.data);

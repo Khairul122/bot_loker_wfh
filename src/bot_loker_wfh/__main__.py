@@ -54,14 +54,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--next-page", action="store_true", help="Fill next page for multi-page form")
     parser.add_argument("--lead-id", help="Lead ID for fill-lead")
     parser.add_argument("--github-user", help="GitHub username for sync-github (default: GITHUB_USERNAME)")
-    parser.add_argument("--engine", choices=("browsermcp", "playwright"), default="browsermcp",
-                        help="Browser for fill-lead: your Chrome (BrowserMCP) or Playwright MCP")
     parser.add_argument("--text", choices=("proposal", "comment"), default="proposal",
                         help="Which saved draft fill-lead types into the page")
     parser.add_argument(
         "--submit-bid",
         action="store_true",
-        help="Allow final bid submission after typing SUBMIT at the CLI prompt",
+        help="Allow final bid submission (asks you to type SUBMIT unless --approved)",
+    )
+    parser.add_argument(
+        "--approved",
+        action="store_true",
+        help="The owner already approved this bid in the web UI: submit without the CLI prompt",
     )
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
@@ -221,9 +224,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _fill_lead(
             settings,
             args.lead_id,
-            args.engine,
             args.text,
             submit=getattr(args, "submit_bid", False),
+            approved=getattr(args, "approved", False),
         )
 
     if args.command == "draft-lead":
@@ -357,9 +360,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             draft_service_for=lambda connection: DraftService(
                 connection, profile, llm=office_desk.instructed(llm, connection, "cora")
             ),
-            proposal_writer=lambda connection, lead_id, mark_interested=True: draft_proposal(
+            proposal_writer=lambda connection, lead_id, mark_interested=True, note="": draft_proposal(
                 connection, lead_id, profile, office_desk.instructed(llm, connection, "cora"),
-                portfolio=load_portfolio(connection), mark_interested=mark_interested,
+                portfolio=load_portfolio(connection), mark_interested=mark_interested, note=note,
             ),
             screener=_office_screener(profile),
             llm=create_chat_llm(settings, record_calls=True),  # Q&A needs seconds, not an agent run
@@ -459,12 +462,7 @@ def _fill_form(
     next_page: bool = False,
 ) -> int:
     """Open the application form in a visible browser, fill it, never submit."""
-    from .form_assist import (
-        FormAssistError,
-        load_answers,
-        load_applicant,
-        open_and_fill,
-    )
+    from .form_assist import FormAssistError
     from .form_agent.agent import FormAgent
     from .llm import create_llm_from_settings
 
@@ -487,38 +485,25 @@ def _fill_form(
     initialize_database()
     connection = database.connect()
     try:
-        if settings.form_engine == "browsermcp":
-            router = create_llm_from_settings(settings, record_calls=True)
-            agent = FormAgent(
-                connection,
-                router=router,
-                browser_command=settings.browser_mcp_command,
-                min_confidence=settings.form_min_confidence,
-                max_actions=settings.form_max_actions,
-                max_tool_calls=settings.form_max_tool_calls,
-                timeout_seconds=settings.form_timeout_seconds,
-                applicant_path=settings.applicant_path,
-                answers_path=settings.answers_path,
-                persist_reports=True,
-                ai_answers=settings.form_ai_answers != "off",
-            )
-            page_num = 2 if next_page else 1
-            report_text = agent.run_session(
-                application_id, page_number=page_num, force_assist=force_assist
-            )
-            tell(report_text)
-        else:
-            applicant = load_applicant(settings.applicant_path)
-            answers = load_answers(settings.answers_path)
-            open_and_fill(
-                connection,
-                application_id,
-                applicant,
-                answers,
-                on_ready=lambda report: tell(
-                    report.to_text().replace("<id>", application_id)
-                ),
-            )
+        router = create_llm_from_settings(settings, record_calls=True)
+        agent = FormAgent(
+            connection,
+            router=router,
+            browser_command=settings.browser_mcp_command,
+            min_confidence=settings.form_min_confidence,
+            max_actions=settings.form_max_actions,
+            max_tool_calls=settings.form_max_tool_calls,
+            timeout_seconds=settings.form_timeout_seconds,
+            applicant_path=settings.applicant_path,
+            answers_path=settings.answers_path,
+            persist_reports=True,
+            ai_answers=settings.form_ai_answers != "off",
+        )
+        page_num = 2 if next_page else 1
+        report_text = agent.run_session(
+            application_id, page_number=page_num, force_assist=force_assist
+        )
+        tell(report_text)
     except FormAssistError as error:
         tell(f"Gagal membuka form: {error}")
         return 1
@@ -530,19 +515,16 @@ def _fill_form(
     return 0
 
 
-# How long a Playwright MCP browser stays open for the owner to review and submit.
-PLAYWRIGHT_REVIEW_SECONDS = 30 * 60
-
-
 def _fill_lead(
     settings: Settings,
     lead_id: str,
-    engine: str,
     text: str = "proposal",
     *,
     submit: bool = False,
+    approved: bool = False,
 ) -> int:
-    """Fill bid form; final submit requires --submit-bid and SUBMIT confirmation."""
+    """Fill the bid form. The final click needs --submit-bid plus the owner's approval
+    (the web UI's approve button passes --approved; at a terminal you type SUBMIT)."""
     from .form_agent.agent import FormAgent
 
     initialize_database()
@@ -551,9 +533,7 @@ def _fill_lead(
         agent = FormAgent(
             connection,
             router=create_llm_from_settings(settings, record_calls=True),
-            browser_command=(
-                settings.playwright_mcp_command if engine == "playwright" else settings.browser_mcp_command
-            ),
+            browser_command=settings.browser_mcp_command,
             min_confidence=settings.form_min_confidence,
             max_actions=settings.form_max_actions,
             max_tool_calls=settings.form_max_tool_calls,
@@ -563,7 +543,6 @@ def _fill_lead(
             persist_reports=True,
             ai_answers=settings.form_ai_answers != "off",
         )
-        keep_open = 0 if submit else PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
 
         def confirm_submit(label: str) -> bool:
             print(
@@ -577,10 +556,11 @@ def _fill_lead(
         print(
             agent.run_lead_session(
                 lead_id,
-                keep_open_seconds=keep_open,
+                keep_open_seconds=0,
                 text=text,
                 submit=submit,
-                confirm_submit=confirm_submit if submit else None,
+                confirm_submit=(lambda label: True) if approved else confirm_submit if submit else None,
+                require_approved=approved,
             ),
             flush=True,
         )
@@ -638,8 +618,7 @@ def _run_bot(settings: Settings) -> int:
     print(
         "bot running "
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()} "
-        f"llm={settings.llm_provider} "
-        f"form_engine={settings.form_engine}"
+        f"llm={settings.llm_provider}"
     )
     try:
         runner.run_forever()

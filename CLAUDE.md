@@ -6,7 +6,7 @@
 - Package source under `src/bot_loker_wfh/`.
 - Supabase Postgres only (via `psycopg`, connection string in `SUPABASE_DB_URL`). Schema lives in `src/bot_loker_wfh/migrations/`; tables are in the `loker` schema.
 - Telegram controls the long-running bot.
-- BrowserMCP and Playwright MCP are optional form-assist engines.
+- BrowserMCP (your own Chrome) is the form-assist engine.
 - Runtime dependency is `psycopg` only; anything else needs an optional extra.
 
 ## Build and run
@@ -27,7 +27,7 @@ python -m bot_loker_wfh check-browser
 python -m pytest -q
 ```
 
-Install `[form]` and Chromium only for browser form assist.
+Form assist uses BrowserMCP (`npx @browsermcp/mcp`) with your own Chrome; no Playwright.
 
 ## Project structure
 

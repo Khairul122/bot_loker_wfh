@@ -17,6 +17,7 @@ from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
 from bot_loker_wfh.cv_profile import load_profile
 from bot_loker_wfh.form_agent.answers_v2 import AnswersStore
 from bot_loker_wfh.form_agent.bid_terms import choose_bid_terms
+from bot_loker_wfh.lead_desk import get_bid_terms, submit_allowed
 from bot_loker_wfh.form_agent.classifier import FieldClassifier
 from bot_loker_wfh.form_agent.executor import Executor, ValueResolver
 from bot_loker_wfh.form_agent.extractor import FormExtractor, FormField
@@ -111,8 +112,13 @@ class FormAgent:
         text: str = "proposal",
         submit: bool = False,
         confirm_submit: Any = None,
+        require_approved: bool = False,
     ) -> str:
-        """Fill bid form; submit only with explicit operator confirmation."""
+        """Fill the bid form; submit only after the owner's confirmation.
+
+        `require_approved` is the web flow: the owner pressed "Setujui & Kirim", so the lead is
+        APPROVED in the database. A failed or unfinished run puts it back to INTERESTED.
+        """
         if text not in ("proposal", "comment"):
             raise ValueError("text must be proposal or comment")
         row = self.connection.execute(
@@ -124,11 +130,33 @@ class FormAgent:
         url, source, title, description, budget, proposal, lead_status = row
         if submit and lead_status == "SUBMITTED":
             return "Bid sudah berstatus SUBMITTED; pengiriman ulang diblokir."
+        if submit and require_approved and lead_status != "APPROVED":
+            return "Bid belum disetujui owner; pengiriman diblokir."
+        if submit and not submit_allowed(url):
+            return "Pengiriman otomatis hanya untuk Freelancer.com dan Projects.co.id."
         if not (proposal or "").strip():
             return f"Tulis {text} dulu (draft-lead) sebelum mengisi formulir."
         if text == "proposal" and len(proposal.strip()) < 100:
             return "Proposal minimal 100 karakter untuk mengajukan penawaran."
-        bid_terms = choose_bid_terms(self.router, title=title, description=description, budget=budget)
+        bid_terms = get_bid_terms(self.connection, lead_id) or choose_bid_terms(
+            self.router, title=title, description=description, budget=budget
+        )
+        try:
+            return self._run_lead(
+                url, source, title, description, proposal, bid_terms, lead_id,
+                keep_open_seconds, submit, confirm_submit,
+            )
+        finally:
+            if submit:  # anything but a confirmed SUBMITTED leaves the owner's approval open again
+                self.connection.execute(
+                    "UPDATE leads SET status = 'INTERESTED' WHERE id = ? AND status = 'APPROVED'", (lead_id,)
+                )
+                self.connection.commit()
+
+    def _run_lead(
+        self, url, source, title, description, proposal, bid_terms, lead_id,
+        keep_open_seconds, submit, confirm_submit,
+    ) -> str:
         return self._session(
             apply_url=url,
             company=source,

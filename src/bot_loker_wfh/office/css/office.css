@@ -496,3 +496,9 @@ input:checked + .slider:before{
 #meeting.live .sub,#meeting.live label,#meeting.live .chips,#meeting.live #meetingRun{display:none}
 #meeting.live h2{font-size:17px}
 #meeting.live .leads{margin:8px 0 0}
+.acct-save{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.acct-save small{flex:1;min-width:200px}
+.lead-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.lead-actions.revise{flex-wrap:nowrap}
+.lead-actions .bid-note{flex:1;min-width:0;padding:8px 10px;border-radius:10px;border:2px solid var(--line);font:inherit;font-size:13px;background:var(--card);color:var(--ink)}
+.bid-text{width:100%;box-sizing:border-box;padding:10px;border-radius:12px;border:2px solid var(--line);font:inherit;font-size:13px;line-height:1.45;background:var(--card);color:var(--ink);resize:vertical}

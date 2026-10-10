@@ -18,7 +18,9 @@ from contextlib import contextmanager
 from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
-from .lead_desk import lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads
+from .lead_desk import (
+    approve_lead, get_bid_terms, lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads,
+)
 from .logging_utils import StructuredLogger, sanitize_error
 from . import office_desk as desk
 from .office_events import bus as office_events
@@ -269,7 +271,7 @@ class OfficeWork:
                 "browser_fill": self.form_assist_enabled}
 
     def lead_action(self, connection: Connection, lead_id: str, action: str, body: dict) -> dict:
-        """interested | ignored | new | proposal | fill. Raises KeyError for unknown leads."""
+        """interested | ignored | new | proposal | revise | fill | approve. Raises KeyError for unknown leads."""
         started = self.clock()
         employee, result = self._lead_action(connection, lead_id, action, body)
         self.log_work(
@@ -288,20 +290,41 @@ class OfficeWork:
                 save_proposal(connection, lead_id, text)
             else:
                 text = self.proposal_writer(connection, lead_id)
-            return "cora", {"proposal": text}
+            return "cora", {"proposal": text, "bid_terms": _terms(get_bid_terms(connection, lead_id))}
+        if action == "revise":
+            note = str(body.get("note") or "").strip()
+            if not note:
+                raise ValueError("tulis catatan revisinya dulu")
+            text = self.proposal_writer(connection, lead_id, mark_interested=True, note=note)
+            return "cora", {"proposal": text, "bid_terms": _terms(get_bid_terms(connection, lead_id)), "revised": True}
         if action == "fill":
             row = connection.execute("SELECT url, proposal FROM leads WHERE id = ?", (lead_id,)).fetchone()
             if row is None:
                 raise KeyError(lead_id)
-            engine = "playwright" if body.get("engine") == "playwright" else "browsermcp"
             if not self.form_assist_enabled or not (row[1] or "").strip():
                 return "faris", {"mode": "manual", "url": row[0]}
-            if self._lead_fill is not None and getattr(self._lead_fill, "poll", lambda: 0)() is None:
+            if self._filler_busy():
                 return "faris", {"mode": "busy", "url": row[0]}
-            self._lead_fill = spawn_fill_lead(lead_id, engine, spawn=self.spawn)
-            self._watch(self._lead_fill, "faris", "fill", lead_id=lead_id, engine=engine)
-            return "faris", {"mode": "form", "engine": engine, "url": row[0]}
+            self._lead_fill = spawn_fill_lead(lead_id, spawn=self.spawn)
+            self._watch(self._lead_fill, "faris", "fill", lead_id=lead_id)
+            return "faris", {"mode": "form", "url": row[0]}
+        if action == "approve":
+            # the owner approved proposal + bid terms: Faris fills the real form and presses submit
+            row = connection.execute("SELECT url FROM leads WHERE id = ?", (lead_id,)).fetchone()
+            if row is None:
+                raise KeyError(lead_id)
+            if not self.form_assist_enabled:
+                return "faris", {"mode": "manual", "url": row[0]}
+            if self._filler_busy():
+                return "faris", {"mode": "busy", "url": row[0]}
+            approve_lead(connection, lead_id)  # validates; ValueError carries a user-safe reason
+            self._lead_fill = spawn_fill_lead(lead_id, submit=True, spawn=self.spawn)
+            self._watch(self._lead_fill, "faris", "submit", lead_id=lead_id)
+            return "faris", {"mode": "submitting", "status": "APPROVED", "url": row[0]}
         raise ValueError(f"unknown action: {action}")
+
+    def _filler_busy(self) -> bool:
+        return self._lead_fill is not None and getattr(self._lead_fill, "poll", lambda: 0)() is None
 
     # ------------------------------------------------------------------ owner's office
 
@@ -449,3 +472,10 @@ class OfficeWork:
                             self.log_failure("cora", "proposal", error)
         finally:
             self.busy = None
+
+
+def _terms(terms) -> dict | None:
+    if terms is None:
+        return None
+    return {"hourly_rate": terms.hourly_rate, "weekly_limit": terms.weekly_limit,
+            "duration_days": terms.duration_days, "milestones": terms.milestones}

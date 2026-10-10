@@ -14,13 +14,13 @@ Batas penting: pengiriman lamaran produksi masih disabled. Bot hanya menyiapkan 
 | Packaging | `setuptools`, `pyproject.toml` |
 | Database | Supabase Postgres (schema `loker`) |
 | Interface kontrol | Telegram Bot API |
-| Browser automation | BrowserMCP atau Playwright MCP |
-| LLM | Template, 9Router, OpenCode CLI, atau Anthropic |
+| Browser automation | BrowserMCP (Chrome asli Anda) |
+| LLM | Template atau 9Router |
 | Office UI | Standard-library HTTP server + Three.js CDN |
 | Test | pytest |
 | Deployment | Docker Compose, satu service bot |
 
-Runtime dependency sengaja kosong. Playwright hanya dipasang lewat extra `form`.
+Runtime dependency: psycopg saja.
 
 ## Arsitektur
 
@@ -39,7 +39,7 @@ JobPipeline: skill scoring -> eligibility filters -> CANDIDATE/FILTERED_OUT
         |
         +--> DraftService + LLM provider -> application/proposal draft
         +--> TelegramNotificationService -> review and approval
-        +--> FormAssist / BrowserMCP / Playwright MCP -> fill, never submit
+        +--> FormAgent / BrowserMCP -> isi form (lamaran kerja: berhenti sebelum Submit; bid freelance: dikirim setelah Anda setujui)
         +--> Office server -> local 3D operational view
 ```
 
@@ -136,8 +136,6 @@ python -m bot_loker_wfh init-db
 Untuk form assist:
 
 ```powershell
-python -m pip install -e ".[form]"
-python -m playwright install chromium
 Copy-Item resume/applicant.example.json data/applicant.json
 python -m bot_loker_wfh check-browser
 ```

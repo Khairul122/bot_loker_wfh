@@ -42,7 +42,9 @@ def parse_bid_terms(raw: str) -> BidTerms:
     return BidTerms(**values)
 
 
-def choose_bid_terms(llm: Callable[[str], str] | None, *, title: str, description: str, budget: str = "") -> BidTerms | None:
+def choose_bid_terms(
+    llm: Callable[[str], str] | None, *, title: str, description: str, budget: str = "", note: str = ""
+) -> BidTerms | None:
     if llm is None:
         return None
     prompt = (
@@ -50,7 +52,8 @@ def choose_bid_terms(llm: Callable[[str], str] | None, *, title: str, descriptio
         "Choose a reasonable competitive bid from project scope and budget. "
         "Use numeric strings for first three keys. milestones must be concise plain text. "
         "Never include currency symbols in hourly_rate.\n"
-        f"Title: {title}\nBudget: {budget or '-'}\nDescription: {description[:3000]}"
+        + (f"The owner asked for this change (follow it): {note[:500]}\n" if note else "")
+        + f"Title: {title}\nBudget: {budget or '-'}\nDescription: {description[:3000]}"
     )
     try:
         return parse_bid_terms(str(llm(prompt) or ""))

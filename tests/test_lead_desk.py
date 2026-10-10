@@ -6,7 +6,7 @@ from pathlib import Path
 
 from bot_loker_wfh.cv_profile import SafeCvProfile
 from bot_loker_wfh.database import apply_schema
-from bot_loker_wfh.lead_desk import draft_proposal, list_leads, set_lead_status
+from bot_loker_wfh.lead_desk import RevisionFailed, approve_lead, draft_proposal, get_bid_terms, list_leads, set_lead_status
 from bot_loker_wfh.office_work import OfficeWork
 
 PROFILE = SafeCvProfile.from_values(skills=["Laravel", "Flutter"])
@@ -70,7 +70,8 @@ class LeadFillTest(unittest.TestCase):
         self.spawned = []
         self.work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=True, interval_seconds=1,
             lock=threading.Lock(),
-            proposal_writer=lambda connection, lead_id: draft_proposal(connection, lead_id, PROFILE),
+            proposal_writer=lambda connection, lead_id, mark_interested=True, note="": draft_proposal(
+                connection, lead_id, PROFILE, mark_interested=mark_interested, note=note),
             spawn=lambda cmd, **kwargs: self.spawned.append(cmd),
         )
 
@@ -78,18 +79,98 @@ class LeadFillTest(unittest.TestCase):
         self.connection.close()
         self.tmp.cleanup()
 
-    def test_fill_needs_a_proposal_then_starts_the_chosen_browser(self):
+    def test_fill_needs_a_proposal_then_starts_browsermcp(self):
         self.assertEqual(self.work.lead_action(self.connection, "a", "fill", {})["mode"], "manual")
         self.assertEqual(self.spawned, [])
 
         self.work.lead_action(self.connection, "a", "proposal", {"text": "My edited bid"})
-        result = self.work.lead_action(self.connection, "a", "fill", {"engine": "playwright"})
+        result = self.work.lead_action(self.connection, "a", "fill", {})
 
-        self.assertEqual((result["mode"], result["engine"]), ("form", "playwright"))
-        self.assertEqual(self.spawned[0][-4:], ["--lead-id", "a", "--engine", "playwright"])
+        self.assertEqual(result["mode"], "form")
+        self.assertEqual(self.spawned[0][-2:], ["--lead-id", "a"])
+        self.assertNotIn("--submit-bid", self.spawned[0])
         self.assertEqual(
             self.connection.execute("SELECT proposal FROM leads WHERE id = 'a'").fetchone()[0], "My edited bid"
         )
+
+
+TERMS_JSON = '{"hourly_rate": "25", "weekly_limit": "30", "duration_days": "14", "milestones": "API, tests, handover"}'
+
+
+class BidFlowTest(unittest.TestCase):
+    """Cora drafts, the owner revises and approves, Faris submits (the spawn is faked)."""
+
+    def setUp(self):
+        self.connection = database.connect()
+        apply_schema(self.connection)
+        self.spawned = []
+        self.calls = []
+
+        def llm(prompt):
+            self.calls.append(prompt)
+            return TERMS_JSON if prompt.startswith("Return JSON only") else "Revised proposal " + "x" * 120
+
+        self.work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=True, interval_seconds=1,
+            lock=threading.Lock(),
+            proposal_writer=lambda connection, lead_id, mark_interested=True, note="": draft_proposal(
+                connection, lead_id, PROFILE, llm, mark_interested=mark_interested, note=note),
+            spawn=lambda cmd, **kwargs: self.spawned.append(cmd))
+
+    def test_draft_stores_suggested_bid_terms(self):
+        insert_lead(self.connection, "a")
+        result = self.work.lead_action(self.connection, "a", "proposal", {})
+        self.assertEqual(result["bid_terms"]["duration_days"], "14")
+        self.assertEqual(get_bid_terms(self.connection, "a").hourly_rate, "25")
+        self.assertEqual(list_leads(self.connection)[0]["bid_terms"]["weekly_limit"], "30")
+
+    def test_revise_sends_the_note_and_replaces_the_draft(self):
+        insert_lead(self.connection, "a")
+        self.work.lead_action(self.connection, "a", "proposal", {})
+        result = self.work.lead_action(self.connection, "a", "revise", {"note": "lebih singkat"})
+        self.assertTrue(result["revised"])
+        self.assertTrue(any("lebih singkat" in call for call in self.calls))
+        self.assertTrue(self.connection.execute("SELECT proposal FROM leads WHERE id='a'").fetchone()[0].startswith("Revised"))
+        with self.assertRaises(ValueError):
+            self.work.lead_action(self.connection, "a", "revise", {"note": " "})
+
+    def test_failed_revision_keeps_the_old_draft(self):
+        insert_lead(self.connection, "a")
+        draft_proposal(self.connection, "a", PROFILE)
+        old = self.connection.execute("SELECT proposal FROM leads WHERE id='a'").fetchone()[0]
+        with self.assertRaises(RevisionFailed):
+            draft_proposal(self.connection, "a", PROFILE, lambda prompt: "", note="ubah")
+        self.assertEqual(self.connection.execute("SELECT proposal FROM leads WHERE id='a'").fetchone()[0], old)
+
+    def test_approve_marks_approved_and_starts_the_submitting_filler(self):
+        insert_lead(self.connection, "a", source="freelancer")
+        self.connection.execute("UPDATE leads SET url = 'https://www.freelancer.com/projects/x' WHERE id = 'a'")
+        self.work.lead_action(self.connection, "a", "proposal", {"text": "p" * 120})
+        result = self.work.lead_action(self.connection, "a", "approve", {})
+        self.assertEqual((result["mode"], result["status"]), ("submitting", "APPROVED"))
+        self.assertEqual(self.spawned[0][-4:], ["--lead-id", "a", "--submit-bid", "--approved"])
+        self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "APPROVED")
+
+    def test_approve_refuses_unsafe_cases(self):
+        insert_lead(self.connection, "short")
+        self.connection.execute("UPDATE leads SET url = 'https://www.freelancer.com/projects/x', proposal = 'tiny' WHERE id = 'short'")
+        with self.assertRaises(ValueError):
+            approve_lead(self.connection, "short")  # proposal too short
+        insert_lead(self.connection, "other")
+        self.connection.execute("UPDATE leads SET proposal = ? WHERE id = 'other'", ("p" * 120,))
+        with self.assertRaises(ValueError):
+            approve_lead(self.connection, "other")  # example.com is not an allowed platform
+        insert_lead(self.connection, "ign", status="IGNORED")
+        self.connection.execute("UPDATE leads SET url = 'https://www.freelancer.com/p', proposal = ? WHERE id = 'ign'", ("p" * 120,))
+        with self.assertRaises(ValueError):
+            approve_lead(self.connection, "ign")
+        self.assertEqual(self.spawned, [])
+
+    def test_newest_project_comes_before_older_drafted_ones(self):
+        insert_lead(self.connection, "old")
+        insert_lead(self.connection, "new")
+        self.connection.execute("UPDATE leads SET posted_at = '2026-01-01T00:00:00+00:00', proposal = 'draft' WHERE id = 'old'")
+        self.connection.execute("UPDATE leads SET posted_at = '2026-10-10T09:02:21+07:00' WHERE id = 'new'")
+        self.assertEqual([l["id"] for l in list_leads(self.connection)], ["new", "old"])
 
 
 class AutoProposalTest(unittest.TestCase):

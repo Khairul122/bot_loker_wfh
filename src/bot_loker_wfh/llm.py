@@ -359,7 +359,7 @@ class LLMRouter:
 
 
 def create_chat_llm(settings: Any, record_calls: bool = False) -> Callable[[str], str] | None:
-    """Fast chat answers (office Q&A): straight to 9Router, skipping the slow `opencode run` agent.
+    """Fast chat answers (office Q&A): straight to 9Router, skipping any slow agent run.
 
     Falls back to the normal chain when 9Router is not configured.
     """

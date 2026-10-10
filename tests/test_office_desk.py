@@ -104,7 +104,7 @@ class DeskTest(unittest.TestCase):
         self.assertEqual([x["id"] for x in list_leads(self.connection, view="new")], ["l0"])
         self.assertEqual([x["id"] for x in list_leads(self.connection, view="old")], ["l1"])
         self.assertEqual(lead_counts(self.connection),
-                         {"all": 3, "new": 1, "old": 1, "interested": 1, "proposal": 0, "ignored": 1})
+                         {"all": 3, "new": 1, "old": 1, "interested": 1, "approved": 0, "proposal": 0, "ignored": 1})
 
     def test_ask_uses_real_facts_and_falls_back_without_llm(self):
         insert_job(self.connection, "a")
