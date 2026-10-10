@@ -136,3 +136,73 @@ def list_events(connection: sqlite3.Connection, meeting_id: str) -> list[dict[st
     _text(meeting_id, "meeting_id", 100)
     rows = connection.execute("SELECT id, meeting_id, employee_id, event_type, content, created_at FROM meeting_events WHERE meeting_id = ? ORDER BY created_at, id", (meeting_id,)).fetchall()
     return [dict(zip(("id", "meeting_id", "employee_id", "event_type", "content", "created_at"), row)) for row in rows]
+
+
+def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) -> dict[str, Any]:
+    """Run dynamic multi-agent discussion using 9Router models and employee skills."""
+    from .config import Settings
+    from .employee_skills import load_employee_skills
+    from .llm import OpenAICompatibleProvider
+
+    settings = Settings.from_environment()
+    provider = OpenAICompatibleProvider(
+        settings.ninerouter_base_url,
+        settings.ninerouter_api_key or "sk-dummy",
+        settings.ninerouter_model or "LokerHouse",
+    )
+
+    starts_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    meeting = create_meeting(connection, topic, starts_at, participants)
+    meeting_id = meeting["id"]
+    set_status(connection, meeting_id, "active")
+
+    transcript = []
+    # Conversation turns
+    for emp in participants:
+        skill_text = ""
+        try:
+            skill_text = load_employee_skills(emp)[:1500]
+        except Exception:
+            pass
+
+        prompt = (
+            f"Konteks: Rapat tim kantor Loker House.\n"
+            f"Topik rapat: '{topic}'.\n"
+            f"Identitas Anda: Karyawan '{emp}'.\n"
+            f"Skill & peran Anda:\n{skill_text}\n\n"
+            f"Beri tanggapan padat (1-2 kalimat) sesuai keahlian Anda mengenai topik tersebut. "
+            f"Sampaikan solusi konkret, bukan basa-basi."
+        )
+        try:
+            res = provider.complete([{"role": "user", "content": prompt}], max_tokens=150)
+            speech = res.content.strip()
+        except Exception as err:
+            speech = f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
+
+        add_event(connection, meeting_id, emp, "note", speech)
+        transcript.append({"employee": emp, "speech": speech})
+
+    # Summary turn
+    decision_prompt = (
+        f"Rangkum hasil rapat tim dengan topik '{topic}'.\n"
+        f"Pernyataan tim:\n"
+        + "\n".join([f"- {t['employee']}: {t['speech']}" for t in transcript])
+        + "\nBuatkan 1 kesimpulan keputusan aksi konkret."
+    )
+    try:
+        dec_res = provider.complete([{"role": "user", "content": decision_prompt}], max_tokens=150)
+        decision = dec_res.content.strip()
+    except Exception:
+        decision = f"Tim sepakat mengeksekusi prioritas terkait {topic}."
+
+    add_event(connection, meeting_id, participants[0] if participants else "cora", "decision", decision)
+    set_status(connection, meeting_id, "completed")
+
+    return {
+        "id": meeting_id,
+        "title": topic,
+        "participants": participants,
+        "status": "completed",
+        "transcript": transcript,
+        "decision": decision,
+    }

@@ -5,15 +5,27 @@ const close = document.querySelector('#logClose');
 function show(open) { drawer.classList.toggle('show', open); drawer.setAttribute('aria-hidden', String(!open)); }
 toggle?.addEventListener('click', () => show(!drawer.classList.contains('show')));
 close?.addEventListener('click', () => show(false));
-if (window.EventSource) {
+function addLogItem(event) {
+  if (!list) return;
+  const item = document.createElement('li');
+  item.textContent = `${event.employee || '-'} · ${event.task || '-'} · ${event.status || ''}${event.error_code ? ` · ${event.error_code}` : ''}`;
+  list.append(item);
+  while (list.children.length > 100) list.firstChild.remove();
+}
+
+let wsConnected = false;
+try {
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/logs';
+  const ws = new WebSocket(wsUrl);
+  ws.onopen = () => { wsConnected = true; };
+  ws.onmessage = ({ data }) => {
+    try { addLogItem(JSON.parse(data)); } catch (_) {}
+  };
+} catch (_) {}
+
+if (!wsConnected && window.EventSource) {
   const stream = new EventSource('/events');
   stream.onmessage = ({ data }) => {
-    try {
-      const event = JSON.parse(data);
-      const item = document.createElement('li');
-      item.textContent = `${event.employee || '-'} · ${event.task || '-'} · ${event.status || ''}${event.error_code ? ` · ${event.error_code}` : ''}`;
-      list.append(item);
-      while (list.children.length > 100) list.firstChild.remove();
-    } catch (_) { /* malformed event ignored */ }
+    try { addLogItem(JSON.parse(data)); } catch (_) {}
   };
 }

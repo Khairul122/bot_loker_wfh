@@ -283,6 +283,45 @@ class _Handler(SimpleHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
+        if path in ("/ws/logs", "/ws"):
+            ws_key = self.headers.get("Sec-WebSocket-Key")
+            if not ws_key:
+                self.send_error(400, "Missing Sec-WebSocket-Key")
+                return
+            import base64, hashlib
+            magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+            accept_key = base64.b64encode(hashlib.sha1((ws_key + magic).encode()).digest()).decode()
+            self.send_response(101, "Switching Protocols")
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", accept_key)
+            self.end_headers()
+
+            def send_ws_frame(msg_bytes: bytes):
+                length = len(msg_bytes)
+                if length <= 125:
+                    header = bytes([0x81, length])
+                elif length <= 65535:
+                    header = bytes([0x81, 126]) + length.to_bytes(2, "big")
+                else:
+                    header = bytes([0x81, 127]) + length.to_bytes(8, "big")
+                self.wfile.write(header + msg_bytes)
+                self.wfile.flush()
+
+            subscription = office_events.subscribe()
+            try:
+                while True:
+                    try:
+                        event = subscription.get(timeout=10)
+                        send_ws_frame(json.dumps(event).encode("utf-8"))
+                    except queue.Empty:
+                        self.wfile.write(bytes([0x89, 0x00]))
+                        self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+            finally:
+                subscription.close()
+            return
         if path == "/events":
             subscription = office_events.subscribe()
             self.send_response(200)
@@ -393,6 +432,14 @@ class _Handler(SimpleHTTPRequestHandler):
                     return self._json(200, save_state(connection, self._body()))
             except (TypeError, ValueError):
                 return self._json(400, {"error": "invalid"})
+        if parts in (["meetings", "run"], ["api", "meetings", "run"]):
+            body = self._body()
+            topic = str(body.get("topic") or "Strategi Rekrutmen dan Lamaran").strip()
+            participants = body.get("participants") or ["cora", "tegar", "reno"]
+            with self._connect() as connection:
+                from .meeting_runtime import run_dynamic_meeting
+                result = run_dynamic_meeting(connection, topic, participants)
+                return self._json(200, result)
         handled = self._desk_post(parts)
         if handled is not None:
             return handled

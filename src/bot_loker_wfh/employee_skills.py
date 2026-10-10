@@ -16,35 +16,42 @@ _CACHE: dict[str, tuple[int, int, str]] = {}
 _CACHE_LOCK = RLock()
 
 
-def _path(employee_id: str) -> Path:
+def _employee_sources(employee_id: str) -> list[Path]:
     if not isinstance(employee_id, str) or employee_id not in EMPLOYEE_IDS or not _ID_RE.fullmatch(employee_id):
         raise KeyError(employee_id)
-    candidate = (SKILLS_DIR / f"{employee_id}.md").resolve()
-    root = SKILLS_DIR.resolve()
-    if candidate.parent != root or candidate.suffix != ".md":
-        raise ValueError("invalid employee skills path")
-    return candidate
+    emp_dir = (SKILLS_DIR / employee_id).resolve()
+    single_file = (SKILLS_DIR / f"{employee_id}.md").resolve()
+    
+    if emp_dir.is_dir():
+        files = sorted(emp_dir.glob("*.md"))
+        if files:
+            return files
+    if single_file.is_file():
+        return [single_file]
+    raise KeyError(employee_id)
 
 
 def load_employee_skills(employee_id: str) -> str:
-    """Read one allowlisted employee file, caching unchanged files by mtime and size."""
-    path = _path(employee_id)
-    try:
-        stat = path.stat()
-    except (FileNotFoundError, OSError) as error:
-        raise KeyError(employee_id) from error
-    if not path.is_file() or stat.st_size > MAX_MARKDOWN_BYTES:
-        raise ValueError("employee skills file is invalid")
-    signature = (stat.st_mtime_ns, stat.st_size)
+    """Read allowlisted employee skills, scanning employee folder or single file."""
+    sources = _employee_sources(employee_id)
+    combined_sig = tuple((p.stat().st_mtime_ns, p.stat().st_size) for p in sources)
+    
     with _CACHE_LOCK:
         cached = _CACHE.get(employee_id)
-        if cached and cached[:2] == signature:
-            return cached[2]
-        content = path.read_text(encoding="utf-8")
-        if len(content.encode("utf-8")) > MAX_MARKDOWN_BYTES:
-            raise ValueError("employee skills file is invalid")
-        _CACHE[employee_id] = (*signature, content)
-        return content
+        if cached and cached[: len(combined_sig)] == combined_sig:
+            return cached[-1]
+        
+        parts = []
+        for p in sources:
+            content = p.read_text(encoding="utf-8-sig").strip()
+            if content:
+                parts.append(f"### Skill Source: {p.stem}\n{content}")
+        
+        full_content = "\n\n---\n\n".join(parts)
+        if len(full_content.encode("utf-8")) > MAX_MARKDOWN_BYTES:
+            full_content = full_content[:MAX_MARKDOWN_BYTES]
+        _CACHE[employee_id] = (*combined_sig, full_content)
+        return full_content
 
 
 def all_employee_skills() -> dict[str, str]:
