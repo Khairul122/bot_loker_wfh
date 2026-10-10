@@ -190,7 +190,7 @@ function renderBrowserPanel() {
     createSelect('form_engine_browser', 'Engine Aktif', [
       { value: 'playwright', label: '🎭 Playwright MCP (browser terpisah)' },
       { value: 'browsermcp', label: '🌐 BrowserMCP (Chrome asli Anda)' },
-    ], s.form_engine || 'playwright', e => saveSetting('form_engine', e.target.value)),
+    ], s.form_engine || 'playwright', null, 'form_engine'),
     
     el('hr', '', ''),
     
@@ -280,7 +280,7 @@ function renderFormPanel() {
 }
 
 // Helper functions for UI components
-function createSelect(id, label, options, value, onChange) {
+function createSelect(id, label, options, value, onChange, key = id) {
   const wrapper = el('div', 'setting-row');
   const select = el('select', '');
   select.append(...options.map(o => {
@@ -292,9 +292,9 @@ function createSelect(id, label, options, value, onChange) {
   select.value = value;
   
   select.onchange = (e) => {
-    markDirty(id, e.target.value);
+    markDirty(key, e.target.value);
     if (onChange) onChange(e);
-    else saveSetting(id, e.target.value);
+    else saveSetting(key, e.target.value);
   };
   
   wrapper.append(
@@ -351,7 +351,11 @@ function createNumberInput(id, label, value, min, max, step = 1) {
   input.step = step;
   
   input.oninput = () => markDirty(id, input.value);
-  input.onchange = () => saveSetting(id, parseFloat(input.value));
+  input.onchange = () => {
+    const number = parseFloat(input.value);
+    if (Number.isNaN(number)) { toast('❌ Isi angka yang valid'); loadSettings().then(renderSettings).then(renderFooter); return; }
+    saveSetting(id, number);
+  };
   
   wrapper.append(
     el('label', '', label),
@@ -367,46 +371,18 @@ function createButton(text, className, onClick) {
 }
 
 async function saveAllSettings() {
-  const panel = $('settings');
-  if (!panel) return;
-  const inputs = panel.querySelectorAll('input[id], select[id], textarea[id]');
-  const entries = [];
-  inputs.forEach(input => {
-    const key = input.id;
-    if (!key || key.startsWith('form_engine_browser')) return;
-    let val = input.value;
-    if (input.type === 'number') val = parseFloat(val);
-    entries.push({ key, value: String(val) });
-  });
-
-  if (!entries.length) {
-    toast('Tidak ada pengaturan untuk disimpan');
-    return;
-  }
-
-  toast('⏳ Menyimpan semua pengaturan...');
-  let failed = 0;
-  for (const item of entries) {
-    // Skip empty password if hint exists (unmodified secret)
-    if (item.key in (settingsMeta || {}) && settingsMeta[item.key]?.hint && item.value === '') {
-      continue;
-    }
-    const res = await post('settings', item);
-    if (!res.ok) {
-      failed++;
-    } else if (settingsData) {
-      settingsData[item.key] = item.value;
-      dirty.delete(item.key);
-    }
-  }
-
-  if (failed === 0) {
-    toast('✅ Semua pengaturan berhasil disimpan ke Supabase & sistem');
+  if (!dirty.size) { toast('Tidak ada perubahan untuk disimpan'); return; }
+  toast('⏳ Menyimpan ke Supabase...');
+  // one request, all-or-nothing: only what was actually edited
+  const res = await post('settings', { values: Object.fromEntries(dirty) });
+  if (res.ok) {
+    dirty.clear();
     await loadSettings();
     renderFooter();
+    toast('✅ Pengaturan tersimpan di Supabase');
   } else {
-    toast(`⚠️ Tersimpan dengan ${failed} kesalahan`);
-    renderFooter();
+    const why = res.data?.error || (res.status ? `HTTP ${res.status}` : 'Server tidak terjangkau');
+    toast('❌ Gagal menyimpan' + (res.data?.key ? ` (${res.data.key})` : '') + ': ' + why);
   }
 }
 

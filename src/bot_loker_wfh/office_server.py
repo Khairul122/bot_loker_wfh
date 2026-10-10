@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import queue
 import shlex
 from .database import Connection
@@ -73,6 +74,31 @@ def _validate_setting(key: str, value: str) -> str | None:
             return f"{key} harus berupa angka"
         low, high = _NUMERIC_SETTINGS[key]
         return None if low <= number <= high else f"{key} di luar rentang {low}-{high}"
+    return None
+
+
+_PREF_KEYS = ("look", "sound", "auto")
+_LOOK_FIELDS = ("name", "skin", "hair", "shirt", "pants")
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+def _validate_pref(key: str, value: str) -> str | None:
+    """The owner's UI preferences (character look, sound, auto mode) kept in Supabase."""
+    if key not in _PREF_KEYS:
+        return "unknown_pref"
+    if key in ("sound", "auto"):
+        return None if value in ("0", "1") else "invalid_value"
+    try:
+        look = json.loads(value)
+    except ValueError:
+        return "invalid_value"
+    if not isinstance(look, dict) or not set(look) <= set(_LOOK_FIELDS):
+        return "invalid_value"
+    name = look.get("name", "Owner")
+    if not isinstance(name, str) or not 1 <= len(name) <= 14:
+        return "invalid_value"
+    if any(not (isinstance(look.get(f), str) and _HEX.match(look[f])) for f in _LOOK_FIELDS[1:] if f in look):
+        return "invalid_value"
     return None
 
 
@@ -410,6 +436,10 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/inbox.json":
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
+        if path == "/office/prefs.json":
+            with self._connect() as connection:
+                stored = all_settings(connection)
+            return self._json(200, {k: stored[f"ui_{k}"] for k in _PREF_KEYS if f"ui_{k}" in stored})
         if path == "/settings.json":
             with self._connect() as connection:
                 return self._json(200, _all_settings_payload(all_settings(connection)))
@@ -482,34 +512,41 @@ class _Handler(SimpleHTTPRequestHandler):
             return self._json(200, self.work.status())
         if parts == ["settings"]:
             body = self._body()
-            key = str(body.get("key") or "")
-            value = str(body.get("value") or "")
-
-            if key not in ALLOWED_SETTINGS:
-                return self._json(400, {"error": "unknown_setting"})
-            if key in SECRET_KEYS and value == "":
-                # Blank secret means "keep the stored one", never wipe it.
-                with self._connect() as connection:
-                    return self._json(200, _all_settings_payload(all_settings(connection)))
-            error = _validate_setting(key, value)
-            if error:
-                return self._json(400, {"error": error})
-
+            values = body.get("values") if isinstance(body.get("values"), dict) else {str(body.get("key") or ""): str(body.get("value") or "")}
+            values = {str(k): str(v if v is not None else "") for k, v in values.items()}
+            for key, value in values.items():
+                if key not in ALLOWED_SETTINGS:
+                    return self._json(400, {"error": "unknown_setting", "key": key})
+                error = _validate_setting(key, value)
+                if error:
+                    return self._json(400, {"error": error, "key": key})
+            # a blank secret means "keep the stored one", never wipe it
+            values = {k: v for k, v in values.items() if not (k in SECRET_KEYS and v == "")}
             try:
                 with self._connect() as connection:
-                    set_setting(connection, key, value)
+                    for key, value in values.items():
+                        set_setting(connection, key, value)
+                    payload = _all_settings_payload(all_settings(connection))
             except database.Error:
-                # Success is only reported once the value is stored in Supabase.
+                # Success is only reported once the values are stored in Supabase.
                 return self._json(503, {"error": "supabase_unavailable"})
-
-            # Persist to .env so it survives a restart (best effort).
-            try:
-                save_dotenv({key: value})
+            try:  # persist to .env so it survives a restart (best effort)
+                save_dotenv(values)
             except Exception:
                 pass
-
-            with self._connect() as connection:
-                return self._json(200, _all_settings_payload(all_settings(connection)))
+            return self._json(200, payload)
+        if parts == ["office", "prefs"]:
+            body = self._body()
+            key, value = str(body.get("key") or ""), str(body.get("value") if body.get("value") is not None else "")
+            error = _validate_pref(key, value)
+            if error:
+                return self._json(400, {"error": error})
+            try:
+                with self._connect() as connection:
+                    set_setting(connection, f"ui_{key}", value)
+            except database.Error:
+                return self._json(503, {"error": "supabase_unavailable"})
+            return self._json(200, {"ok": True})
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")

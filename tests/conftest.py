@@ -67,6 +67,7 @@ def pytest_sessionfinish(session, exitstatus):
 @pytest.fixture(autouse=True)
 def _database_per_test(monkeypatch):
     monkeypatch.setattr(config, "load_dotenv", lambda *args, **kwargs: None)
+    database._ready.clear()
     real_connect = database.connect
     fresh = {"done": False}
 

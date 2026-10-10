@@ -8,6 +8,7 @@ import { staff, byId } from '../characters/team.js';
 import { say } from '../fx/bubbles.js';
 import { burst, at } from '../fx/particles.js';
 import { loadStats } from '../systems/sync.js';
+import { savePref } from '../systems/prefs.js';
 import { $, el, post, toast, starsHtml, OFFLINE } from './dom.js';
 import { TAG } from './results.js';
 
@@ -31,9 +32,10 @@ export async function setAuto(on) {
   const res = await post('auto', { on });
   if (!res.ok) { toast(OFFLINE); return; }
   store.S.work = res.data; renderAuto();
-  try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch {}
+  rememberAuto(on); savePref('auto', on ? '1' : '0');
   toast(on ? '🤖 Tim kerja otomatis: cari → nilai → tulis draf. Hasilnya masuk 📥 untuk kamu setujui' : '🤖 Kerja otomatis dimatikan');
 }
+export function rememberAuto(on) { try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch {} }
 export function wantAuto() { try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; } }
 $('bAuto').onclick = () => store.live ? setAuto(!store.S.work?.auto) : toast(OFFLINE);
 

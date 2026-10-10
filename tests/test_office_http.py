@@ -147,6 +147,35 @@ class SettingsHttpTest(unittest.TestCase):
         status, data = self.call("settings", {"key": "drop_table", "value": "1"})
         self.assertEqual(status, 400)
 
+    def test_batch_post_stores_every_value_in_one_request(self):
+        status, data = self.call("settings", {"values": {"llm_model_draft": "A", "form_engine": "browsermcp", "form_max_actions": "42"}})
+        self.assertEqual(status, 200)
+        with database.connect() as connection:
+            stored = dict(connection.execute("SELECT key, value FROM app_settings").fetchall())
+        self.assertEqual((stored["llm_model_draft"], stored["form_engine"], stored["form_max_actions"]), ("A", "browsermcp", "42"))
+        self.assertEqual(data["form_engine"]["value"], "browsermcp")
+
+    def test_batch_with_one_bad_value_stores_nothing(self):
+        status, data = self.call("settings", {"values": {"llm_model_draft": "B", "form_max_actions": "abc"}})
+        self.assertEqual((status, data["key"]), (400, "form_max_actions"))
+        with database.connect() as connection:
+            row = connection.execute("SELECT 1 FROM app_settings WHERE key = 'llm_model_draft'").fetchone()
+        self.assertIsNone(row)
+
+    def test_owner_prefs_roundtrip(self):
+        look = json.dumps({"name": "Bos", "skin": "#f1c9a5", "hair": "#3b2a20", "shirt": "#ffb26b", "pants": "#4a5a7a"})
+        self.assertEqual(self.call("office/prefs", {"key": "look", "value": look})[0], 200)
+        self.assertEqual(self.call("office/prefs", {"key": "sound", "value": "1"})[0], 200)
+        self.assertEqual(self.call("office/prefs", {"key": "auto", "value": "0"})[0], 200)
+        status, data = self.call("office/prefs.json")
+        self.assertEqual((status, data["sound"], data["auto"]), (200, "1", "0"))
+        self.assertEqual(json.loads(data["look"])["name"], "Bos")
+
+    def test_owner_prefs_reject_bad_input(self):
+        self.assertEqual(self.call("office/prefs", {"key": "look", "value": '{"name": "x", "skin": "red"}'})[0], 400)
+        self.assertEqual(self.call("office/prefs", {"key": "sound", "value": "yes"})[0], 400)
+        self.assertEqual(self.call("office/prefs", {"key": "drop", "value": "1"})[0], 400)
+
 
 if __name__ == "__main__":
     unittest.main()

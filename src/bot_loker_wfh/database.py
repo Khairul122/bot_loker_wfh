@@ -274,8 +274,13 @@ def initialize_database() -> None:
         connection.close()
 
 
+_ready: set[str] = set()  # schemas already migrated by this process
+
+
 def open_db() -> Connection:
-    """Open a connection with the schema applied."""
+    """Open a connection; the schema is checked once per process, not on every request."""
     connection = connect()
-    apply_schema(connection)
+    if connection.schema not in _ready:
+        apply_schema(connection)
+        _ready.add(connection.schema)
     return connection

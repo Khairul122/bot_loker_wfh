@@ -1,6 +1,7 @@
-// ---------- character customizer (name + colours), saved in localStorage ----------
+// ---------- character customizer (name + colours), saved in Supabase (localStorage as local cache) ----------
 import { me, myLook, LOOK_KEY } from '../characters/player.js';
 import { $, closeFlyouts } from './dom.js';
+import { savePref } from '../systems/prefs.js';
 
 const cu = { name: $('cuName'), skin: $('cuSkin'), hair: $('cuHair'), shirt: $('cuShirt'), pants: $('cuPants') };
 Object.entries(cu).forEach(([k, input]) => { input.value = myLook[k]; input.oninput = () => {
@@ -8,6 +9,16 @@ Object.entries(cu).forEach(([k, input]) => { input.value = myLook[k]; input.onin
   try { localStorage.setItem(LOOK_KEY, JSON.stringify(myLook)); } catch {}
   me.setLook({ skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants }); me.name = myLook.name;
   $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
+  savePref('look', JSON.stringify(myLook), 600);
 }; });
+
+// the look stored in Supabase wins over this browser's cache
+export function applyLook(look) {
+  Object.assign(myLook, look);
+  Object.entries(cu).forEach(([k, input]) => { input.value = myLook[k]; });
+  try { localStorage.setItem(LOOK_KEY, JSON.stringify(myLook)); } catch {}
+  me.setLook({ skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants }); me.name = myLook.name;
+  $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
+}
 $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
 $('bCustom').onclick = () => { const p = $('custom'); const open = !p.classList.contains('show'); if (open) closeFlyouts('custom'); p.classList.toggle('show', open); };

@@ -4,6 +4,7 @@ import { clamp } from '../core/util.js';
 import { me } from '../characters/player.js';
 import { staff } from '../characters/team.js';
 import { $ } from './dom.js';
+import { savePref } from '../systems/prefs.js';
 
 document.querySelectorAll('[data-emote]').forEach(b => b.onclick = () => {
   const e = b.dataset.emote;
@@ -17,13 +18,21 @@ function setSoundButton() { $('bSound').textContent = Snd.on ? '🔊' : '🔇'; 
 $('bSound').onclick = () => {
   Snd.toggle(); setSoundButton();
   try { localStorage.setItem(SOUND_KEY, Snd.on ? '1' : '0'); } catch {}
+  savePref('sound', Snd.on ? '1' : '0');
 };
 // browsers only allow audio after a user gesture: resume the saved preference on the first one
-let wantSound = false;
-try { wantSound = localStorage.getItem(SOUND_KEY) === '1'; } catch {}
-if (wantSound) {
-  const resume = () => { Snd.start(); setSoundButton(); removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); };
+let armed = false;
+function armSound() {
+  if (armed) return; armed = true;
+  const resume = () => { if (!Snd.on) Snd.start(); setSoundButton(); removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); };
   addEventListener('pointerdown', resume); addEventListener('keydown', resume);
 }
+export function applySound(on) {
+  try { localStorage.setItem(SOUND_KEY, on ? '1' : '0'); } catch {}
+  if (on) armSound();
+}
+let wantSound = false;
+try { wantSound = localStorage.getItem(SOUND_KEY) === '1'; } catch {}
+if (wantSound) armSound();
 
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }, 1000);
