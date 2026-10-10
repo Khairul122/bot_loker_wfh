@@ -10,6 +10,17 @@ export const el = (tag, cls, text) => {
 let toastT;
 export function toast(t) { const box = $('toast'); box.textContent = t; box.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => box.classList.remove('show'), 3200); }
 
+// the right-hand flyouts share one anchor; opening one hides the rest so they never stack
+export function closeFlyouts(except) {
+  for (const id of ['settings', 'logDrawer', 'custom']) {
+    if (id === except) continue;
+    const p = $(id);
+    if (!p) continue;
+    p.classList.remove('show');
+    if (id === 'logDrawer') p.setAttribute('aria-hidden', 'true');
+  }
+}
+
 export async function get(path) {
   try {
     const r = await fetch(path, { cache: 'no-store' });

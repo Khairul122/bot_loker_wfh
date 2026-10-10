@@ -12,7 +12,16 @@ from pathlib import Path
 from typing import Any
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://iujhspshmggmptoatbof.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+# Service-role key preferred: RLS restricts app_settings/office_character_state to it.
+SUPABASE_KEY = (
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SUPABASE_SERVICE_KEY")
+    or os.getenv("SUPABASE_KEY", "")
+)
+
+
+class SupabaseUnavailable(RuntimeError):
+    """Raised when Supabase is not configured or a request fails."""
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DEFAULT_DB_PATH = DATA_DIR / "app.db"
@@ -147,26 +156,55 @@ def initialize_database(database_url: str = "sqlite:///data/app.db") -> Path:
     return database_path
 
 
-def sync_to_supabase(table: str, data: dict[str, Any]) -> None:
-    """Sync a record update to Supabase REST endpoint if key is present."""
+def supabase_configured() -> bool:
+    return bool(SUPABASE_KEY)
+
+
+def supabase_request(
+    table: str,
+    *,
+    method: str = "GET",
+    data: Any = None,
+    query: dict[str, str] | None = None,
+    prefer: str | None = None,
+    timeout: float = 5.0,
+) -> Any:
+    """Call the Supabase REST endpoint. Raises SupabaseUnavailable on any failure."""
     if not SUPABASE_KEY:
-        return
-    try:
-        url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
+        raise SupabaseUnavailable("supabase key not configured")
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Accept": "application/json",
+    }
+    body = None
+    if data is not None:
+        headers["Content-Type"] = "application/json"
         body = json.dumps(data).encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Prefer": "resolution=merge-duplicates",
-            },
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=3)
-    except Exception:
+    if prefer:
+        headers["Prefer"] = prefer
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            raw = response.read()
+    except Exception as error:  # URLError, HTTPError, timeout...
+        raise SupabaseUnavailable(str(error)) from error
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return None
+
+
+def sync_to_supabase(table: str, data: dict[str, Any]) -> None:
+    """Best-effort upsert to Supabase; never raises (callers treat it as a cache write)."""
+    try:
+        supabase_request(table, method="POST", data=data, prefer="resolution=merge-duplicates")
+    except SupabaseUnavailable:
         pass
 
 

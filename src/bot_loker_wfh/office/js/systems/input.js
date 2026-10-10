@@ -13,6 +13,9 @@ import { toggleResults } from '../ui/results.js';
 import { toggleBoard } from '../ui/board.js';
 import { toggleReports } from '../ui/reports.js';
 import { closeMenu } from '../ui/menu.js';
+import { toggleSettings } from '../ui/settings.js';
+import { toggleLogs } from '../ui/logs.js';
+import { toggleMeeting } from '../ui/meeting.js';
 import { setFP } from './camera.js';
 import { hitAt, interact } from './pointer.js';
 
@@ -44,7 +47,7 @@ export function keyMove(dt) {
 addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
-  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); toggleReports(false); closeMenu(); $('custom').classList.remove('show'); }
+  if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); toggleReports(false); closeMenu(); toggleSettings(false); toggleLogs(false); toggleMeeting(false); $('custom').classList.remove('show'); }
   if (k === 'v') setFP(!store.fp);
   if ((k === 'e' || k === 'q') && inLift(me.pos) && !me.ride) {
     const to = clamp(me.level + (k === 'e' ? 1 : -1), 0, ROOF);

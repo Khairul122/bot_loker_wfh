@@ -53,6 +53,7 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 #score{font-weight:900;font-size:14px;color:var(--ink-soft)}
 #logDrawer{position:fixed;right:14px;top:76px;width:340px;max-height:calc(100vh - 100px);padding:16px;display:none;z-index:5}
 #logDrawer.show{display:block;animation:pop .2s}
+#logDrawer .close{position:absolute;right:10px;top:8px;font-size:18px;width:32px;height:32px;border-radius:10px}
 #logDrawer h2{margin:0 0 8px;font-size:18px}
 #logList{margin:0;padding-left:22px;max-height:calc(100vh - 160px);overflow:auto;font:12px ui-monospace,monospace}
 #logList li{padding:4px 0;border-bottom:1px solid var(--line)}
@@ -215,6 +216,7 @@ body.night .bub{color:#4a3426}
   z-index:100;
 }
 #settings.show{display:block;animation:pop .25s ease-out}
+#settings .xbtn{position:absolute;right:12px;top:12px}
 
 .settings-tabs{
   display:flex;

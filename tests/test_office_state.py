@@ -7,12 +7,15 @@ import unittest
 from functools import partial
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 from urllib.request import Request, urlopen
 
+from bot_loker_wfh import office_server, settings_store
 from bot_loker_wfh.database import apply_schema
 from bot_loker_wfh.office_server import _Handler
 from bot_loker_wfh.office_state import load_state, save_state
 from bot_loker_wfh.office_work import OfficeWork
+from bot_loker_wfh.settings_store import SupabaseUnavailable
 
 
 class OfficeStateTest(unittest.TestCase):
@@ -77,6 +80,14 @@ class OfficeStateHttpTest(unittest.TestCase):
         })[0], 200)
         self.assertEqual(self.call("office/state.json")[1]["owner"]["x"], 1.0)
         self.assertEqual(self.call("office/character-state", {"owner": {"x": "bad"}})[0], 400)
+
+    def test_cloud_backend_down_is_503(self):
+        with mock.patch.object(settings_store, "cloud_configured", lambda: True), \
+             mock.patch.object(office_server, "load_state",
+                               mock.Mock(side_effect=SupabaseUnavailable("down"))):
+            status, data = self.call("office/state.json")
+        self.assertEqual(status, 503)
+        self.assertEqual(data, {"error": "supabase_unavailable"})
 
 
 if __name__ == "__main__":

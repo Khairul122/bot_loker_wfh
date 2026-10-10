@@ -1,11 +1,13 @@
 // ---------- single realtime socket: live log events + stats over one WebSocket ----------
 import { applyStats } from './sync.js';
 import { addLogItem } from '../ui/logs.js';
+import { meetingEvent } from '../ui/meeting.js';
 
 function handle({ data }) {
   let msg;
   try { msg = JSON.parse(data); } catch { return; }
   if (msg && msg.type === 'stats') applyStats(msg.data);
+  else if (msg && msg.type === 'meeting') meetingEvent(msg);
   else addLogItem(msg);
 }
 

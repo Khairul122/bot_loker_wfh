@@ -1,6 +1,6 @@
 // ---------- character customizer (name + colours), saved in localStorage ----------
 import { me, myLook, LOOK_KEY } from '../characters/player.js';
-import { $ } from './dom.js';
+import { $, closeFlyouts } from './dom.js';
 
 const cu = { name: $('cuName'), skin: $('cuSkin'), hair: $('cuHair'), shirt: $('cuShirt'), pants: $('cuPants') };
 Object.entries(cu).forEach(([k, input]) => { input.value = myLook[k]; input.oninput = () => {
@@ -10,4 +10,4 @@ Object.entries(cu).forEach(([k, input]) => { input.value = myLook[k]; input.onin
   $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
 }; });
 $('meName').textContent = myLook.name; $('meFace').style.background = myLook.shirt;
-$('bCustom').onclick = () => $('custom').classList.toggle('show');
+$('bCustom').onclick = () => { const p = $('custom'); const open = !p.classList.contains('show'); if (open) closeFlyouts('custom'); p.classList.toggle('show', open); };

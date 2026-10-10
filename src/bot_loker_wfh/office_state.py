@@ -1,10 +1,12 @@
-"""Validated durable state for 3D office characters."""
+"""Validated durable state for 3D office characters (sqlite + Supabase cloud)."""
 
 from __future__ import annotations
 
 import math
 import sqlite3
 from collections.abc import Mapping
+
+from .database import SupabaseUnavailable, supabase_configured, supabase_request
 
 
 _MAX_COORDINATE = 10000.0
@@ -45,18 +47,47 @@ def _state_input(state: Mapping) -> list[tuple[str, str, dict[str, float]]]:
     return rows
 
 
-def load_state(connection: sqlite3.Connection) -> dict:
+def _rows_to_state(rows) -> dict:
     owner = None
     staff = {}
-    for character_id, role, x, y, z, yaw in connection.execute(
-        "SELECT character_id, role, x, y, z, yaw FROM office_character_state ORDER BY character_id"
-    ):
-        value = {"x": x, "y": y, "z": z, "yaw": yaw}
-        if role == "owner":
+    for row in rows:
+        value = {"x": float(row["x"]), "y": float(row["y"]), "z": float(row["z"]), "yaw": float(row["yaw"])}
+        if row["role"] == "owner":
             owner = value
         else:
-            staff[character_id] = value
+            staff[row["character_id"]] = value
     return {"owner": owner, "staff": staff}
+
+
+def load_state(connection: sqlite3.Connection) -> dict:
+    cursor = connection.execute(
+        "SELECT character_id, role, x, y, z, yaw FROM office_character_state ORDER BY character_id"
+    )
+    columns = [description[0] for description in cursor.description]
+    return _rows_to_state([dict(zip(columns, row)) for row in cursor.fetchall()])
+
+
+def load_state_cloud(connection: sqlite3.Connection) -> dict:
+    """Cloud-authoritative read: last position saved in Supabase, else the local cache."""
+    if supabase_configured():
+        try:
+            rows = supabase_request(
+                "office_character_state",
+                query={"select": "character_id,role,x,y,z,yaw", "order": "character_id"},
+            )
+            if rows:
+                return _rows_to_state(rows)
+        except SupabaseUnavailable:
+            pass
+    return load_state(connection)
+
+
+def _state_rows(state: Mapping) -> list[dict]:
+    return [
+        {"character_id": character_id, "role": role,
+         "x": position["x"], "y": position["y"], "z": position["z"], "yaw": position["yaw"]}
+        for character_id, role, position in _state_input(state)
+    ]
 
 
 def save_state(connection: sqlite3.Connection, state: Mapping) -> dict:
@@ -71,6 +102,14 @@ def save_state(connection: sqlite3.Connection, state: Mapping) -> dict:
                 "updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
                 (character_id, role, position["x"], position["y"], position["z"], position["yaw"]),
             )
+    if supabase_configured():
+        try:
+            supabase_request(
+                "office_character_state", method="POST", data=_state_rows(state),
+                prefer="resolution=merge-duplicates",
+            )
+        except SupabaseUnavailable:
+            pass
     return load_state(connection)
 
 

@@ -1,6 +1,6 @@
 // ---------- Settings Panel: 9Router, BrowserMCP, Form Engine ----------
 import { store } from '../core/store.js';
-import { $, el, get, post, toast } from './dom.js';
+import { $, el, get, post, toast, closeFlyouts } from './dom.js';
 
 const SETTINGS_TABS = [
   { id: 'llm', label: '🔀 9Router & Model' },
@@ -12,7 +12,8 @@ let settingsData = null;
 let settingsMeta = {}; // raw payload for masked secrets (hint/set)
 
 export async function initSettings() {
-  $('bSettings').onclick = () => toggleSettings(true);
+  $('bSettings').onclick = () => toggleSettings(!$('settings').classList.contains('show'));
+  $('settingsClose').onclick = () => toggleSettings(false);
   $('settings').onclick = e => { if (e.target === $('settings')) toggleSettings(false); };
   
   await loadSettings();
@@ -52,6 +53,18 @@ function renderSettings() {
     panel.id = `settings-${tab.id}`;
     panel.dataset.tab = tab.id;
     panel.append(renderPanelContent(tab.id));
+    
+    // Add unified Save Button at bottom of every panel
+    const saveFooter = el('div', 'settings-footer', [
+      createButton('💾 Simpan Semua Pengaturan', 'btn ok primary-save-btn', saveAllSettings)
+    ]);
+    saveFooter.style.marginTop = '20px';
+    saveFooter.style.paddingTop = '12px';
+    saveFooter.style.borderTop = '1px solid var(--line)';
+    saveFooter.style.display = 'flex';
+    saveFooter.style.justifyContent = 'flex-end';
+    panel.append(saveFooter);
+    
     return panel;
   }));
 }
@@ -331,6 +344,47 @@ function createButton(text, className, onClick) {
   return btn;
 }
 
+async function saveAllSettings() {
+  const panel = $('settings');
+  if (!panel) return;
+  const inputs = panel.querySelectorAll('input[id], select[id], textarea[id]');
+  const entries = [];
+  inputs.forEach(input => {
+    const key = input.id;
+    if (!key || key.startsWith('form_engine_browser')) return;
+    let val = input.value;
+    if (input.type === 'number') val = parseFloat(val);
+    entries.push({ key, value: String(val) });
+  });
+
+  if (!entries.length) {
+    toast('Tidak ada pengaturan untuk disimpan');
+    return;
+  }
+
+  toast('⏳ Menyimpan semua pengaturan...');
+  let failed = 0;
+  for (const item of entries) {
+    // Skip empty password if hint exists (unmodified secret)
+    if (item.key in (settingsMeta || {}) && settingsMeta[item.key]?.hint && item.value === '') {
+      continue;
+    }
+    const res = await post('settings', item);
+    if (!res.ok) {
+      failed++;
+    } else if (settingsData) {
+      settingsData[item.key] = item.value;
+    }
+  }
+
+  if (failed === 0) {
+    toast('✅ Semua pengaturan berhasil disimpan ke Supabase & sistem');
+    await loadSettings();
+  } else {
+    toast(`⚠️ Tersimpan dengan ${failed} kesalahan`);
+  }
+}
+
 async function saveSetting(key, value) {
   const res = await post('settings', { key, value: String(value) });
   if (res.ok) {
@@ -429,10 +483,12 @@ function showATSModal(data) {
   });
 }
 
-function toggleSettings(show) {
+export function toggleSettings(show = !$('settings').classList.contains('show')) {
   const panel = $('settings');
   panel.classList.toggle('show', show);
+  panel.setAttribute('aria-hidden', String(!show));
   if (show) {
+    closeFlyouts('settings');
     loadSettings().then(renderSettings);
   }
 }

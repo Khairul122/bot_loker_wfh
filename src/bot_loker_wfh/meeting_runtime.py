@@ -151,10 +151,15 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         settings.ninerouter_model or "LokerHouse",
     )
 
+    from .office_events import bus as _bus
+
+    ensure_schema(connection)
     starts_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     meeting = create_meeting(connection, topic, starts_at, participants)
     meeting_id = meeting["id"]
     set_status(connection, meeting_id, "active")
+    _bus.publish({"type": "meeting", "status": "started", "meeting_id": meeting_id,
+                  "task": topic, "participants": list(participants)})
 
     transcript = []
     # Conversation turns
@@ -180,6 +185,8 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             speech = f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
 
         add_event(connection, meeting_id, emp, "note", speech)
+        _bus.publish({"type": "meeting", "status": "speaking", "meeting_id": meeting_id,
+                      "task": topic, "employee": emp, "content": speech})
         transcript.append({"employee": emp, "speech": speech})
 
     # Summary turn
@@ -197,6 +204,9 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
 
     add_event(connection, meeting_id, participants[0] if participants else "cora", "decision", decision)
     set_status(connection, meeting_id, "completed")
+    _bus.publish({"type": "meeting", "status": "completed", "meeting_id": meeting_id,
+                  "task": topic, "employee": "owner", "content": decision,
+                  "participants": list(participants)})
 
     return {
         "id": meeting_id,

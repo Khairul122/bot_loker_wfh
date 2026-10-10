@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import office_desk as desk
+from . import settings_store
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
@@ -113,8 +114,12 @@ def _settings_payload(connection: sqlite3.Connection) -> dict:
     return payload
 
 
-def _all_settings_payload() -> dict:
-    """All settings including from environment/config for the settings panel."""
+def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
+    """All settings including from environment/config for the settings panel.
+
+    `overrides` lets the authoritative cloud store win over the environment on a
+    configured deployment. Secrets stay masked regardless of where they came from.
+    """
     from bot_loker_wfh.config import Settings
     settings = Settings.from_environment()
     
@@ -148,11 +153,17 @@ def _all_settings_payload() -> dict:
         "applicant_path": settings.applicant_path,
         "answers_path": settings.answers_path,
     }
-    
-    return {
-        k: (_mask(v) if k in SECRET_KEYS else {"value": v})
-        for k, v in all_settings.items()
-    }
+
+    payload = {k: (_mask(v) if k in SECRET_KEYS else {"value": v}) for k, v in all_settings.items()}
+    if overrides:
+        # Cloud is authoritative when configured: real secret values mark "set"
+        # and never leak, everything else shows the stored value.
+        for key, value in overrides.items():
+            if key in SECRET_KEYS:
+                payload[key] = _mask(value if value else None)
+            elif key in payload:
+                payload[key] = {"value": value}
+    return payload
 
 
 def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dict:
@@ -265,11 +276,15 @@ class _Handler(SimpleHTTPRequestHandler):
         self.work = work
         super().__init__(*args, directory=str(OFFICE_DIR), **kwargs)
 
+    def end_headers(self):
+        # never let the browser cache a stale module: a cached sync.js without a new export breaks boot
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def _json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
         return True  # lets route helpers signal "handled"
@@ -349,6 +364,12 @@ class _Handler(SimpleHTTPRequestHandler):
                 subscription.close()
             return
         if path == "/office/state.json":
+            if settings_store.cloud_configured():
+                with self._connect() as connection:
+                    try:
+                        return self._json(200, load_state(connection))
+                    except settings_store.cloud_error_types():
+                        return self._json(503, {"error": "supabase_unavailable"})
             with self._connect() as connection:
                 return self._json(200, load_state(connection))
         if path == "/stats.json":
@@ -399,6 +420,13 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
         if path == "/settings.json":
+            if settings_store.cloud_configured():
+                try:
+                    overrides = settings_store.fetch_cloud_settings()
+                except settings_store.cloud_error_types():
+                    # Configured but unreachable: fail loudly, never a stale/false success.
+                    return self._json(503, {"error": "supabase_unavailable"})
+                return self._json(200, _all_settings_payload(overrides))
             return self._json(200, _all_settings_payload())
         if path == "/llm/test":
             return self._json(200, self._test_llm())
@@ -476,11 +504,26 @@ class _Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": "unknown_setting"})
             if key in SECRET_KEYS and value == "":
                 # Blank secret means "keep the stored one", never wipe it.
-                return self._json(200, _all_settings_payload())
+                overrides = None
+                if settings_store.cloud_configured():
+                    try:
+                        overrides = settings_store.fetch_cloud_settings()
+                    except settings_store.cloud_error_types():
+                        return self._json(503, {"error": "supabase_unavailable"})
+                return self._json(200, _all_settings_payload(overrides))
             error = _validate_setting(key, value)
             if error:
                 return self._json(400, {"error": error})
 
+            # Cloud is authoritative: write there first and only report success
+            # once it is stored. An unreachable backend is a 503, not a false 200.
+            if settings_store.cloud_configured():
+                try:
+                    settings_store.store_cloud_setting(key, value)
+                except settings_store.cloud_error_types():
+                    return self._json(503, {"error": "supabase_unavailable"})
+
+            # Local cache + runtime environment refreshed only after a successful save.
             if key in DEFAULTS:
                 with self._connect() as connection:
                     set_setting(connection, key, value)
@@ -491,7 +534,7 @@ class _Handler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
-            return self._json(200, _all_settings_payload())
+            return self._json(200, _all_settings_payload({key: value}))
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")
