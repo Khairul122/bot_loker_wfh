@@ -35,6 +35,13 @@ ALLOWED_FIELDS = frozenset(
         "filled_count",
         "manual_count",
         "tool_calls",
+        "employee",
+        "matched",
+        "count",
+        "action",
+        "lead_id",
+        "rating",
+        "score",
     }
 )
 

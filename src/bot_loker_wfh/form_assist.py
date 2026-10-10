@@ -34,8 +34,11 @@ def spawn_fill_form(
     spawn: Callable[..., Any] = subprocess.Popen,
     force_assist: bool = False,
     next_page: bool = False,
-) -> None:
-    """Start the form filler as a separate process; output goes to data/logs/fill-form.log."""
+) -> Any:
+    """Start the form filler as a separate process; output goes to data/logs/fill-form.log.
+
+    Returns the running process so the caller can watch it finish.
+    """
     cmd = [sys.executable, "-m", "bot_loker_wfh", "fill-form", "--application-id", application_id]
     if force_assist:
         cmd.append("--force-assist")
@@ -45,7 +48,7 @@ def spawn_fill_form(
     log_dir.mkdir(parents=True, exist_ok=True)
     # the child gets its own copy of the handle, so the parent can close it right away
     with (log_dir / "fill-form.log").open("a", encoding="utf-8") as log_file:
-        spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
+        return spawn(cmd, cwd=os.getcwd(), stdout=log_file, stderr=log_file)
 
 
 def spawn_fill_lead(

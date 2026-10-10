@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import shlex
 import sqlite3
+import subprocess
+import time
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,6 +16,7 @@ from . import office_desk as desk
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
 from .settings_store import DEFAULTS, get_setting, set_setting
+from .config import save_dotenv
 from .status_transitions import InvalidTransitionError
 
 OFFICE_DIR = Path(__file__).with_name("office")
@@ -50,10 +54,62 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
 
 def _settings_payload(connection: sqlite3.Connection) -> dict:
     """Current runtime-tunable settings (interval in hours, min bound for the UI)."""
-    return {
+    payload = {
         key: {"value": get_setting(connection, key), "min": lower}
         for key, (_, lower) in DEFAULTS.items()
     }
+    return payload
+
+
+def _all_settings_payload() -> dict:
+    """All settings including from environment/config for the settings panel."""
+    from bot_loker_wfh.config import Settings
+    settings = Settings.from_environment()
+    
+    # All settings that the panel needs
+    all_settings = {
+        # LLM Provider
+        "llm_provider": settings.llm_provider,
+        "anthropic_api_key": settings.anthropic_api_key,
+        "anthropic_model": settings.anthropic_model,
+        
+        # 9Router
+        "ninerouter_base_url": settings.ninerouter_base_url,
+        "ninerouter_api_key": settings.ninerouter_api_key,
+        "ninerouter_model": settings.ninerouter_model,
+        "ninerouter_fallback_models": ",".join(settings.ninerouter_fallback_models),
+        
+        # Per-task models
+        "llm_model_draft": settings.llm_model_draft,
+        "llm_model_form": settings.llm_model_form,
+        "llm_model_answer": settings.llm_model_answer,
+        
+        # LLM params
+        "llm_timeout_seconds": settings.llm_timeout_seconds,
+        "llm_task_budget_seconds": settings.llm_task_budget_seconds,
+        "llm_temperature_draft": settings.llm_temperature_draft,
+        
+        # OpenCode
+        "opencode_command": settings.opencode_command,
+        "opencode_model": settings.opencode_model,
+        
+        # Form Engine
+        "form_engine": settings.form_engine,
+        "browser_mcp_command": settings.browser_mcp_command,
+        "playwright_mcp_command": settings.playwright_mcp_command,
+        "form_min_confidence": settings.form_min_confidence,
+        "form_max_actions": settings.form_max_actions,
+        "form_max_tool_calls": settings.form_max_tool_calls,
+        "form_timeout_seconds": settings.form_timeout_seconds,
+        "form_connect_timeout_seconds": settings.form_connect_timeout_seconds,
+        "form_ai_answers": settings.form_ai_answers,
+        
+        # Data paths
+        "applicant_path": settings.applicant_path,
+        "answers_path": settings.answers_path,
+    }
+    
+    return {k: {"value": v} for k, v in all_settings.items()}
 
 
 def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dict:
@@ -215,8 +271,22 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
         if path == "/settings.json":
+            return self._json(200, _all_settings_payload())
+        if path == "/llm/test":
+            return self._json(200, self._test_llm())
+        if path == "/llm/list-models":
+            return self._json(200, self._list_9router_models())
+        if path == "/browser/test":
+            return self._json(200, self._test_browser())
+        if path == "/ats/list":
             with self._connect() as connection:
-                return self._json(200, _settings_payload(connection))
+                return self._json(200, {"ats": self._list_ats(connection)})
+        if path == "/skills.json":
+            return self._json(200, self._get_skills())
+        if path == "/form/test":
+            body = self._body()
+            engine = body.get("engine", "playwright")
+            return self._json(200, self._test_form_engine(engine))
         return super().do_GET()
 
     def _body(self) -> dict:
@@ -252,14 +322,30 @@ class _Handler(SimpleHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")
             key = str(body.get("key") or "")
-            if key not in DEFAULTS:
-                return self._json(400, {"error": "unknown_setting"})
+            value = str(body.get("value") or "")
+            
+            # Save to database (for scrape_interval and other DB settings)
             try:
                 with self._connect() as connection:
-                    set_setting(connection, key, str(body.get("value")))
-                    return self._json(200, _settings_payload(connection))
+                    set_setting(connection, key, value)
             except ValueError:
-                return self._json(400, {"error": "value_out_of_range"})
+                pass  # Not a DB setting, continue
+            
+            # Save to .env file for persistence across restarts
+            try:
+                from bot_loker_wfh.config import save_dotenv
+                save_dotenv({key: value})
+            except Exception:
+                pass  # Best effort
+            
+            return self._json(200, _all_settings_payload())
+        if parts == ["skills", "reload"]:
+            return self._json(200, self._reload_skills())
+        if parts == ["skills", "toggle"]:
+            body = self._body()
+            skill_id = body.get("id")
+            enabled = body.get("enabled", True)
+            return self._json(200, self._toggle_skill(skill_id, enabled))
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")
@@ -276,6 +362,7 @@ class _Handler(SimpleHTTPRequestHandler):
                 return self._json(409, {"error": "stale"})
         if len(parts) == 2 and parts[0] == "hunt" and parts[1] in self.work.hunters:
             hunter, owner = self.work.hunters[parts[1]], desk.SOURCE_OWNER.get(parts[1])
+            action = {"task": "hunt", "employee": owner, "source": parts[1]}
 
             def job(connection, hunter=hunter, owner=owner):
                 result = hunter(connection)
@@ -284,17 +371,36 @@ class _Handler(SimpleHTTPRequestHandler):
                     result["top"] = desk.prioritize(result.get("top", []), words)
                 return result
         elif parts == ["work", "screen"] and self.work.screener is not None:
+            action = {"task": "screen", "employee": "sari"}
             job = self.work.screener
         elif parts == ["inbox", "draft"]:
+            # draft_next logs its own success line; the handler only adds failures
+            action = {"task": None, "employee": "cora"}
             job = lambda connection: {"drafted": self.work.draft_next(connection)}  # noqa: E731
         else:
             return self._json(404, {"error": "not_found"})
         if not self.work.lock.acquire(blocking=False):
             return self._json(409, {"error": "busy"})
+        started = time.perf_counter()
         try:
             with self._connect() as connection:
-                self._json(200, job(connection))
+                result = job(connection)
+            if action["task"] is not None:
+                duration = int((time.perf_counter() - started) * 1000)
+                self.work.log_work(
+                    action["employee"], action["task"], source=action.get("source"),
+                    matched=result.get("matched"), inserted_count=result.get("inserted"),
+                    count=result.get("drafted"), duration_ms=duration,
+                )
+                if action["task"] == "screen" and result.get("filtered_out") is not None:
+                    # Eli throws the ineligible ones out; Sari scores what survived
+                    self.work.log_work("eli", "screen", count=result["filtered_out"], duration_ms=duration)
+            self._json(200, result)
         except Exception as error:  # surfaced to the page as a sad employee, not a stack trace
+            self.work.log_failure(
+                action["employee"], action["task"], error, source=action.get("source"),
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
             self._json(502, {"error": type(error).__name__})
         finally:
             self.work.lock.release()
@@ -312,15 +418,21 @@ class _Handler(SimpleHTTPRequestHandler):
             if len(parts) == 3 and parts[0] == "reports" and parts[2] == "review":
                 body = self._body()
                 with self._connect() as connection:
-                    return self._json(200, desk.review_report(connection, parts[1], body.get("rating"), str(body.get("note") or "")))
+                    report = desk.review_report(connection, parts[1], body.get("rating"), str(body.get("note") or ""))
+                    self.work.log_work(report["employee"], "review", rating=report["rating"])
+                    return self._json(200, report)
             if len(parts) == 2 and parts[0] == "instructions":
                 text = str(self._body().get("text") or "")
                 with self._connect() as connection:
-                    return self._json(200, {"text": desk.set_instruction(connection, parts[1], text)})
+                    saved = desk.set_instruction(connection, parts[1], text)
+                    self.work.log_work(parts[1], "instruction", count=len(text))
+                    return self._json(200, {"text": saved})
             if len(parts) == 2 and parts[0] == "ask":
                 question = str(self._body().get("question") or "")
                 with self._connect() as connection:
-                    return self._json(200, desk.ask(connection, self.work.llm, parts[1], question))
+                    answer = desk.ask(connection, self.work.llm, parts[1], question)
+                    self.work.log_work(parts[1], "question", mode="ai" if answer.get("ai") else "facts")
+                    return self._json(200, answer)
             if parts == ["work", "telegram"]:
                 with self._connect() as connection:
                     return self._json(200, self.work.telegram_digest(connection))
@@ -331,6 +443,160 @@ class _Handler(SimpleHTTPRequestHandler):
         except (OSError, RuntimeError):  # Telegram / LLM unreachable
             return self._json(502, {"error": "unreachable"})
         return None
+
+    def _test_llm(self):
+        """Test LLM connection based on current settings."""
+        try:
+            from bot_loker_wfh.config import Settings
+            from bot_loker_wfh.llm import create_llm_from_settings, OpenAICompatibleProvider, LLMError
+            
+            settings = Settings.from_environment()
+            
+            if settings.llm_provider == "9router":
+                prov = OpenAICompatibleProvider(
+                    settings.ninerouter_base_url,
+                    settings.ninerouter_api_key or "sk-dummy",
+                    settings.ninerouter_model or "loker-draft",
+                )
+                models = prov.list_models()
+                test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
+                return {"ok": True, "message": f"9Router terhubung. {len(models)} model tersedia. Model test: {test_res.model}", "model": test_res.model}
+            elif settings.llm_provider == "anthropic" and settings.anthropic_api_key:
+                from bot_loker_wfh.llm import AnthropicProvider
+                prov = AnthropicProvider(settings.anthropic_api_key, settings.anthropic_model)
+                test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
+                return {"ok": True, "message": f"Anthropic terhubung. Model: {test_res.model}", "model": test_res.model}
+            elif settings.llm_provider == "opencode":
+                return {"ok": False, "error": "OpenCode test not implemented yet"}
+            else:
+                return {"ok": False, "error": "No LLM provider configured"}
+        except LLMError as err:
+            if err.code == "unauthorized":
+                return {"ok": False, "error": "API key ditolak (401)"}
+            return {"ok": False, "error": str(err)}
+        except Exception as err:
+            return {"ok": False, "error": f"Koneksi gagal: {err}"}
+
+    def _list_9router_models(self):
+        """List all models from 9Router."""
+        try:
+            from bot_loker_wfh.config import Settings
+            from bot_loker_wfh.llm import fetch_9router_models_categorized
+            
+            settings = Settings.from_environment()
+            result = fetch_9router_models_categorized(
+                settings.ninerouter_base_url,
+                settings.ninerouter_api_key or "sk-dummy",
+            )
+            return result
+        except Exception as err:
+            return {"combo": [], "vision": [], "all": [], "error": str(err)}
+
+    def _test_browser(self):
+        """Test BrowserMCP connection."""
+        try:
+            from bot_loker_wfh.config import Settings
+            from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
+            
+            settings = Settings.from_environment()
+            client = McpBrowserClient(command=settings.browser_mcp_command)
+            client.start()
+            try:
+                client.wait_for_extension(timeout=15.0)
+                client.stop()
+                return {"ok": True, "message": "BrowserMCP terhubung dan ekstensi Connect"}
+            except McpNotConnectedError:
+                client.stop()
+                return {"ok": False, "error": "Ekstensi BrowserMCP belum Connect. Buka Chrome, klik ikon ekstensi, tekan Connect."}
+            except Exception as err:
+                client.stop()
+                return {"ok": False, "error": str(err)}
+        except Exception as err:
+            return {"ok": False, "error": f"Gagal start BrowserMCP: {err}"}
+
+    def _list_ats(self, connection):
+        """List all ATS registry entries."""
+        try:
+            rows = connection.execute(
+                "SELECT ats_name, host, mode, open_button_label, active, verified_at FROM ats_registry ORDER BY ats_name"
+            ).fetchall()
+            return [
+                {
+                    "ats_name": r[0],
+                    "host": r[1],
+                    "mode": r[2],
+                    "open_button_label": r[3],
+                    "active": bool(r[4]),
+                    "verified_at": r[5],
+                }
+                for r in rows
+            ]
+        except Exception:
+            return []
+
+    def _get_skills(self):
+        """Get skills from OpenCode."""
+        try:
+            result = subprocess.run(
+                ["opencode", "skill", "list", "--json"],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                skills = data.get("skills", [])
+                return {"skills": skills}
+            else:
+                return {"skills": [], "error": "opencode skill list failed"}
+        except Exception as err:
+            return {"skills": [], "error": str(err)}
+
+    def _reload_skills(self):
+        """Reload skills from OpenCode."""
+        try:
+            result = subprocess.run(
+                ["opencode", "skill", "reload"],
+                capture_output=True, text=True, timeout=30
+            )
+            return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr if result.returncode != 0 else None}
+        except Exception as err:
+            return {"ok": False, "error": str(err)}
+
+    def _toggle_skill(self, skill_id, enabled):
+        """Toggle skill enabled/disabled."""
+        try:
+            cmd = ["opencode", "skill", "enable" if enabled else "disable", skill_id]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr if result.returncode != 0 else None}
+        except Exception as err:
+            return {"ok": False, "error": str(err)}
+
+    def _test_form_engine(self, engine):
+        """Test form engine."""
+        try:
+            from bot_loker_wfh.config import Settings
+            settings = Settings.from_environment()
+            
+            if engine == "browsermcp":
+                from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
+                client = McpBrowserClient(command=settings.browser_mcp_command)
+                client.start()
+                try:
+                    client.wait_for_extension(timeout=10.0)
+                    client.stop()
+                    return {"ok": True, "engine": "browsermcp", "message": "BrowserMCP siap"}
+                except McpNotConnectedError:
+                    client.stop()
+                    return {"ok": False, "engine": "browsermcp", "error": "Ekstensi belum Connect"}
+                except Exception as err:
+                    client.stop()
+                    return {"ok": False, "engine": "browsermcp", "error": str(err)}
+            else:
+                # Playwright - just check if command works
+                cmd = shlex.split(settings.playwright_mcp_command)
+                result = subprocess.run(cmd + ["--help"], capture_output=True, text=True, timeout=10)
+                return {"ok": result.returncode == 0, "engine": "playwright", "message": "Playwright MCP tersedia" if result.returncode == 0 else "Playwright MCP tidak ditemukan"}
+        except Exception as err:
+            return {"ok": False, "engine": engine, "error": str(err)}
 
     def log_message(self, *args):
         pass

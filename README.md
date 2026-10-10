@@ -70,6 +70,8 @@ Scheduler logs contain source names and inserted counts only; job descriptions, 
 
 Structured events use JSON with an event name, generated `run_id`, source, status, duration, inserted count, and sanitized error code where applicable. The logger uses an allowlist and never serializes exception messages, request bodies, tokens, CVs, or cover letters.
 
+While the 3D office runs, every employee action is printed as one `employee_work` line: `employee` (reno, cora, tegar, …), `task` (`hunt`, `draft`, `proposal`, `screen`, `decision`, `lead`, `report`, `digest`, `fill`), plus counts, ids, `duration_ms`, and a sanitized `error_code` on failures. Sources without an owner show `"employee": "-"`. Polling the dashboard is never logged.
+
 ### Kantor 3D
 
 Open the bot as a cozy 3D office (Three.js from a CDN, served by the standard library, localhost only):
@@ -275,6 +277,9 @@ python -m bot_loker_wfh fetch-once 2>&1 | python -c "import sys, json; [print(js
 
 # Filter for errors only:
 python -m bot_loker_wfh fetch-once 2>&1 | python -c "import sys, json; [print(l.strip()) for l in sys.stdin if l.strip() and json.loads(l).get('status') == 'error']"
+
+# Watch what the office employees are doing (while `office --port 8765` runs):
+python -m bot_loker_wfh office --port 8765 2>&1 | python -c "import sys, json; [print(l.strip()) for l in sys.stdin if l.strip() and json.loads(l).get('event') == 'employee_work']"
 ```
 
 Fields that will **never** appear in logs:

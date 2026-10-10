@@ -150,6 +150,45 @@ def load_dotenv(path: str | Path = ".env") -> None:
             environ.setdefault(key, value)
 
 
+def save_dotenv(settings: dict, path: str | Path = ".env") -> None:
+    """Save settings to .env file, preserving existing keys and comments."""
+    env_path = Path(path)
+    existing = {}
+    comments = []
+    
+    # Read existing .env
+    if env_path.is_file():
+        for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                comments.append(raw_line)
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip()
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+                    value = value[1:-1]
+                existing[key] = value
+    
+    # Update with new settings
+    for key, value in settings.items():
+        if value is not None and value != "":
+            existing[key] = str(value)
+    
+    # Write back
+    lines = []
+    for c in comments:
+        lines.append(c)
+    for key, value in sorted(existing.items()):
+        # Quote values with spaces or special chars
+        if " " in value or any(c in value for c in "#$&*()[]{}|;'<>`~"):
+            value = f'"{value}"'
+        lines.append(f"{key}={value}")
+    
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _parse_chat_ids(value: str) -> frozenset[int]:
     chat_ids: set[int] = set()
     for raw_item in value.split(","):

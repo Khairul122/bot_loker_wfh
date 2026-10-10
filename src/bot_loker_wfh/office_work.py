@@ -6,6 +6,7 @@ Applying starts after an explicit approval, and the form filler stops before sub
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import subprocess
 import threading
@@ -17,6 +18,7 @@ from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads
+from .logging_utils import StructuredLogger, sanitize_error
 from . import office_desk as desk
 from .status_transitions import (
     InvalidTransitionError,
@@ -63,6 +65,7 @@ class OfficeWork:
         notify: Callable[[str], None] | None = None,
         spawn: Callable[..., Any] = subprocess.Popen,
         clock: Callable[[], float] = time.time,
+        logger: logging.Logger | None = None,
     ) -> None:
         self.database_path = database_path
         self.hunters = hunters
@@ -77,12 +80,52 @@ class OfficeWork:
         self._lead_fill: Any = None  # the running fill-lead process, if any
         self.spawn = spawn
         self.clock = clock
+        self.logger = StructuredLogger(logger or logging.getLogger(__name__))
         self.auto = False
         self.busy: str | None = None
         self.last: dict | None = None
         self.next_at: float | None = None
         self._wake = threading.Event()
         self._thread: threading.Thread | None = None
+
+    # ------------------------------------------------------------------ activity log
+
+    def log_work(self, employee: str | None, task: str, *, status: str = "success", **fields: Any) -> None:
+        """One JSON line per employee action; counts and names only, never letters or CVs."""
+        self.logger.event(
+            "employee_work", task=task, status=status, employee=employee or "-",
+            **{key: value for key, value in fields.items() if value is not None},
+        )
+
+    def log_failure(self, employee: str | None, task: str, error: BaseException, **fields: Any) -> None:
+        """A failed action still reaches the terminal, with a sanitized error code."""
+        self.logger.error(
+            "employee_work", task=task, status="error", employee=employee or "-",
+            error_code=sanitize_error(error),
+            **{key: value for key, value in fields.items() if value is not None},
+        )
+
+    def _watch(self, process: Any, employee: str, task: str, **fields: Any) -> None:
+        """Follow a spawned fill process so its exit lands in the terminal log too."""
+        if process is None or not hasattr(process, "wait"):
+            return
+        if getattr(process, "returncode", None) is not None:
+            return  # finished instantly (tests' fake spawn): nothing to watch
+
+        def follow() -> None:
+            started = self.clock()
+            try:
+                code = process.wait()
+            except Exception as error:  # the launcher died before the child answered
+                self.log_failure(employee, task, error, **fields)
+                return
+            duration = int((self.clock() - started) * 1000)
+            if code == 0:
+                self.log_work(employee, task, duration_ms=duration, **fields)
+            else:
+                self.log_work(employee, task, status="error", duration_ms=duration, **fields)
+
+        threading.Thread(target=follow, name=f"watch-{task}", daemon=True).start()
 
     # ------------------------------------------------------------------ inbox
 
@@ -120,40 +163,57 @@ class OfficeWork:
         rows.sort(key=lambda r: -desk.keyword_hits(r[1], words))  # stable: score order otherwise
         job_ids = [r[0] for r in rows[:limit]]
         service = self.draft_service_for(connection)
-        return sum(
+        drafted = sum(
             1 for job_id in job_ids if service.prepare(job_id).application_status == "PENDING_APPROVAL"
         )
+        # Cora writes the letters; one line whether the cycle or the owner's button asked
+        self.log_work("cora", "draft", count=drafted)
+        return drafted
 
     def decide(self, connection: sqlite3.Connection, application_id: str, action: str) -> dict:
         """approve | reject | apply | applied. Raises InvalidTransitionError when stale."""
-        if action in ("approve", "reject"):
-            transition_application_status(
-                connection,
-                application_id=application_id,
-                to_status="APPROVED" if action == "approve" else "REJECTED_BY_USER",
-                actor=TransitionActor.USER,
-            )
-            if action == "reject":
-                return {"status": "REJECTED_BY_USER"}
-            return {"status": "APPROVED", **self._apply(connection, application_id)}
-        if action == "apply":
-            if self._status(connection, application_id) != "APPROVED":
-                raise InvalidTransitionError("approve first")
-            return {"status": "APPROVED", **self._apply(connection, application_id)}
-        if action == "applied":
-            mark_applied_manually(connection, application_id, via="3D office")
-            return {"status": "SUBMITTED"}
-        if action in STATUS_ACTIONS:
-            transition_application_status(
-                connection, application_id=application_id,
-                to_status=STATUS_ACTIONS[action], actor=TransitionActor.USER,
-            )
-            connection.execute(
-                "UPDATE applications SET last_status_check_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
-                (application_id,),
-            )
-            return {"status": STATUS_ACTIONS[action]}
-        raise InvalidTransitionError(f"unknown action: {action}")
+        started = self.clock()
+        try:
+            if action in ("approve", "reject"):
+                transition_application_status(
+                    connection,
+                    application_id=application_id,
+                    to_status="APPROVED" if action == "approve" else "REJECTED_BY_USER",
+                    actor=TransitionActor.USER,
+                )
+                if action == "reject":
+                    result = {"status": "REJECTED_BY_USER"}
+                else:
+                    result = {"status": "APPROVED", **self._apply(connection, application_id)}
+            elif action == "apply":
+                if self._status(connection, application_id) != "APPROVED":
+                    raise InvalidTransitionError("approve first")
+                result = {"status": "APPROVED", **self._apply(connection, application_id)}
+            elif action == "applied":
+                mark_applied_manually(connection, application_id, via="3D office")
+                result = {"status": "SUBMITTED"}
+            elif action in STATUS_ACTIONS:
+                transition_application_status(
+                    connection, application_id=application_id,
+                    to_status=STATUS_ACTIONS[action], actor=TransitionActor.USER,
+                )
+                connection.execute(
+                    "UPDATE applications SET last_status_check_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    (application_id,),
+                )
+                result = {"status": STATUS_ACTIONS[action]}
+            else:
+                raise InvalidTransitionError(f"unknown action: {action}")
+        except InvalidTransitionError as error:
+            self.log_failure("tegar", "decision", error, application_id=application_id, action=action)
+            raise
+        # Tegar keeps the approval queue: every owner decision is one line in the terminal
+        self.log_work(
+            "tegar", "decision", action=action, application_id=application_id,
+            status=result.get("status"), mode=result.get("mode"),
+            duration_ms=int((self.clock() - started) * 1000),
+        )
+        return result
 
     def _apply(self, connection: sqlite3.Connection, application_id: str) -> dict:
         url = connection.execute(
@@ -163,10 +223,14 @@ class OfficeWork:
         if self.form_assist_enabled:
             try:
                 resolve_form_target(connection, application_id)
-                spawn_fill_form(application_id, spawn=self.spawn)
+                self._watch(
+                    spawn_fill_form(application_id, spawn=self.spawn),
+                    "faris", "fill", application_id=application_id,
+                )
                 return {"mode": "form", "url": url}
-            except (FormAssistError, OSError):
-                pass  # unsupported form or launcher failed: the owner applies by hand
+            except (FormAssistError, OSError) as error:
+                # unsupported form or launcher failed: the owner applies by hand
+                self.log_failure("faris", "fill", error, application_id=application_id)
         return {"mode": "manual", "url": url}
 
     @staticmethod
@@ -190,6 +254,7 @@ class OfficeWork:
         lead_ids = undrafted_leads(connection, limit)
         for lead_id in lead_ids:
             self.proposal_writer(connection, lead_id, mark_interested=False)
+        self.log_work("cora", "proposal", count=len(lead_ids))
         return len(lead_ids)
 
     def leads(self, connection: sqlite3.Connection, source: str | None, view: str = "all") -> dict:
@@ -198,27 +263,37 @@ class OfficeWork:
 
     def lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> dict:
         """interested | ignored | new | proposal | fill. Raises KeyError for unknown leads."""
+        started = self.clock()
+        employee, result = self._lead_action(connection, lead_id, action, body)
+        self.log_work(
+            employee, "lead", action=action, lead_id=lead_id, mode=result.get("mode"),
+            duration_ms=int((self.clock() - started) * 1000),
+        )
+        return result
+
+    def _lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> tuple[str, dict]:
         if action in ("interested", "ignored", "new"):
             set_lead_status(connection, lead_id, action.upper())
-            return {"status": action.upper()}
+            return "bimo", {"status": action.upper()}  # the bidding desk files the owner's verdict
         if action == "proposal":
             text = str(body.get("text") or "").strip()
             if text:
                 save_proposal(connection, lead_id, text)
             else:
                 text = self.proposal_writer(connection, lead_id)
-            return {"proposal": text}
+            return "cora", {"proposal": text}
         if action == "fill":
             row = connection.execute("SELECT url, proposal FROM leads WHERE id = ?", (lead_id,)).fetchone()
             if row is None:
                 raise KeyError(lead_id)
             engine = "playwright" if body.get("engine") == "playwright" else "browsermcp"
             if not self.form_assist_enabled or not (row[1] or "").strip():
-                return {"mode": "manual", "url": row[0]}
+                return "faris", {"mode": "manual", "url": row[0]}
             if self._lead_fill is not None and getattr(self._lead_fill, "poll", lambda: 0)() is None:
-                return {"mode": "busy", "url": row[0]}
+                return "faris", {"mode": "busy", "url": row[0]}
             self._lead_fill = spawn_fill_lead(lead_id, engine, spawn=self.spawn)
-            return {"mode": "form", "engine": engine, "url": row[0]}
+            self._watch(self._lead_fill, "faris", "fill", lead_id=lead_id, engine=engine)
+            return "faris", {"mode": "form", "engine": engine, "url": row[0]}
         raise ValueError(f"unknown action: {action}")
 
     # ------------------------------------------------------------------ owner's office
@@ -229,12 +304,16 @@ class OfficeWork:
         if any(name not in desk.ROLES for name in names):
             raise KeyError(employee)
         reports = [desk.create_report(connection, name) for name in names]
+        for report in reports:
+            self.log_work(report["employee"], "report", count=len(reports), rating=report["rating"])
         self._tell(desk.digest_text(reports) if len(reports) > 1 else desk.report_text(reports[0]))
         return {"items": reports, "telegram": self.notify is not None}
 
     def daily_reports(self, connection: sqlite3.Connection) -> list[dict]:
         reports = desk.ensure_daily_reports(connection)
         if reports:
+            for report in reports:
+                self.log_work(report["employee"], "report", mode="daily", rating=report["rating"])
             self._tell(desk.digest_text(reports, "Laporan pagi tim"))
         return reports
 
@@ -244,6 +323,7 @@ class OfficeWork:
             return {"sent": False}
         reports = [{"employee": e, "hours": 24, **desk.measure(connection, e)} for e in desk.EMPLOYEES]
         self.notify(desk.digest_text(reports, "Ringkasan dari Tegar"))
+        self.log_work("tegar", "digest", count=len(reports))
         return {"sent": True}
 
     def _tell(self, text: str) -> None:
@@ -251,8 +331,8 @@ class OfficeWork:
             return
         try:
             self.notify(text)
-        except Exception:  # Telegram being down must never lose the report itself
-            pass
+        except Exception as error:  # Telegram being down must never lose the report itself
+            self.log_failure("tegar", "telegram", error)
 
     def start_daily_reports(self) -> None:
         def loop() -> None:
@@ -260,8 +340,8 @@ class OfficeWork:
                 try:
                     with open_db(self.database_path) as connection:
                         self.daily_reports(connection)
-                except Exception:
-                    pass
+                except Exception as error:  # never kill the thread, but never hide it either
+                    self.log_failure(None, "report_loop", error)
                 time.sleep(DAILY_CHECK_SECONDS)
 
         threading.Thread(target=loop, name="office-daily-reports", daemon=True).start()
@@ -283,6 +363,7 @@ class OfficeWork:
         if on and self._thread is None:
             self._thread = threading.Thread(target=self._loop, name="office-auto-work", daemon=True)
             self._thread.start()
+        self.log_work(None, "auto", mode="on" if on else "off")
         self._wake.set()
 
     def _loop(self) -> None:
@@ -305,26 +386,38 @@ class OfficeWork:
                     if not self.auto:
                         return
                     self.busy = source
+                    started = self.clock()
                     with self.lock:
                         try:
                             result = hunt(connection)
                             self.last = {"source": source, "matched": result["matched"], "at": self.clock()}
-                        except Exception:  # one broken source must not stop the others
+                            self.log_work(
+                                desk.SOURCE_OWNER.get(source), "hunt", source=source,
+                                matched=result.get("matched"), inserted_count=result.get("inserted"),
+                                duration_ms=int((self.clock() - started) * 1000),
+                            )
+                        except Exception as error:  # one broken source must not stop the others
                             self.last = {"source": source, "error": True, "at": self.clock()}
+                            self.log_failure(
+                                desk.SOURCE_OWNER.get(source), "hunt", error, source=source,
+                                duration_ms=int((self.clock() - started) * 1000),
+                            )
                 self.busy = "draft"
                 with self.lock:
                     try:
                         drafted = self.draft_next(connection)
                         self.last = {"source": "draft", "matched": drafted, "at": self.clock()}
-                    except Exception:
+                    except Exception as error:
                         self.last = {"source": "draft", "error": True, "at": self.clock()}
+                        self.log_failure("cora", "draft", error)
                 if self.proposal_writer is not None and self.auto:
                     self.busy = "proposal"
                     with self.lock:
                         try:
                             written = self.draft_proposals(connection)
                             self.last = {"source": "proposal", "matched": written, "at": self.clock()}
-                        except Exception:
+                        except Exception as error:
                             self.last = {"source": "proposal", "error": True, "at": self.clock()}
+                            self.log_failure("cora", "proposal", error)
         finally:
             self.busy = None

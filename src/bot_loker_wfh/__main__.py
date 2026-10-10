@@ -369,7 +369,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 connection, lead_id, profile, office_desk.instructed(llm, connection, "cora"),
                 portfolio=load_portfolio(), mark_interested=mark_interested,
             ),
-            screener=lambda connection: {"matched": JobPipeline(connection, profile).process_discovered()["candidate"]},
+            screener=_office_screener(profile),
             llm=create_chat_llm(settings, str(database_path)),  # Q&A needs seconds, not an agent run
             notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
@@ -412,6 +412,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"external_jobs_enabled={str(settings.external_jobs_enabled).lower()}"
     )
     return 0
+
+
+def _office_screener(profile):
+    """Sari scores the queue and Eli drops the ineligible rows; both counts reach the log."""
+
+    def screen(connection):
+        counts = JobPipeline(connection, profile).process_discovered()
+        return {"matched": counts["candidate"], "filtered_out": counts["filtered_out"]}
+
+    return screen
 
 
 def _office_hunters(profile, settings: Settings) -> dict:
