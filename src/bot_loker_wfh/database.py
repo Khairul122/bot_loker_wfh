@@ -23,7 +23,8 @@ def _supabase_url() -> str:
 def _supabase_key() -> str:
     # Service-role key preferred: RLS restricts app_settings/office_character_state to it.
     return (
-        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        os.getenv("SUPABASE_SECRET_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         or os.getenv("SUPABASE_SERVICE_KEY")
         or os.getenv("SUPABASE_KEY", "")
     )
