@@ -151,41 +151,46 @@ def load_dotenv(path: str | Path = ".env") -> None:
 
 
 def save_dotenv(settings: dict, path: str | Path = ".env") -> None:
-    """Save settings to .env file, preserving existing keys and comments."""
+    """Save settings to .env file, preserving order/comments/blank lines."""
     env_path = Path(path)
-    existing = {}
-    comments = []
-    
-    # Read existing .env
+    lines: list[str] = []
+    key_to_index: dict[str, int] = {}
     if env_path.is_file():
-        for raw_line in env_path.read_text(encoding="utf-8-sig").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                comments.append(raw_line)
+        raw_lines = env_path.read_text(encoding="utf-8-sig").splitlines()
+        for idx, raw in enumerate(raw_lines):
+            lines.append(raw)
+            stripped = raw.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
                 continue
-            if "=" in line:
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
-                    value = value[1:-1]
-                existing[key] = value
-    
-    # Update with new settings
+            k, _, v = stripped.partition("=")
+            k = k.strip()
+            if k:
+                key_to_index[k] = idx
+
+    # ponytail: full .env parser with export/inline comments is heavier; upgrade when needed
     for key, value in settings.items():
-        if value is not None and value != "":
-            existing[key] = str(value)
-    
-    # Write back
-    lines = []
-    for c in comments:
-        lines.append(c)
-    for key, value in sorted(existing.items()):
-        # Quote values with spaces or special chars
-        if " " in value or any(c in value for c in "#$&*()[]{}|;'<>`~"):
-            value = f'"{value}"'
-        lines.append(f"{key}={value}")
-    
+        if value is None:
+            continue
+        str_value = str(value)
+        # escape double quotes and wrap when needed
+        needs_quote = " " in str_value or any(c in str_value for c in '#$&*()[]{}|;\'<>`~"')
+        if needs_quote:
+            str_value = '"' + str_value.replace('"', '\\"') + '"'
+        new_line = f"{key}={str_value}"
+        if key in key_to_index:
+            lines[key_to_index[key]] = new_line
+        else:
+            # keep blank line before new keys if file doesn't end with one
+            lines.append(new_line)
+            key_to_index[key] = len(lines) - 1
+        # keep process env in sync so Settings.from_environment() sees it without restart
+        if str_value == "":
+            environ.pop(key, None)
+        else:
+            # strip quotes for environ
+            env_val = str(value)
+            environ[key] = env_val
+
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

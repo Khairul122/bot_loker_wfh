@@ -502,7 +502,7 @@ class _Handler(SimpleHTTPRequestHandler):
         """Test LLM connection based on current settings."""
         try:
             from bot_loker_wfh.config import Settings
-            from bot_loker_wfh.llm import create_llm_from_settings, OpenAICompatibleProvider, LLMError
+            from bot_loker_wfh.llm import OpenAICompatibleProvider, LLMError
             
             settings = Settings.from_environment()
             

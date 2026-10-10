@@ -11,6 +11,7 @@ const SETTINGS_TABS = [
 ];
 
 let settingsData = null;
+let settingsMeta = {}; // raw payload for masked secrets (hint/set)
 
 export async function initSettings() {
   $('bSettings').onclick = () => toggleSettings(true);
@@ -25,7 +26,7 @@ async function loadSettings() {
     const res = await fetch('settings.json', { cache: 'no-store' });
     if (res.ok) {
       const raw = await res.json();
-      // Extract values from {key: {value: ...}} format
+      settingsMeta = raw;
       settingsData = {};
       for (const [key, val] of Object.entries(raw)) {
         settingsData[key] = val?.value ?? val;
@@ -33,6 +34,7 @@ async function loadSettings() {
     }
   } catch {
     settingsData = {};
+    settingsMeta = {};
   }
 }
 
@@ -114,7 +116,7 @@ function renderLLMPanel() {
     // Anthropic settings
     createSection([
       el('h4', '', '🧠 Anthropic (Claude)'),
-      createInput('anthropic_api_key', 'API Key', 'password', s.anthropic_api_key || '', 'Masukkan API key Anthropic'),
+      createInput('anthropic_api_key', 'API Key', 'password', s.anthropic_api_key || '', settingsMeta.anthropic_api_key?.hint ? 'Terset (' + settingsMeta.anthropic_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Masukkan API key Anthropic'),
       createInput('anthropic_model', 'Model', 'text', s.anthropic_model || 'claude-sonnet-5', 'Contoh: claude-sonnet-5, claude-opus-4'),
     ]),
     
@@ -176,7 +178,7 @@ function renderNineRouterPanel() {
   container.append(
     el('h4', '', '🔀 Konfigurasi 9Router'),
     createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router (default: http://localhost:20128/v1)'),
-    createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', 'Dapatkan dari http://localhost:20128/dashboard'),
+    createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Dapatkan dari http://localhost:20128/dashboard'),
     
     el('hr', '', ''),
     
@@ -225,10 +227,10 @@ function renderBrowserPanel() {
     el('hr', '', ''),
     
     el('h4', '', '🔧 Engine Pengisian Form'),
-    createSelect('form_engine', 'Engine Aktif', [
+    createSelect('form_engine_browser', 'Engine Aktif', [
       { value: 'playwright', label: '🎭 Playwright MCP (browser terpisah)' },
       { value: 'browsermcp', label: '🌐 BrowserMCP (Chrome asli Anda)' },
-    ], s.form_engine || 'playwright'),
+    ], s.form_engine || 'playwright', e => saveSetting('form_engine', e.target.value)),
     
     el('hr', '', ''),
     
@@ -269,28 +271,6 @@ function renderSkillsPanel() {
     
     el('h4', '', '📋 Skill Tersedia (dari OpenCode)'),
     createBox('skills-list', 'skills-grid', '⏳ Memuat...'),
-    
-    el('hr', '', ''),
-    
-    el('h4', '', '🎯 Task Routing'),
-    el('p', '', 'Tentukan skill/agent mana yang handle tugas tertentu:'),
-    createSelect('skill_draft', 'Cover Letter Draft', [
-      { value: 'default', label: 'Default (prompt_builder)' },
-      { value: 'cover_letter', label: 'Skill cover-letter-specialist' },
-      { value: 'opencode', label: 'OpenCode Agent' },
-    ], s.skill_draft || 'default'),
-    
-    createSelect('skill_form', 'Form Mapping', [
-      { value: 'default', label: 'Default (FormAgent)' },
-      { value: 'form_filler', label: 'Skill form-filler-expert' },
-      { value: 'opencode', label: 'OpenCode Agent' },
-    ], s.skill_form || 'default'),
-    
-    createSelect('skill_answer', 'Open Questions', [
-      { value: 'default', label: 'Default (LLM answer)' },
-      { value: 'qa_expert', label: 'Skill qa-specialist' },
-      { value: 'opencode', label: 'OpenCode Agent' },
-    ], s.skill_answer || 'default'),
     
     el('hr', '', ''),
     
@@ -430,7 +410,9 @@ function createSelect(id, label, options, value, onChange) {
   }));
   select.id = id;
   select.value = value;
-  if (onChange) select.onchange = onChange;
+  // auto-save when onChange not supplied, so form_engine/skill_* persist
+  const handler = onChange || ((e) => saveSetting(id, e.target.value));
+  select.onchange = handler;
   
   wrapper.append(
     el('label', '', label),
