@@ -283,9 +283,11 @@ class McpBrowserClient:
             try:
                 res = self._send_request("tools/call", {"name": "browser_snapshot", "arguments": {}})
             except Exception:
+                self.stop()
                 return
             payload = res.get("result", {})
             if "error" in res or (isinstance(payload, dict) and payload.get("isError")):
+                self.stop()
                 return
 
     def call_tool(self, name: str, args: dict[str, Any]) -> Any:

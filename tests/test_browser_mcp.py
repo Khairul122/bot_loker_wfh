@@ -77,6 +77,19 @@ class TestBrowserMCP(unittest.TestCase):
             success = client.wait_for_extension(timeout=5.0)
             self.assertTrue(success)
 
+    def test_hold_open_stops_mcp_when_browser_tab_closes(self):
+        client = McpBrowserClient()
+        client.process = MagicMock()
+        client.process.stdin = MagicMock()
+        client._send_request = MagicMock(return_value={
+            "result": {"isError": True, "content": [{"text": "Target page, context or browser has been closed"}]}
+        })
+
+        with patch.object(client, "stop") as stop:
+            client.hold_open(max_seconds=1, poll_seconds=0)
+
+        stop.assert_called_once_with()
+
     def test_stop_kills_whole_process_tree(self):
         import os
 
