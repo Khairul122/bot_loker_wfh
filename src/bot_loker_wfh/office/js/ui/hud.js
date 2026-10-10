@@ -13,11 +13,9 @@ document.querySelectorAll('[data-emote]').forEach(b => b.onclick = () => {
   staff.filter(c => c.level === me.level && c.pos.distanceTo(me.pos) < 6).forEach(c => setTimeout(() => c.doEmote(e === 'wave' ? 'wave' : 'cheer', 1.8), 300 + Math.random() * 400));
 });
 
-const SOUND_KEY = 'kantor-loker-sound';
 function setSoundButton() { $('bSound').textContent = Snd.on ? '🔊' : '🔇'; }
 $('bSound').onclick = () => {
   Snd.toggle(); setSoundButton();
-  try { localStorage.setItem(SOUND_KEY, Snd.on ? '1' : '0'); } catch {}
   savePref('sound', Snd.on ? '1' : '0');
 };
 // browsers only allow audio after a user gesture: resume the saved preference on the first one
@@ -27,12 +25,6 @@ function armSound() {
   const resume = () => { if (!Snd.on) Snd.start(); setSoundButton(); removeEventListener('pointerdown', resume); removeEventListener('keydown', resume); };
   addEventListener('pointerdown', resume); addEventListener('keydown', resume);
 }
-export function applySound(on) {
-  try { localStorage.setItem(SOUND_KEY, on ? '1' : '0'); } catch {}
-  if (on) armSound();
-}
-let wantSound = false;
-try { wantSound = localStorage.getItem(SOUND_KEY) === '1'; } catch {}
-if (wantSound) armSound();
+export function applySound(on) { if (on) armSound(); }
 
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }); }, 1000);

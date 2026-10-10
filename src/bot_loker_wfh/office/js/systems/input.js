@@ -4,7 +4,7 @@ import { camera } from '../core/engine.js';
 import { store } from '../core/store.js';
 import { V, ROOF, DOOR_X, clamp } from '../core/util.js';
 import { blocked, inLift } from '../world/navigation.js';
-import { me, savePosition } from '../characters/player.js';
+import { me } from '../characters/player.js';
 import { $ } from '../ui/dom.js';
 import { endChat } from '../ui/card.js';
 import { togglePerf } from '../ui/perf.js';
@@ -41,7 +41,7 @@ export function keyMove(dt) {
   const mv = fwd.multiplyScalar(-z).add(right.multiplyScalar(x)).normalize();
   const step = me.speed * dt * (me.energy < 15 ? 0.7 : 1);
   const nx = me.pos.x + mv.x * step, nz = me.pos.z + mv.z * step;
-  if (!blocked(me.level, me.pos, nx, nz)) { me.pos.x = nx; me.pos.z = nz; savePosition(); }
+  if (!blocked(me.level, me.pos, nx, nz)) { me.pos.x = nx; me.pos.z = nz; }
   me.targetRy = Math.atan2(mv.x, mv.z); me.kbWalk = true;
 }
 addEventListener('keydown', e => {

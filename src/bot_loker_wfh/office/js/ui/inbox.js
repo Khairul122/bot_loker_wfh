@@ -12,7 +12,6 @@ import { savePref } from '../systems/prefs.js';
 import { $, el, post, toast, starsHtml, OFFLINE } from './dom.js';
 import { TAG } from './results.js';
 
-const AUTO_KEY = 'kantor-loker-auto';
 const fmtIn = sec => sec == null ? 'segera' : sec < 3600 ? `${Math.max(1, Math.round(sec / 60))} menit lagi` : `${Math.round(sec / 3600)} jam lagi`;
 export function renderAuto() {
   const w = store.S.work || {};
@@ -32,11 +31,9 @@ export async function setAuto(on) {
   const res = await post('auto', { on });
   if (!res.ok) { toast(OFFLINE); return; }
   store.S.work = res.data; renderAuto();
-  rememberAuto(on); savePref('auto', on ? '1' : '0');
+  savePref('auto', on ? '1' : '0');
   toast(on ? '🤖 Tim kerja otomatis: cari → nilai → tulis draf. Hasilnya masuk 📥 untuk kamu setujui' : '🤖 Kerja otomatis dimatikan');
 }
-export function rememberAuto(on) { try { localStorage.setItem(AUTO_KEY, on ? '1' : '0'); } catch {} }
-export function wantAuto() { try { return localStorage.getItem(AUTO_KEY) !== '0'; } catch { return true; } }
 $('bAuto').onclick = () => store.live ? setAuto(!store.S.work?.auto) : toast(OFFLINE);
 
 let prevBusy = null, lastWorkAt;

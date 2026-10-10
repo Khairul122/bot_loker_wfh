@@ -9,7 +9,7 @@ import { spots } from './world/spots.js';
 import './buildings/houses.js';
 import { chars } from './characters/char.js';
 import { staff, staffMood } from './characters/team.js';
-import { me, savePosition, updateMe } from './characters/player.js';
+import { me, updateMe } from './characters/player.js';
 import { say, updateBubbles } from './fx/bubbles.js';
 import { updateParts } from './fx/particles.js';
 import { updateStaff } from './ai/routine.js';
@@ -22,7 +22,7 @@ import './ui/customize.js';
 import './ui/hud.js';
 import './ui/board.js';
 import { updateLiftPanel } from './ui/lift.js';
-import { setAuto, wantAuto, rememberAuto } from './ui/inbox.js';
+import { setAuto } from './ui/inbox.js';
 import { night, followClock } from './systems/night.js';
 import { updateCutaway } from './systems/cutaway.js';
 import { updateWorld } from './systems/life.js';
@@ -31,10 +31,9 @@ import { keyMove } from './systems/input.js';
 import { loadStats, poll } from './systems/sync.js';
 import { initSettings } from './ui/settings.js';
 import { restorePositions, startPositionSync } from './systems/positions.js';
-import { loadPrefs, savePref } from './systems/prefs.js';
+import { loadPrefs } from './systems/prefs.js';
 import { applyLook } from './ui/customize.js';
 import { applySound } from './ui/hud.js';
-import { LOOK_KEY } from './characters/player.js';
 import './ui/logs.js';
 import './systems/realtime.js';
 
@@ -45,7 +44,6 @@ function frame() {
   for (const f of [...animated]) f(t, dt);
   for (const c of staff) updateStaff(c, dt, t);
   updateMe(dt);
-  if (me.path.length === 0 && !me.ride) savePosition();
   for (const c of chars) c.update(dt, t);
   updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
   updateLightPool(dt, store.fp ? camera.position : controls.target, night);
@@ -64,15 +62,13 @@ followClock();
 await loadStats();
 initSettings();
 await restorePositions();
-// owner preferences live in Supabase; anything only this browser knows is uploaded once
+// owner preferences live in Supabase (app_settings ui_*)
 const prefs = await loadPrefs();
-const local = key => { try { return localStorage.getItem(key); } catch { return null; } };
-if (prefs.look) { try { applyLook(JSON.parse(prefs.look)); } catch {} } else if (local(LOOK_KEY)) savePref('look', local(LOOK_KEY));
-if (prefs.sound !== undefined) applySound(prefs.sound === '1'); else if (local('kantor-loker-sound') !== null) savePref('sound', local('kantor-loker-sound'));
-if (prefs.auto !== undefined) rememberAuto(prefs.auto === '1'); else if (local('kantor-loker-auto') !== null) savePref('auto', local('kantor-loker-auto'));
+if (prefs.look) { try { applyLook(JSON.parse(prefs.look)); } catch {} }
+applySound(prefs.sound === '1');
 startPositionSync();
 poll();
-if (store.live && wantAuto() && !store.S.work?.auto) setAuto(true);
+if (store.live && prefs.auto !== '0' && !store.S.work?.auto) setAuto(true);
 staff.forEach(c => c.setMood(staffMood(c, 0)));
 $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 700);
 setTimeout(() => $('hint').style.opacity = 0, 12000);
