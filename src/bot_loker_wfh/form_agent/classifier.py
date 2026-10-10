@@ -44,7 +44,7 @@ LEGAL_KEYWORDS = (
     "syarat",
 )
 SALARY_KEYWORDS = ("salary", "compensation", "gaji", "expected pay")
-BID_KEYWORDS = ("bid", "hourly rate", "weekly limit", "weekly hours", "milestone", "duration", "nilai penawaran", "batas mingguan", "diselesaikan dalam")
+BID_KEYWORDS = ("bid", "hourly rate", "weekly limit", "weekly hours", "milestone", "duration", "nilai penawaran", "jumlah penawaran", "per jam", "batas mingguan", "diselesaikan dalam", "delivered in")
 IDENTITY_KEYWORDS = (
     "first name",
     "last name",

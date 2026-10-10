@@ -59,6 +59,7 @@ async function act(l, action, body = {}) {
 function applyResult(l, action, d) {
   if (d.status) l.status = d.status;
   if (d.proposal !== undefined) { l.proposal = d.proposal; l.bid_terms = d.bid_terms || null; if (l.status === 'NEW') l.status = 'INTERESTED'; }
+  else if (d.bid_terms !== undefined) l.bid_terms = d.bid_terms;
 }
 
 function lead(l) {
@@ -171,12 +172,29 @@ function detail(l) {
     }
   }
 
-  // bid terms (rate, weekly limit, deadline, milestones)
-  if (l.bid_terms) {
+  // bid terms: price comes from the project's average bid / budget; the owner can correct everything
+  if (l.proposal || l.bid_terms) {
     wrap.append(el('h4', null, '💰 Ajuan bid & tenggang waktu'));
-    const t = l.bid_terms, terms = el('div', 'periods');
-    terms.append(row('Tarif per jam', t.hourly_rate), row('Batas per minggu (jam)', t.weekly_limit), row('Tenggang waktu (hari)', t.duration_days), row('Milestone', t.milestones));
-    wrap.append(terms);
+    const t = l.bid_terms || {};
+    const field = (label, key, type = 'text') => {
+      const input = el(type === 'area' ? 'textarea' : 'input', 'bid-note');
+      if (type === 'area') input.rows = 2; else input.type = 'text';
+      input.value = t[key] || ''; input.disabled = locked; input.inputMode = type === 'text' ? 'decimal' : 'text';
+      return [el('label', 'term', [el('span', null, label), input]), input];
+    };
+    const [amountRow, amount] = field('Harga penawaran (mata uang proyek)', 'amount');
+    const [daysRow, days] = field('Tenggang waktu (hari)', 'duration_days');
+    const [weeklyRow, weekly] = field('Batas jam per minggu (proyek per jam)', 'weekly_limit');
+    const [mileRow, miles] = field('Milestone', 'milestones', 'area'); miles.inputMode = 'text';
+    wrap.append(el('div', 'terms', [amountRow, daysRow, weeklyRow, mileRow]));
+    if (!locked) {
+      const saveTerms = el('button', 'btn', '💾 Simpan ajuan bid');
+      saveTerms.onclick = () => run(saveTerms, '⏳…', 'terms',
+        { amount: amount.value, duration_days: days.value, weekly_limit: weekly.value, milestones: miles.value, hourly_rate: l.bid_terms?.hourly_rate ? amount.value : '' },
+        () => toast('✅ Ajuan bid tersimpan'));
+      wrap.append(el('div', 'lead-actions', [saveTerms]));
+      wrap.append(el('p', 'note', 'Harga diisi dari rata-rata bid platform (atau tengah budget klien), tidak di bawah rata-rata. Ubah kalau perlu lalu simpan sebelum menyetujui.'));
+    }
   }
 
   // approve -> Faris fills the real form and presses submit
@@ -192,11 +210,14 @@ function detail(l) {
         return;
       }
       clearTimeout(armed); armed = null;
+      const tab = window.open('about:blank', '_blank'); // the bid gets its own tab; the office tab is never driven
       const d = await act(l, 'approve', {});
-      if (!d) { go.textContent = '✅ Setujui & kirim bid'; return; }
-      if (d.mode === 'manual') { toast('Isi form otomatis belum aktif (FORM_ASSIST_ENABLED=true). Kirim manual lewat tombol Buka proyek.'); go.textContent = '✅ Setujui & kirim bid'; return; }
-      if (d.mode === 'busy') { toast('Faris masih mengerjakan form lain, tunggu sebentar'); go.textContent = '✅ Setujui & kirim bid'; return; }
-      applyResult(l, 'approve', d); toast('🚀 Disetujui. Faris mengisi form dan mengirim bid di Chrome kamu'); refresh();
+      const reset = () => { tab?.close(); go.textContent = '✅ Setujui & kirim bid'; };
+      if (!d) { reset(); return; }
+      if (d.mode === 'manual') { toast('Isi form otomatis belum aktif (FORM_ASSIST_ENABLED=true). Kirim manual lewat tombol Buka proyek.'); reset(); return; }
+      if (d.mode === 'busy') { toast('Faris masih mengerjakan form lain, tunggu sebentar'); reset(); return; }
+      if (tab) tab.location.href = l.url;
+      applyResult(l, 'approve', d); toast('🚀 Tab proyek dibuka. Di tab itu klik ikon BrowserMCP > Connect, lalu Faris mengisi dan mengirim bid'); refresh();
     };
     wrap.append(go, el('p', 'note', '🔐 Pastikan Chrome sudah login di platform dan ekstensi BrowserMCP terhubung. CAPTCHA tidak pernah diselesaikan otomatis; kalau muncul, bid berhenti dan kamu selesaikan sendiri.'));
   } else wrap.append(el('p', 'note', 'Tombol kirim muncul setelah draf proposal (minimal 100 karakter) tersedia.'));

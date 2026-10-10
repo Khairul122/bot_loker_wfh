@@ -27,6 +27,19 @@ from bot_loker_wfh.form_agent.report import ReportBuilder, SessionRecordInput
 from bot_loker_wfh.llm import LLMRouter
 
 
+LEAD_CONNECT_WAIT_SECONDS = 180.0
+
+
+def _page_url(snapshot: str | None) -> str:
+    match = re.search(r"Page URL:\s*(\S+)", snapshot or "")
+    return match.group(1) if match else ""
+
+
+def _is_office_tab(url: str) -> bool:
+    host = (urlparse(url).hostname or "").lower()
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
 class FormAgent:
     def __init__(
         self,
@@ -258,12 +271,24 @@ class FormAgent:
         try:
             # Tunggu ekstensi terhubung
             if hasattr(client, "wait_for_extension"):
+                # a bid run waits longer: the owner connects the freshly opened project tab by hand
+                wait = max(self.connect_timeout_seconds, LEAD_CONNECT_WAIT_SECONDS) if lead_id else self.connect_timeout_seconds
+                if lead_id:
+                    print(f"Menunggu BrowserMCP terhubung ke tab proyek (maks {int(wait)} dtk): "
+                          "klik ikon BrowserMCP > Connect di tab proyek.", flush=True)
                 try:
-                    client.wait_for_extension(self.connect_timeout_seconds)
+                    client.wait_for_extension(wait)
                 except McpNotConnectedError:
                     return (
-                        "Ekstensi BrowserMCP belum terhubung. "
-                        "Buka Chrome, klik ikon BrowserMCP, tekan Connect, lalu ulangi /isi."
+                        "Ekstensi BrowserMCP belum terhubung. Buka tab proyek yang dibuka bot, "
+                        "klik ikon BrowserMCP, tekan Connect, lalu setujui lagi."
+                    )
+                # never drive (and navigate away) the office page itself
+                current = _page_url(client.peek_snapshot() if hasattr(client, "peek_snapshot") else None)
+                if current and _is_office_tab(current):
+                    return (
+                        "BrowserMCP terhubung ke tab Kantor 3D, bukan tab proyek, jadi tidak dipakai. "
+                        "Buka tab proyek, klik ikon BrowserMCP > Connect di tab itu, lalu setujui lagi."
                     )
 
             # 3. Buka halaman
@@ -307,6 +332,8 @@ class FormAgent:
             fields = classifier.classify_all(raw_fields)
 
             has_captcha = any(f.field_class == "captcha" for f in fields)
+
+            print("Field terbaca: " + "; ".join(f"{f.label[:40]} [{f.field_class}]" for f in fields), flush=True)
 
             # 5. Rencanakan
             planner = FormPlanner(self.router, answers_store, ai_answers=self.ai_answers)

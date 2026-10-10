@@ -19,7 +19,7 @@ from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
-    approve_lead, get_bid_terms, lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads,
+    approve_lead, edit_bid_terms, get_bid_terms, lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads,
 )
 from .logging_utils import StructuredLogger, sanitize_error
 from . import office_desk as desk
@@ -297,6 +297,9 @@ class OfficeWork:
                 raise ValueError("tulis catatan revisinya dulu")
             text = self.proposal_writer(connection, lead_id, mark_interested=True, note=note)
             return "cora", {"proposal": text, "bid_terms": _terms(get_bid_terms(connection, lead_id)), "revised": True}
+        if action == "terms":
+            terms = edit_bid_terms(connection, lead_id, body)
+            return "cora", {"bid_terms": _terms(terms)}
         if action == "fill":
             row = connection.execute("SELECT url, proposal FROM leads WHERE id = ?", (lead_id,)).fetchone()
             if row is None:
@@ -477,5 +480,4 @@ class OfficeWork:
 def _terms(terms) -> dict | None:
     if terms is None:
         return None
-    return {"hourly_rate": terms.hourly_rate, "weekly_limit": terms.weekly_limit,
-            "duration_days": terms.duration_days, "milestones": terms.milestones}
+    return terms.as_dict()

@@ -330,6 +330,9 @@ def _freelancer_lead(project: Any) -> Lead | None:
         except (ValueError, TypeError):
             bids_count = None
         budget_text = f"{budget_text or 'Budget n/a'} | {bids} bid"
+        average = (project.get("bid_stats") or {}).get("bid_avg")
+        if average:  # the platform's own average bid: the price floor for our suggestion
+            budget_text += f" | avg {float(average):.2f}"
     submitted = project.get("time_submitted")
     return Lead(
         source="freelancer",

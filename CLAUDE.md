@@ -58,9 +58,9 @@ Full map: `docs/ONBOARDING.md`.
 
 - External job APIs stay disabled unless `EXTERNAL_JOBS_ENABLED=true`.
 - Telegram commands and callbacks require allowlisted chat IDs.
-- Form assist must stop before Submit and never solve CAPTCHA.
+- Job-application form assist must stop before Submit. A freelance bid is submitted only after the owner presses "Setujui & kirim" in the office web UI (lead status `APPROVED`), only on `lead_desk.SUBMIT_HOSTS`, never twice (`SUBMITTED` blocks a resend). Never solve CAPTCHA anywhere.
 - Treat stale or replayed approval callbacks as no-op failures.
-- Production submission stays disabled until reviewed target allowlist, target policy, secure upload handling, and manual production test exist.
+- Production submission of job applications stays disabled until reviewed target allowlist, target policy, secure upload handling, and manual production test exist.
 - Do not edit `.env` or user profile data unless explicitly requested.
 
 ## Database changes

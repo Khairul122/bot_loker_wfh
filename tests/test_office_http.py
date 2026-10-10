@@ -43,6 +43,12 @@ class OfficeHttpTest(unittest.TestCase):
         except Exception as error:  # HTTPError carries the status
             return error.code, json.loads(error.read())
 
+    def test_a_failing_request_answers_json_instead_of_closing_the_socket(self):
+        with mock.patch.object(office_server, "collect_stats", side_effect=RuntimeError("boom")):
+            self.assertEqual(self.call("stats.json"), (500, {"error": "server_error"}))
+        with mock.patch.object(office_server, "collect_stats", side_effect=database.OperationalError("down")):
+            self.assertEqual(self.call("stats.json"), (503, {"error": "supabase_unavailable"}))
+
     def test_employee_skills_routes(self):
         status, data = self.call("employee-skills.json")
         self.assertEqual(status, 200)

@@ -276,12 +276,22 @@ def save_proposal(
 
 
 def save_bid_terms(connection: Connection, lead_id: str, terms: BidTerms) -> None:
-    payload = json.dumps(
-        {"hourly_rate": terms.hourly_rate, "weekly_limit": terms.weekly_limit,
-         "duration_days": terms.duration_days, "milestones": terms.milestones}
-    )
-    connection.execute("UPDATE leads SET bid_terms = ? WHERE id = ?", (payload, lead_id))
+    connection.execute("UPDATE leads SET bid_terms = ? WHERE id = ?", (json.dumps(terms.as_dict()), lead_id))
     connection.commit()
+
+
+def edit_bid_terms(connection: Connection, lead_id: str, values: dict) -> BidTerms:
+    """The owner corrects the price, deadline or milestones before approving."""
+    row = connection.execute("SELECT bid_terms FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if row is None:
+        raise KeyError(lead_id)
+    merged = {**(_terms_json(row[0]) or {}), **{k: str(v).strip() for k, v in values.items() if k in BidTerms.__dataclass_fields__}}
+    try:
+        terms = parse_bid_terms(json.dumps(merged))
+    except ValueError as error:
+        raise ValueError("ajuan bid tidak valid: harga, tarif, jam/minggu dan hari harus angka; milestone wajib diisi") from error
+    save_bid_terms(connection, lead_id, terms)
+    return terms
 
 
 def get_bid_terms(connection: Connection, lead_id: str) -> BidTerms | None:
@@ -315,6 +325,14 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
         raise ValueError("proposal minimal 100 karakter sebelum dikirim")
     if not submit_allowed(url):
         raise ValueError("pengiriman otomatis hanya untuk Freelancer.com dan Projects.co.id; kirim manual")
+    terms = get_bid_terms(connection, lead_id)
+    if terms is None:  # no draft-time suggestion stored: compute it from the project's budget now
+        budget = connection.execute("SELECT title, description, budget FROM leads WHERE id = ?", (lead_id,)).fetchone()
+        terms = choose_bid_terms(None, title=budget[0], description=budget[1], budget=budget[2] or "")
+        if terms is not None:
+            save_bid_terms(connection, lead_id, terms)
+    if terms is None or not (terms.amount or terms.hourly_rate):
+        raise ValueError("isi harga penawaran dulu (kolom Harga di Ajuan bid)")
     connection.execute("UPDATE leads SET status = 'APPROVED' WHERE id = ?", (lead_id,))
     connection.commit()
     return {"url": url}

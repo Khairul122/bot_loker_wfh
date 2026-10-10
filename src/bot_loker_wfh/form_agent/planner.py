@@ -249,7 +249,11 @@ class FormPlanner:
     @staticmethod
     def _bid_key(label: str) -> str | None:
         text = label.lower()
-        if "hourly" in text or "nilai penawaran" in text or "rate" in text:
+        if "hourly" in text or "per jam" in text or "tarif" in text:
+            return "bid.hourly_rate"
+        if "nilai penawaran" in text or "bid amount" in text or "jumlah penawaran" in text or "your bid" in text:
+            return "bid.amount"
+        if "rate" in text:
             return "bid.hourly_rate"
         if "weekly" in text or "mingguan" in text:
             return "bid.weekly_limit"

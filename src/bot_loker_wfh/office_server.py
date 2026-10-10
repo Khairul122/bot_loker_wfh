@@ -318,7 +318,33 @@ class _Handler(SimpleHTTPRequestHandler):
     def _connect(self):
         return open_db()
 
+    def _guarded(self, handler) -> None:
+        """A failing request answers 503/500 instead of silently closing the socket
+        (the browser shows that as ERR_CONNECTION_CLOSED)."""
+        try:
+            handler()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass  # the page went away mid-answer
+        except database.Error:
+            print(f"[office] {self.command} {self.path.split('?')[0]} -> supabase_unavailable", flush=True)
+            self._safe_error(503, "supabase_unavailable")
+        except Exception as error:
+            print(f"[office] {self.command} {self.path.split('?')[0]} -> {type(error).__name__}", flush=True)
+            self._safe_error(500, "server_error")
+
+    def _safe_error(self, status: int, code: str) -> None:
+        try:
+            self._json(status, {"error": code})
+        except Exception:
+            pass  # headers already sent or socket gone
+
     def do_GET(self):
+        self._guarded(self._get)
+
+    def do_POST(self):
+        self._guarded(self._post)
+
+    def _get(self):
         path = self.path.split("?")[0]
         if path == "/favicon.ico":
             self.send_response(204)
@@ -463,7 +489,7 @@ class _Handler(SimpleHTTPRequestHandler):
         body = json.loads(self.rfile.read(length) or b"{}")
         return body if isinstance(body, dict) else {}
 
-    def do_POST(self):
+    def _post(self):
         # Other sites open in the browser must not trigger actions on the owner's machine.
         origin = self.headers.get("Origin")
         if origin:

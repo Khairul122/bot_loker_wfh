@@ -214,7 +214,13 @@ def connect(schema: str | None = None) -> Connection:
     if schema != "public" and not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
         raise ValueError("invalid schema name")
     options = f"-c search_path={schema}" if schema != "public" else None
-    raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None, autocommit=True)
+    for attempt in (1, 2):  # the pooler occasionally drops a fresh connection: one quiet retry
+        try:
+            raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None, autocommit=True)
+            break
+        except psycopg.OperationalError:
+            if attempt == 2:
+                raise
     raw.execute("SET extra_float_digits = 3")  # exact float round-trip
     connection = Connection(raw)
     connection.schema = schema

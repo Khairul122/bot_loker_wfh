@@ -24,16 +24,56 @@ $('meeting').onclick = e => { if (e.target === $('meeting')) toggleMeeting(false
 
 function render() {
   $('meetingPeople').replaceChildren(...staff.map(c => {
-    const b = el('button', 'chipb' + (picked.has(c.def.id) ? ' on' : ''), c.def.name);
+    const active = picked.has(c.def.id);
+    const b = el('button', 'chipb' + (active ? ' on' : ''), `👤 ${c.def.name}`);
     b.title = c.def.role;
-    b.onclick = () => { picked.has(c.def.id) ? picked.delete(c.def.id) : picked.add(c.def.id); render(); };
+    b.onclick = () => { active ? picked.delete(c.def.id) : picked.add(c.def.id); render(); };
     return b;
   }));
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const nameOf = id => byId(id)?.name || id;
-const line = text => { const l = $('meetingLog'); if (l) l.append(el('li', null, text)); };
+
+function line(text) {
+  const l = $('meetingLog');
+  if (!l) return;
+  const item = el('li', 'meeting-info', text);
+  l.append(item);
+  l.scrollTop = l.scrollHeight;
+}
+
+function appendSpeech(emp, text) {
+  const l = $('meetingLog');
+  if (!l) return;
+  const c = byId(emp);
+  const name = c?.name || emp || 'Anggota Tim';
+  const role = c?.def?.role || '';
+  const emo = c ? '💬' : '🗣️';
+
+  const avatar = el('div', 'msg-avatar', emo);
+  const header = el('div', 'msg-header', [
+    el('span', 'msg-name', name),
+    role ? el('span', 'msg-role', role) : null
+  ].filter(Boolean));
+  const body = el('div', 'msg-text', text);
+  const box = el('div', 'msg-box', [header, body]);
+  const msg = el('li', 'meeting-msg', [avatar, box]);
+
+  l.append(msg);
+  l.scrollTop = l.scrollHeight;
+}
+
+function appendDecision(decision) {
+  const l = $('meetingLog');
+  if (!l) return;
+  const icon = el('div', 'dec-icon', '✅');
+  const title = el('div', 'dec-title', 'Hasil Keputusan Rapat');
+  const body = el('div', 'dec-text', decision);
+  const card = el('li', 'meeting-decision', [icon, el('div', 'dec-content', [title, body])]);
+  l.append(card);
+  l.scrollTop = l.scrollHeight;
+}
 
 // walk the picked crew to the meeting table so the discussion is visible in 3D.
 // Returns promises that settle once each character has actually sat down (or a safety timeout fires).
@@ -58,7 +98,7 @@ function gather(crew) {
 // one turn: the speaker gestures, everyone else turns to listen and nods now and then
 function speak(emp, text) {
   if (!text) return;
-  line(`${nameOf(emp)}: ${text}`);
+  appendSpeech(emp, text);
   const c = byId(emp);
   if (!c) return;
   const seated = activeRun ? activeRun.crew : [];
@@ -85,7 +125,7 @@ function returnCrew(crew) {
 function finishRun(decision) {
   const run = activeRun; if (!run) return;
   activeRun = null;
-  if (decision) line(`✅ Keputusan: ${decision}`);
+  if (decision) appendDecision(decision);
   busy = false; $('meetingRun').disabled = false;
   sleep(1200).then(() => returnCrew(run.crew)); // let the decision land before everyone walks off
 }

@@ -120,8 +120,26 @@ class BidFlowTest(unittest.TestCase):
         insert_lead(self.connection, "a")
         result = self.work.lead_action(self.connection, "a", "proposal", {})
         self.assertEqual(result["bid_terms"]["duration_days"], "14")
-        self.assertEqual(get_bid_terms(self.connection, "a").hourly_rate, "25")
+        self.assertEqual(get_bid_terms(self.connection, "a").duration_days, "14")
         self.assertEqual(list_leads(self.connection)[0]["bid_terms"]["weekly_limit"], "30")
+
+    def test_bid_amount_comes_from_market_data_not_the_model(self):
+        insert_lead(self.connection, "m")
+        self.connection.execute("UPDATE leads SET budget = 'USD 30-250 | 60 bid | avg 140.20' WHERE id = 'm'")
+        self.work.lead_action(self.connection, "m", "proposal", {})
+        self.assertEqual(get_bid_terms(self.connection, "m").amount, "140")  # model said hourly 25; it is ignored
+        insert_lead(self.connection, "f")
+        self.connection.execute("UPDATE leads SET budget = 'USD 250-750 | 19 bid' WHERE id = 'f'")
+        self.work.lead_action(self.connection, "f", "proposal", {})
+        self.assertEqual(get_bid_terms(self.connection, "f").amount, "500")  # middle of the client's range
+
+    def test_owner_can_edit_terms_and_bad_values_are_rejected(self):
+        insert_lead(self.connection, "a")
+        self.work.lead_action(self.connection, "a", "proposal", {})
+        result = self.work.lead_action(self.connection, "a", "terms", {"amount": "480", "duration_days": "10"})
+        self.assertEqual((result["bid_terms"]["amount"], result["bid_terms"]["duration_days"]), ("480", "10"))
+        with self.assertRaises(ValueError):
+            self.work.lead_action(self.connection, "a", "terms", {"amount": "murah"})
 
     def test_revise_sends_the_note_and_replaces_the_draft(self):
         insert_lead(self.connection, "a")
@@ -143,7 +161,7 @@ class BidFlowTest(unittest.TestCase):
 
     def test_approve_marks_approved_and_starts_the_submitting_filler(self):
         insert_lead(self.connection, "a", source="freelancer")
-        self.connection.execute("UPDATE leads SET url = 'https://www.freelancer.com/projects/x' WHERE id = 'a'")
+        self.connection.execute("UPDATE leads SET url = 'https://www.freelancer.com/projects/x', budget = 'USD 250-750 | 19 bid' WHERE id = 'a'")
         self.work.lead_action(self.connection, "a", "proposal", {"text": "p" * 120})
         result = self.work.lead_action(self.connection, "a", "approve", {})
         self.assertEqual((result["mode"], result["status"]), ("submitting", "APPROVED"))
