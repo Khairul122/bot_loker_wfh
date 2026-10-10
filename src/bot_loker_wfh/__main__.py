@@ -210,7 +210,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         username = args.github_user or settings.github_username
         if not username:
             parser.error("sync-github needs --github-user or GITHUB_USERNAME")
-        data = sync_portfolio(username)
+        with database.session() as connection:
+            data = sync_portfolio(username, connection)
         print(f"github portfolio saved repos={len(data['repos'])} path=data/github_portfolio.json")
         return 0
 
@@ -231,8 +232,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile = load_profile(settings.profile_path)
         initialize_database()
         llm = create_llm_from_settings(settings, record_calls=True)
-        portfolio = load_portfolio()
         with database.session() as connection:
+            portfolio = load_portfolio(connection)
             try:
                 proposal = draft_proposal(connection, args.lead_id, profile, llm, portfolio=portfolio)
                 comment = draft_comment(connection, args.lead_id, llm, portfolio=portfolio)
@@ -358,7 +359,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             proposal_writer=lambda connection, lead_id, mark_interested=True: draft_proposal(
                 connection, lead_id, profile, office_desk.instructed(llm, connection, "cora"),
-                portfolio=load_portfolio(), mark_interested=mark_interested,
+                portfolio=load_portfolio(connection), mark_interested=mark_interested,
             ),
             screener=_office_screener(profile),
             llm=create_chat_llm(settings, record_calls=True),  # Q&A needs seconds, not an agent run

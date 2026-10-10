@@ -14,7 +14,10 @@ from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
 
+from .database import Connection
+
 PORTFOLIO_PATH = Path("data/github_portfolio.json")
+PORTFOLIO_SETTING = "github_portfolio"  # app_settings key holding the synced repos as JSON
 USERNAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
 MAX_PAGES = 5  # 500 repos
 
@@ -132,22 +135,32 @@ def fetch_repos(username: str, *, get_json: Callable[[str], Any] = _get_json) ->
     return repos
 
 
-def sync_portfolio(username: str, path: Path = PORTFOLIO_PATH, **kwargs: Any) -> dict:
+def sync_portfolio(username: str, target: Path | Connection = PORTFOLIO_PATH, **kwargs: Any) -> dict:
+    """Fetch the public repos and store them: in Supabase for a connection, else in a JSON file."""
     data = {
         "username": username,
         "synced_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "repos": fetch_repos(username, **kwargs),
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    if isinstance(target, Connection):
+        from .settings_store import set_setting
+
+        set_setting(target, PORTFOLIO_SETTING, json.dumps(data, ensure_ascii=False))
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     return data
 
 
-def load_portfolio(path: Path = PORTFOLIO_PATH) -> dict:
+def load_portfolio(source: Path | Connection = PORTFOLIO_PATH) -> dict:
+    empty = {"username": "", "synced_at": None, "repos": []}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(source, Connection):
+            row = source.execute("SELECT value FROM app_settings WHERE key = ?", (PORTFOLIO_SETTING,)).fetchone()
+            return json.loads(row[0]) if row else empty
+        return json.loads(source.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {"username": "", "synced_at": None, "repos": []}
+        return empty
 
 
 def _words(text: str) -> set[str]:

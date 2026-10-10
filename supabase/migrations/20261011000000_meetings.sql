@@ -1,4 +1,4 @@
--- Meeting records mirrored from the local SQLite meeting runtime.
+-- Meeting records written by the meeting runtime.
 -- RLS is on with no policies: only the service-role key (server side) can read/write.
 create table if not exists public.meetings (
   id text primary key,

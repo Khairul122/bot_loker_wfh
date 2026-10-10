@@ -6,6 +6,9 @@ export async function loadPrefs() {
   return r.ok ? r.data : {};
 }
 
+// awaited variant for forms with an explicit Simpan button
+export const savePrefNow = (key, value) => post('office/prefs', { key, value: String(value) });
+
 const timers = {};
 // debounced so dragging a colour picker sends one request, not hundreds
 export function savePref(key, value, delay = 0) {

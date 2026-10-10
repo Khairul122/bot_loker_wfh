@@ -1,6 +1,7 @@
 // ---------- simple freelance project board: list + click for detail ----------
 import { store } from '../core/store.js';
-import { $, el, ago, OFFLINE } from './dom.js';
+import { $, el, ago, get, post, toast, OFFLINE } from './dom.js';
+import { loadPrefs, savePrefNow } from '../systems/prefs.js';
 
 const SOURCES = [['', '✨ Semua'], ['freelancer', '🌍 Freelancer'], ['projects.co.id', '🏠 Projects.co.id'], ['telegram', '🏠 Telegram']];
 const VIEWS = [['all', '📋 Aktif'], ['new', '🆕 Baru'], ['old', '🕰️ Lama']];
@@ -8,7 +9,7 @@ let boardOpen = false, source = '', view = 'all', current = null;
 
 export function toggleBoard(v = !boardOpen) {
   boardOpen = v; $('board').classList.toggle('show', v);
-  if (v) render();
+  if (v) { render(); loadProfile(); }
 }
 $('bBoard').onclick = () => toggleBoard();
 $('boardClose').onclick = () => toggleBoard(false);
@@ -44,11 +45,25 @@ async function render() {
 
 function lead(l) {
   const card = el('div', 'job');
+  const top = el('div', 'jtop');
+  const sourceClass = (l.source || '').toLowerCase().includes('freelancer') ? 'freelancer'
+    : (l.source || '').toLowerCase().includes('projects') ? 'projects' : 'telegram';
+  const sourceLabel = sourceClass === 'freelancer' ? '🌍 Freelancer'
+    : sourceClass === 'projects' ? '🏠 Projects.co.id' : '✈️ Telegram';
+
+  top.append(el('span', `tag tag-src ${sourceClass}`, sourceLabel));
+  if (l.budget) top.append(el('span', 'b-badge', l.budget));
+
   const title = el('div', 'jt', l.title);
-  card.append(title, el('div', 'jc', `${l.source} · ${l.budget || 'Budget belum ditulis'}`));
-  const meta = el('div', 'meta', el('span', null, '🕒 ' + (ago(l.posted_at || l.fetched_at) || '—')));
-  if (l.status && l.status !== 'NEW') meta.append(el('span', 'tag mid', l.status));
-  card.append(meta);
+  const meta = el('div', 'meta', [el('span', null, '🕒 ' + (ago(l.posted_at || l.fetched_at) || '—'))]);
+  if (l.status && l.status !== 'NEW') {
+    const stClass = l.status === 'APPLIED' ? 'good' : l.status === 'PASS' ? 'low' : 'mid';
+    meta.append(el('span', `tag ${stClass}`, l.status));
+  } else {
+    meta.append(el('span', 'tag good', '🆕 Baru'));
+  }
+
+  card.append(top, title, meta);
   card.onclick = () => { current = l; detail(l); };
   return card;
 }

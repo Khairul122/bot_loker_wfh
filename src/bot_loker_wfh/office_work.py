@@ -11,6 +11,7 @@ from . import database
 from .database import Connection
 import subprocess
 import threading
+from datetime import datetime, timezone
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -32,6 +33,8 @@ DRAFTS_PER_CYCLE = 3
 PROPOSALS_PER_CYCLE = 3
 MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of configured interval
 DAILY_CHECK_SECONDS = 10 * 60
+GITHUB_CHECK_SECONDS = 15 * 60  # how often the saved username is checked
+GITHUB_SYNC_SECONDS = 6 * 3600  # portfolio older than this is re-synced automatically
 # owner's "update status" buttons on sent applications -> the real status transition
 STATUS_ACTIONS = {
     "viewed": "VIEWED", "interview": "INTERVIEW", "offer": "OFFER",
@@ -337,6 +340,27 @@ class OfficeWork:
             self.notify(text)
         except Exception as error:  # Telegram being down must never lose the report itself
             self.log_failure("tegar", "telegram", error)
+
+    def start_github_sync(self) -> None:
+        """Keep the portfolio fresh: re-sync the saved GitHub username when it is stale."""
+        from .github_portfolio import load_portfolio, sync_portfolio
+        from .settings_store import get_setting
+
+        def loop() -> None:
+            while True:
+                try:
+                    with open_db() as connection:
+                        username = get_setting(connection, "ui_github")
+                        synced = load_portfolio(connection).get("synced_at") or ""
+                        age = (datetime.now(timezone.utc) - datetime.fromisoformat(synced)).total_seconds() if synced else None
+                        if username and (age is None or age >= GITHUB_SYNC_SECONDS):
+                            sync_portfolio(username, connection)
+                            office_events.publish({"task": "github", "status": "synced", "employee": "cora"})
+                except Exception as error:  # GitHub being down must never kill the thread
+                    self.log_failure("cora", "github_sync", error)
+                time.sleep(GITHUB_CHECK_SECONDS)
+
+        threading.Thread(target=loop, name="office-github-sync", daemon=True).start()
 
     def start_daily_reports(self) -> None:
         def loop() -> None:

@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, urlsplit
 from . import office_desk as desk
 from . import database
 from .employee_skills import all_employee_skills, load_employee_skills
-from .github_portfolio import load_portfolio, sync_portfolio
+from .github_portfolio import USERNAME_RE, load_portfolio, sync_portfolio
 from .office_work import open_db
 from .office_state import load_state, save_state
 from .office_events import bus as office_events
@@ -77,7 +77,7 @@ def _validate_setting(key: str, value: str) -> str | None:
     return None
 
 
-_PREF_KEYS = ("look", "sound", "auto")
+_PREF_KEYS = ("look", "sound", "auto", "freelancer", "linkedin", "github")
 _LOOK_FIELDS = ("name", "skin", "hair", "shirt", "pants")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -88,6 +88,10 @@ def _validate_pref(key: str, value: str) -> str | None:
         return "unknown_pref"
     if key in ("sound", "auto"):
         return None if value in ("0", "1") else "invalid_value"
+    if key in ("freelancer", "linkedin"):
+        return None if value == "" or (len(value) <= 300 and re.match(r"^https://[^\s]+$", value)) else "invalid_url"
+    if key == "github":
+        return None if value == "" or USERNAME_RE.match(value) else "invalid_username"
     try:
         look = json.loads(value)
     except ValueError:
@@ -425,7 +429,8 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 return self._json(200, {"items": employee_results(connection, view, source)})
         if path == "/github.json":
-            data = load_portfolio()
+            with self._connect() as connection:
+                data = load_portfolio(connection)
             return self._json(200, {"username": data.get("username"), "synced_at": data.get("synced_at"),
                                     "repos": len(data.get("repos", []))})
         if path == "/leads.json":
@@ -496,14 +501,17 @@ class _Handler(SimpleHTTPRequestHandler):
         if handled is not None:
             return handled
         if parts == ["github", "sync"]:
-            length = int(self.headers.get("Content-Length") or 0)
-            username = str(json.loads(self.rfile.read(length) or b"{}").get("username") or "").strip()
+            username = str(self._body().get("username") or "").strip()
             try:
-                data = sync_portfolio(username)
+                with self._connect() as connection:
+                    username = username or get_setting(connection, "ui_github")
+                    data = sync_portfolio(username, connection)
             except ValueError:
                 return self._json(400, {"error": "invalid_username"})
             except OSError:
                 return self._json(502, {"error": "github_unreachable"})
+            except database.Error:
+                return self._json(503, {"error": "supabase_unavailable"})
             return self._json(200, {"username": username, "synced_at": data["synced_at"], "repos": len(data["repos"])})
         if parts == ["auto"]:
             length = int(self.headers.get("Content-Length") or 0)
@@ -513,7 +521,7 @@ class _Handler(SimpleHTTPRequestHandler):
         if parts == ["settings"]:
             body = self._body()
             values = body.get("values") if isinstance(body.get("values"), dict) else {str(body.get("key") or ""): str(body.get("value") or "")}
-            values = {str(k): str(v if v is not None else "") for k, v in values.items()}
+            values = {str(k): str(v if v is not None else "").strip() for k, v in values.items()}
             for key, value in values.items():
                 if key not in ALLOWED_SETTINGS:
                     return self._json(400, {"error": "unknown_setting", "key": key})
@@ -769,6 +777,7 @@ def serve(work, port: int = 8765) -> None:
     # Bound to localhost only: the page shows a personal bot's pipeline and cover letters.
     server = QuietThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
     work.start_daily_reports()
+    work.start_github_sync()
     print(f"kantor 3D siap di http://127.0.0.1:{port}  (Ctrl+C untuk berhenti)")
     try:
         server.serve_forever()

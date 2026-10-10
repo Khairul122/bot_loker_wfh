@@ -156,6 +156,15 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .proposal{width:100%;min-height:150px;margin-top:8px;padding:10px 12px;border-radius:12px;border:2px solid var(--line);font:inherit;font-size:13px;line-height:1.5;background:var(--paper-2);color:var(--ink);resize:vertical}
 .share{display:none;gap:6px;flex-wrap:wrap;margin-top:6px}
 .share.show{display:flex}
+#boardList{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:8px}
+#boardList .empty,#boardList .prof{grid-column:1/-1}
+#board .job{margin-bottom:0;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:8px;transition:transform .18s,box-shadow .18s,border-color .18s}
+#board .job:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 22px rgba(92,58,30,.12)}
+.jtop{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.b-badge{background:var(--paper-2);padding:2px 8px;border-radius:8px;font-size:12px;font-weight:900;color:var(--ink);border:1px solid var(--line)}
+.tag-src.freelancer{background:rgba(43,114,226,.12);color:#2b72e2}
+.tag-src.projects{background:rgba(224,86,36,.12);color:#d64917}
+.tag-src.telegram{background:rgba(0,136,204,.12);color:#0088cc}
 .empty{padding:26px 10px;text-align:center;font-weight:800;color:var(--ink-soft)}
 .funnel{display:flex;align-items:flex-end;gap:8px;margin-bottom:22px;overflow-x:auto;padding-bottom:4px}
 .step{flex:1;min-width:92px;text-align:center}
