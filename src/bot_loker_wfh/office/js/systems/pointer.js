@@ -21,7 +21,7 @@ export function hitAt(e) {
   const targets = clickables.filter(o => isShown(o)).concat(walkables.filter(w => isShown(w.mesh)).map(w => w.mesh), [island]);
   return ray.intersectObjects(targets, false)[0];
 }
-function isShown(o) { while (o) { if (!o.visible) return false; o = o.parent; } return true; }
+function isShown(o) { while (o) { if (!o.visible || o.userData.faded) return false; o = o.parent; } return true; }
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
