@@ -62,6 +62,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         help="Browser for fill-lead: your Chrome (BrowserMCP) or Playwright MCP")
     parser.add_argument("--text", choices=("proposal", "comment"), default="proposal",
                         help="Which saved draft fill-lead types into the page")
+    parser.add_argument(
+        "--submit-bid",
+        action="store_true",
+        help="Allow final bid submission after typing SUBMIT at the CLI prompt",
+    )
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
         "command",
@@ -217,7 +222,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "fill-lead":
         if not args.lead_id:
             parser.error("fill-lead requires --lead-id")
-        return _fill_lead(settings, args.lead_id, args.engine, args.text)
+        return _fill_lead(
+            settings,
+            args.lead_id,
+            args.engine,
+            args.text,
+            submit=getattr(args, "submit_bid", False),
+        )
 
     if args.command == "draft-lead":
         if not args.lead_id:
@@ -543,8 +554,15 @@ def _fill_form(
 PLAYWRIGHT_REVIEW_SECONDS = 30 * 60
 
 
-def _fill_lead(settings: Settings, lead_id: str, engine: str, text: str = "proposal") -> int:
-    """Fill a freelance bid form with the saved proposal. Never presses submit."""
+def _fill_lead(
+    settings: Settings,
+    lead_id: str,
+    engine: str,
+    text: str = "proposal",
+    *,
+    submit: bool = False,
+) -> int:
+    """Fill bid form; final submit requires --submit-bid and SUBMIT confirmation."""
     from .form_agent.agent import FormAgent
 
     database_path = initialize_database(settings.database_url)
@@ -565,10 +583,27 @@ def _fill_lead(settings: Settings, lead_id: str, engine: str, text: str = "propo
             db_path=str(database_path),
             ai_answers=settings.form_ai_answers != "off",
         )
-        # Stopping Playwright MCP closes the tab it opened (also in --extension mode),
-        # so keep it alive until the owner reviews, submits and closes the tab.
-        keep_open = PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
-        print(agent.run_lead_session(lead_id, keep_open_seconds=keep_open, text=text), flush=True)
+        keep_open = 0 if submit else PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
+
+        def confirm_submit(label: str) -> bool:
+            print(
+                f"Akan klik tombol final: {label!r}. "
+                "Periksa semua field. Ketik SUBMIT untuk kirim bid: ",
+                end="",
+                flush=True,
+            )
+            return input().strip() == "SUBMIT"
+
+        print(
+            agent.run_lead_session(
+                lead_id,
+                keep_open_seconds=keep_open,
+                text=text,
+                submit=submit,
+                confirm_submit=confirm_submit if submit else None,
+            ),
+            flush=True,
+        )
     except Exception as error:
         print(f"Error pengisian form proyek: {error}", flush=True)
         return 1

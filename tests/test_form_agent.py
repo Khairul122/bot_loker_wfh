@@ -98,6 +98,22 @@ class TestFormAgent(unittest.TestCase):
         self.assertIn("Form Acme Corp - Software Engineer", text)
         self.assertIn("Form TIDAK dikirim.", text)
 
+    def test_report_builder_marks_confirmed_submission(self):
+        rec = SessionRecordInput(
+            application_id="lead-12345678",
+            engine="browsermcp",
+            host="freelancer.com",
+            mode="assist",
+            page_number=1,
+            status="submitted",
+            company="Freelancer",
+            job_title="Python task",
+            all_fields=[],
+            executed_events=[],
+            rejected_actions=[],
+        )
+        self.assertIn("Form TERKIRIM.", ReportBuilder().build_report_text(rec))
+
     def test_extractor_with_browsermcp_fixtures(self):
         from pathlib import Path
         fixtures_dir = Path("tests/fixtures/browsermcp")

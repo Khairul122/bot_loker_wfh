@@ -68,7 +68,11 @@ class ReportBuilder:
         lines = [
             f"Form {inp.company} - {inp.job_title}",
             f"Engine: {inp.engine} | Halaman {inp.page_number} | Mode: {inp.mode}",
-            "Form TIDAK dikirim.\n",
+            (
+                "Form TERKIRIM.\n"
+                if inp.status == "submitted"
+                else "Form TIDAK dikirim.\n"
+            ),
         ]
 
         if filled_labels:
@@ -99,10 +103,13 @@ class ReportBuilder:
             )
 
         lines.append(f"\nCAPTCHA: {captcha_text}")
-        lines.append(
-            "\nLangkah: periksa semua field, upload CV, centang persetujuan, "
-            f"tekan Submit sendiri, lalu ketik /dilamar {inp.application_id[:8]}"
-        )
+        if inp.status == "submitted":
+            lines.append("\nStatus: bid berhasil dikirim.")
+        else:
+            lines.append(
+                "\nLangkah: periksa semua field, upload CV, centang persetujuan, "
+                f"tekan Submit sendiri, lalu ketik /dilamar {inp.application_id[:8]}"
+            )
 
         return "\n".join(lines).strip()
 

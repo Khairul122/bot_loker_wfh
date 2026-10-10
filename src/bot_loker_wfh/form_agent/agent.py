@@ -104,18 +104,26 @@ class FormAgent:
         )
 
     def run_lead_session(
-        self, lead_id: str, *, keep_open_seconds: float = 0, text: str = "proposal"
+        self,
+        lead_id: str,
+        *,
+        keep_open_seconds: float = 0,
+        text: str = "proposal",
+        submit: bool = False,
+        confirm_submit: Any = None,
     ) -> str:
-        """Fill a freelance bid (or comment) form with the saved draft; never submits."""
+        """Fill bid form; submit only with explicit operator confirmation."""
         if text not in ("proposal", "comment"):
             raise ValueError("text must be proposal or comment")
         row = self.connection.execute(
-            f"SELECT url, source, title, description, budget, {text} FROM leads WHERE id = ?",
+            f"SELECT url, source, title, description, budget, {text}, status FROM leads WHERE id = ?",
             (lead_id,),
         ).fetchone()
         if not row:
             return "Proyek tidak ditemukan."
-        url, source, title, description, budget, proposal = row
+        url, source, title, description, budget, proposal, lead_status = row
+        if submit and lead_status == "SUBMITTED":
+            return "Bid sudah berstatus SUBMITTED; pengiriman ulang diblokir."
         if not (proposal or "").strip():
             return f"Tulis {text} dulu (draft-lead) sebelum mengisi formulir."
         if text == "proposal" and len(proposal.strip()) < 100:
@@ -129,9 +137,12 @@ class FormAgent:
             cover_letter=proposal,
             bid_data=bid_terms.as_values() if bid_terms else {},
             record_id=None,  # form_sessions belongs to job applications
+            lead_id=lead_id,
             page_number=1,
             force_assist=True,  # bid pages are not in the ATS registry
             keep_open_seconds=keep_open_seconds,
+            submit=submit,
+            confirm_submit=confirm_submit,
         )
 
     @staticmethod
@@ -175,6 +186,9 @@ class FormAgent:
         force_assist: bool,
         keep_open_seconds: float = 0,
         bid_data: dict[str, str] | None = None,
+        lead_id: str | None = None,
+        submit: bool = False,
+        confirm_submit: Any = None,
     ) -> str:
         application_id = record_id or ""
         parsed_url = urlparse(apply_url)
@@ -331,6 +345,81 @@ class FormAgent:
             executor = Executor(client, resolver)
             events = executor.execute_plan(policy_res.approved, fields)
 
+            submit_status = "not_requested"
+            if submit:
+                if has_captcha:
+                    submit_status = "blocked_captcha"
+                else:
+                    final_snapshot = client.call_tool("browser_snapshot", {})
+                    final_fields = classifier.classify_all(
+                        FormExtractor().extract(final_snapshot)
+                    )
+                    final_has_captcha = any(
+                        field.field_class == "captcha" for field in final_fields
+                    )
+                    submit_field = next(
+                        (
+                            field
+                            for field in final_fields
+                            if field.role == "button"
+                            and re.search(
+                                r"^(submit|submit bid|ajukan penawaran|kirim penawaran|place bid)$",
+                                (field.label or "").strip(),
+                                re.IGNORECASE,
+                            )
+                        ),
+                        None,
+                    )
+                    execution_failed = any(
+                        event.action in {"error", "failed", "verify_failed"}
+                        for event in events
+                    )
+                    required_missing = any(
+                        field.required
+                        and field.role not in {"button", "link"}
+                        and not field.current_value.strip()
+                        and not any(
+                            event.ref == field.ref
+                            and event.action in {"filled", "ai_answered"}
+                            for event in events
+                        )
+                        for field in final_fields
+                    )
+                    if final_has_captcha:
+                        submit_status = "blocked_captcha"
+                    elif execution_failed or required_missing:
+                        submit_status = "blocked_incomplete_form"
+                    elif not submit_field:
+                        submit_status = "submit_button_not_found"
+                    elif confirm_submit is None or not confirm_submit(submit_field.label):
+                        submit_status = "not_confirmed"
+                    else:
+                        client.call_tool(
+                            "browser_click",
+                            {"element": submit_field.label, "ref": submit_field.ref},
+                        )
+                        time.sleep(2.0)
+                        after_submit = client.call_tool("browser_snapshot", {})
+                        after_fields = FormExtractor().extract(after_submit)
+                        success_labels = {
+                            (field.label or "").strip().lower()
+                            for field in after_fields
+                            if field.role in {"heading", "alert", "status"}
+                        }
+                        submit_status = (
+                            "submitted"
+                            if success_labels.intersection(
+                                {"success", "berhasil", "bid submitted", "penawaran berhasil dikirim"}
+                            )
+                            else "submit_clicked_unverified"
+                        )
+                        if submit_status == "submitted" and lead_id:
+                            self.connection.execute(
+                                "UPDATE leads SET status = 'SUBMITTED' WHERE id = ? AND status != 'SUBMITTED'",
+                                (lead_id,),
+                            )
+                            self.connection.commit()
+
             # 8. Laporan & Record
             report_builder = ReportBuilder(self.db_path)
             record_input = SessionRecordInput(
@@ -339,7 +428,11 @@ class FormAgent:
                 host=host,
                 mode=mode,
                 page_number=page_number,
-                status="filled" if not has_captcha else "captcha",
+                status=(
+                    "filled" if not has_captcha and submit_status == "not_requested" else
+                    "captcha" if has_captcha else
+                    submit_status
+                ),
                 company=company,
                 job_title=title,
                 all_fields=fields,
