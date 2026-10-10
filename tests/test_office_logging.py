@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from functools import partial
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -166,7 +167,8 @@ class EmployeeActivityLogTest(unittest.TestCase):
         work = self.make_work()
 
         work.request_reports(self.connection, "reno")
-        work.daily_reports(self.connection)
+        with mock.patch.object(desk, "DAILY_HOUR", 0):  # morning round runs regardless of wall clock
+            work.daily_reports(self.connection)
 
         reports = [record for record in self.records() if record["task"] == "report"]
         self.assertEqual(reports[0]["employee"], "reno")  # the button asked one employee

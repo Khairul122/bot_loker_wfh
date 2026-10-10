@@ -126,8 +126,8 @@ function renderLLMPanel() {
     createSection([
       el('h4', '', '🔀 9Router Configuration'),
       createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router'),
-      createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', 'Key dari dashboard 9Router'),
-      createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || '', 'Contoh: loker-draft, cc/claude-sonnet-4-5'),
+      createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Key dari dashboard 9Router'),
+      createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Contoh: LokerHouse, loker-draft, cc/claude-sonnet-4-5'),
       createTextarea('ninerouter_fallback_models', 'Model Cadangan (comma-separated)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5'),
     ], 'section-9router', s.llm_provider === '9router'),
     
@@ -183,7 +183,7 @@ function renderNineRouterPanel() {
     el('hr', '', ''),
     
     el('h4', '', '📦 Model & Combo'),
-    createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || '', 'Combo: loker-draft | Single: cc/claude-sonnet-4-5'),
+    createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Combo: LokerHouse, loker-draft | Single: cc/claude-sonnet-4-5'),
     createTextarea('ninerouter_fallback_models', 'Model Cadangan (pisah koma)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5,mini/max'),
     
     el('hr', '', ''),
