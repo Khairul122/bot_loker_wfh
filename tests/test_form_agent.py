@@ -42,6 +42,14 @@ class TestFormAgent(unittest.TestCase):
         identity_field = FormField(ref="4", label="First Name", role="textbox", required=True)
         self.assertEqual(classifier.classify(identity_field), "identity")
 
+    def test_classifier_marks_late_captcha_before_submit(self):
+        fields = FieldClassifier().classify_all(
+            FormExtractor().extract(
+                '- textbox "Please solve hCaptcha" [ref=c1]\n'
+            )
+        )
+        self.assertEqual(fields[0].field_class, "captcha")
+
     def test_policy_guard_rejects_submit_and_captcha(self):
         guard = PolicyGuard(min_confidence=0.7)
 
