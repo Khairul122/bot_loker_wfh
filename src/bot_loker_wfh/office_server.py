@@ -23,13 +23,13 @@ OFFICE_DIR = Path(__file__).with_name("office")
 HUNT_RESULT_LIMIT = 5
 
 # Settings the office panel may persist. Anything else is rejected.
-SECRET_KEYS = frozenset({"anthropic_api_key", "ninerouter_api_key"})
+SECRET_KEYS = frozenset({"ninerouter_api_key"})
 ALLOWED_SETTINGS = frozenset({
-    "llm_provider", "anthropic_api_key", "anthropic_model",
+    "llm_provider",
     "ninerouter_base_url", "ninerouter_api_key", "ninerouter_model",
     "ninerouter_fallback_models", "llm_model_draft", "llm_model_form",
     "llm_model_answer", "llm_timeout_seconds", "llm_task_budget_seconds",
-    "llm_temperature_draft", "opencode_command", "opencode_model",
+    "llm_temperature_draft",
     "form_engine", "browser_mcp_command", "playwright_mcp_command",
     "form_min_confidence", "form_max_actions", "form_max_tool_calls",
     "form_timeout_seconds", "form_connect_timeout_seconds", "form_ai_answers",
@@ -43,7 +43,7 @@ _NUMERIC_SETTINGS = {
     "scrape_interval_hours": (0.08, 720),
 }
 _ENUM_SETTINGS = {
-    "llm_provider": {"template", "anthropic", "9router", "opencode"},
+    "llm_provider": {"template", "9router"},
     "form_engine": {"playwright", "browsermcp"},
     "form_ai_answers": {"review", "off"},
 }
@@ -116,30 +116,18 @@ def _all_settings_payload() -> dict:
     
     # All settings that the panel needs
     all_settings = {
-        # LLM Provider
+        # 9Router Configuration
         "llm_provider": settings.llm_provider,
-        "anthropic_api_key": settings.anthropic_api_key,
-        "anthropic_model": settings.anthropic_model,
-        
-        # 9Router
         "ninerouter_base_url": settings.ninerouter_base_url,
         "ninerouter_api_key": settings.ninerouter_api_key,
         "ninerouter_model": settings.ninerouter_model,
         "ninerouter_fallback_models": ",".join(settings.ninerouter_fallback_models),
-        
-        # Per-task models
         "llm_model_draft": settings.llm_model_draft,
         "llm_model_form": settings.llm_model_form,
         "llm_model_answer": settings.llm_model_answer,
-        
-        # LLM params
         "llm_timeout_seconds": settings.llm_timeout_seconds,
         "llm_task_budget_seconds": settings.llm_task_budget_seconds,
         "llm_temperature_draft": settings.llm_temperature_draft,
-        
-        # OpenCode
-        "opencode_command": settings.opencode_command,
-        "opencode_model": settings.opencode_model,
         
         # Form Engine
         "form_engine": settings.form_engine,
@@ -506,31 +494,20 @@ class _Handler(SimpleHTTPRequestHandler):
         return None
 
     def _test_llm(self):
-        """Test LLM connection based on current settings."""
+        """Test 9Router LLM connection based on current settings."""
         try:
             from bot_loker_wfh.config import Settings
             from bot_loker_wfh.llm import OpenAICompatibleProvider, LLMError
             
             settings = Settings.from_environment()
-            
-            if settings.llm_provider == "9router":
-                prov = OpenAICompatibleProvider(
-                    settings.ninerouter_base_url,
-                    settings.ninerouter_api_key or "sk-dummy",
-                    settings.ninerouter_model or "loker-draft",
-                )
-                models = prov.list_models()
-                test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
-                return {"ok": True, "message": f"9Router terhubung. {len(models)} model tersedia. Model test: {test_res.model}", "model": test_res.model}
-            elif settings.llm_provider == "anthropic" and settings.anthropic_api_key:
-                from bot_loker_wfh.llm import AnthropicProvider
-                prov = AnthropicProvider(settings.anthropic_api_key, settings.anthropic_model)
-                test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
-                return {"ok": True, "message": f"Anthropic terhubung. Model: {test_res.model}", "model": test_res.model}
-            elif settings.llm_provider == "opencode":
-                return {"ok": False, "error": "OpenCode test not implemented yet"}
-            else:
-                return {"ok": False, "error": "No LLM provider configured"}
+            prov = OpenAICompatibleProvider(
+                settings.ninerouter_base_url,
+                settings.ninerouter_api_key or "sk-dummy",
+                settings.ninerouter_model or "LokerHouse",
+            )
+            models = prov.list_models()
+            test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
+            return {"ok": True, "message": f"9Router terhubung. {len(models)} model tersedia. Model test: {test_res.model}", "model": test_res.model}
         except LLMError as err:
             if err.code == "unauthorized":
                 return {"ok": False, "error": "API key ditolak (401)"}

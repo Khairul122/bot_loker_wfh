@@ -24,7 +24,7 @@ class Settings:
     answers_path: str = "data/answers.json"
     lead_telegram_channels: tuple[str, ...] = ()
 
-    llm_provider: str = "template"
+    llm_provider: str = "9router"
     ninerouter_base_url: str = "http://localhost:20128/v1"
     ninerouter_api_key: str | None = None
     ninerouter_model: str = ""
@@ -60,10 +60,7 @@ class Settings:
         source = environ if values is None else values
         enabled = source.get("EXTERNAL_JOBS_ENABLED", "false").lower()
 
-        anthropic_key = source.get("ANTHROPIC_API_KEY") or None
-        llm_prov = source.get("LLM_PROVIDER")
-        if not llm_prov:
-            llm_prov = "anthropic" if anthropic_key else "template"
+        llm_prov = source.get("LLM_PROVIDER") or "9router"
 
         fallback_raw = source.get("NINEROUTER_FALLBACK_MODELS", "")
         fallback_models = tuple(

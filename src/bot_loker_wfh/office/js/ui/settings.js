@@ -1,12 +1,10 @@
-// ---------- Settings Panel: Model, Provider, Skills, BrowserMCP, 9Router ----------
+// ---------- Settings Panel: 9Router, BrowserMCP, Form Engine ----------
 import { store } from '../core/store.js';
 import { $, el, get, post, toast } from './dom.js';
 
 const SETTINGS_TABS = [
-  { id: 'llm', label: '🤖 Model & Provider' },
-  { id: 'ninerouter', label: '🔀 9Router' },
+  { id: 'llm', label: '🔀 9Router & Model' },
   { id: 'browser', label: '🌐 BrowserMCP' },
-  { id: 'skills', label: '🛠️ Skills & Tasks' },
   { id: 'form', label: '📝 Form Engine' },
 ];
 
@@ -90,9 +88,7 @@ function createList(items) {
 function renderPanelContent(tabId) {
   switch (tabId) {
     case 'llm': return renderLLMPanel();
-    case 'ninerouter': return renderNineRouterPanel();
     case 'browser': return renderBrowserPanel();
-    case 'skills': return renderSkillsPanel();
     case 'form': return renderFormPanel();
     default: return el('div', 'empty', 'Panel tidak ditemukan');
   }
@@ -103,33 +99,11 @@ function renderLLMPanel() {
   const s = settingsData || {};
   
   container.append(
-    el('h4', '', 'Provider LLM Utama'),
-    createSelect('llm_provider', 'Provider', [
-      { value: 'template', label: '📝 Template (tanpa AI)' },
-      { value: 'anthropic', label: '🧠 Anthropic (Claude)' },
-      { value: '9router', label: '🔀 9Router (Multi-model)' },
-      { value: 'opencode', label: '💻 OpenCode Agent' },
-    ], s.llm_provider || 'template', onProviderChange),
-    
-    el('hr', '', ''),
-    
-    // Anthropic settings
-    createSection([
-      el('h4', '', '🧠 Anthropic (Claude)'),
-      createInput('anthropic_api_key', 'API Key', 'password', s.anthropic_api_key || '', settingsMeta.anthropic_api_key?.hint ? 'Terset (' + settingsMeta.anthropic_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Masukkan API key Anthropic'),
-      createInput('anthropic_model', 'Model', 'text', s.anthropic_model || 'claude-sonnet-5', 'Contoh: claude-sonnet-5, claude-opus-4'),
-    ]),
-    
-    el('hr', '', ''),
-    
-    // 9Router settings (shown when 9router selected)
-    createSection([
-      el('h4', '', '🔀 9Router Configuration'),
-      createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router'),
-      createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Key dari dashboard 9Router'),
-      createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Contoh: LokerHouse, loker-draft, cc/claude-sonnet-4-5'),
-      createTextarea('ninerouter_fallback_models', 'Model Cadangan (comma-separated)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5'),
-    ], 'section-9router', s.llm_provider === '9router'),
+    el('h4', '', '🔀 Konfigurasi 9Router (Provider AI Utama)'),
+    createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router'),
+    createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Key dari dashboard 9Router'),
+    createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Contoh: LokerHouse, loker-draft, cc/claude-sonnet-4-5'),
+    createTextarea('ninerouter_fallback_models', 'Model Cadangan (comma-separated)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5'),
     
     el('hr', '', ''),
     
@@ -139,7 +113,7 @@ function renderLLMPanel() {
       createInput('llm_model_draft', 'Cover Letter Draft', 'text', s.llm_model_draft || '', 'Model untuk menulis cover letter'),
       createInput('llm_model_form', 'Form Mapping (JSON)', 'text', s.llm_model_form || '', 'Model stabil untuk output JSON'),
       createInput('llm_model_answer', 'Open Questions', 'text', s.llm_model_answer || '', 'Model untuk jawaban pertanyaan terbuka'),
-    ], 'section-task-models', s.llm_provider === '9router'),
+    ]),
     
     el('hr', '', ''),
     
@@ -155,55 +129,15 @@ function renderLLMPanel() {
     
     // Actions
     el('div', 'settings-actions', [
-      createButton('🔍 Test Koneksi LLM', 'btn ok', async () => {
+      createButton('🔍 Test Koneksi 9Router', 'btn ok', async () => {
         const res = await get('llm/test');
-        if (res.ok && res.data.ok !== false) toast('✅ ' + res.data.message);
+        if (res.ok && res.data.ok !== false) toast('✅ ' + (res.data.message || '9Router sehat: ' + res.data.model));
         else toast('❌ ' + (res.data.error || 'Gagal'));
       }),
       createButton('📋 Lihat Model 9Router', 'btn', async () => {
         const res = await get('llm/list-models');
         if (res.ok) showModelsModal(res.data);
         else toast('❌ Gagal memuat model');
-      }),
-    ])
-  );
-  
-  return container;
-}
-
-function renderNineRouterPanel() {
-  const container = el('div');
-  const s = settingsData || {};
-  
-  container.append(
-    el('h4', '', '🔀 Konfigurasi 9Router'),
-    createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router (default: http://localhost:20128/v1)'),
-    createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Dapatkan dari http://localhost:20128/dashboard'),
-    
-    el('hr', '', ''),
-    
-    el('h4', '', '📦 Model & Combo'),
-    createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Combo: LokerHouse, loker-draft | Single: cc/claude-sonnet-4-5'),
-    createTextarea('ninerouter_fallback_models', 'Model Cadangan (pisah koma)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5,mini/max'),
-    
-    el('hr', '', ''),
-    
-    el('h4', '', '🔗 OpenCode Integration'),
-    createInput('opencode_command', 'Perintah OpenCode', 'text', s.opencode_command || 'opencode', 'Path ke binary opencode'),
-    createInput('opencode_model', 'Model OpenCode', 'text', s.opencode_model || '9router/ComboOpenCode', 'Format: provider/model'),
-    
-    el('hr', '', ''),
-    
-    el('div', 'settings-actions', [
-      createButton('🔄 Refresh Model List', 'btn ok', async () => {
-        const res = await get('llm/list-models');
-        if (res.ok) showModelsModal(res.data);
-        else toast('❌ Gagal memuat model');
-      }),
-      createButton('🧪 Test 9Router Health', 'btn', async () => {
-        const res = await get('llm/test');
-        if (res.ok && res.data.ok !== false) toast('✅ 9Router sehat: ' + res.data.model);
-        else toast('❌ ' + (res.data.error || 'Gagal'));
       }),
     ])
   );
@@ -257,86 +191,6 @@ function renderBrowserPanel() {
   );
   
   return container;
-}
-
-function renderSkillsPanel() {
-  const container = el('div');
-  const s = settingsData || {};
-  
-  container.append(
-    el('h4', '', '🛠️ Skills & Capabilities'),
-    el('p', '', 'Kelola skill yang tersedia untuk agent OpenCode. Skill memengaruhi kemampuan bot dalam menulis cover letter, mengisi form, dll.'),
-    
-    el('hr', '', ''),
-    
-    el('h4', '', '📋 Skill Tersedia (dari OpenCode)'),
-    createBox('skills-list', 'skills-grid', '⏳ Memuat...'),
-    
-    el('hr', '', ''),
-    
-    el('div', 'settings-actions', [
-      createButton('🔄 Reload Skills dari OpenCode', 'btn ok', async () => {
-        const res = await post('skills/reload', {});
-        if (res.ok) { toast('✅ Skills dimuat ulang'); loadSkillsList(); }
-        else toast('❌ Gagal memuat skill');
-      }),
-    ])
-  );
-  
-  // Load skills after render
-  setTimeout(loadSkillsList, 100);
-  
-  return container;
-}
-
-async function loadSkillsList() {
-  const listEl = $('skills-list');
-  if (!listEl) return;
-  
-  try {
-    const res = await fetch('skills.json', { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      renderSkillsGrid(listEl, data.skills || []);
-    } else {
-      listEl.innerHTML = '<div class="empty">Gagal memuat skill</div>';
-    }
-  } catch {
-    listEl.innerHTML = '<div class="empty">Server tidak merespons</div>';
-  }
-}
-
-function renderSkillsGrid(container, skills) {
-  if (!skills.length) {
-    container.innerHTML = '<div class="empty">Tidak ada skill terpasang</div>';
-    return;
-  }
-  
-  container.replaceChildren(...skills.map(skill => {
-    const card = el('div', 'skill-card');
-    const enabled = skill.enabled !== false;
-
-    const header = el('div', 'skill-header');
-    header.append(el('span', 'skill-name', skill.name ?? ''));
-
-    const label = el('label', 'toggle');
-    const checkbox = el('input', '');
-    checkbox.type = 'checkbox';
-    checkbox.checked = enabled;
-    checkbox.dataset.skill = skill.id ?? '';
-    checkbox.onchange = async (e) => {
-      await post('skills/toggle', { id: skill.id, enabled: e.target.checked });
-      toast(e.target.checked ? `✅ ${skill.name} diaktifkan` : `⏸️ ${skill.name} dinonaktifkan`);
-    };
-    label.append(checkbox, el('span', 'slider'));
-    header.append(label);
-
-    const tags = el('div', 'skill-tags');
-    tags.append(...(skill.tags || []).map(t => el('span', 'tag', t)));
-
-    card.append(header, el('div', 'skill-desc', skill.description || 'Tidak ada deskripsi'), tags);
-    return card;
-  }));
 }
 
 function renderFormPanel() {
@@ -481,12 +335,6 @@ async function saveSetting(key, value) {
   const res = await post('settings', { key, value: String(value) });
   if (res.ok) {
     settingsData[key] = value;
-    // Update dependent sections visibility
-    if (key === 'llm_provider') {
-      const show9router = value === '9router';
-      $('#section-9router').style.display = show9router ? 'block' : 'none';
-      $('#section-task-models').style.display = show9router ? 'block' : 'none';
-    }
     toast('✅ Tersimpan (restart bot untuk berlaku penuh)');
   } else {
     const errorMsg = res.data?.error || (res.status === 403 ? 'Akses ditolak (Origin mismatch)' : res.status ? `HTTP ${res.status}` : 'Server tidak terjangkau');
@@ -495,17 +343,6 @@ async function saveSetting(key, value) {
     await loadSettings();
     renderSettings();
   }
-}
-
-function onProviderChange(e) {
-  const provider = e.target.value;
-  const section9router = $('#section-9router');
-  const sectionTaskModels = $('#section-task-models');
-  
-  if (section9router) section9router.style.display = provider === '9router' ? 'block' : 'none';
-  if (sectionTaskModels) sectionTaskModels.style.display = provider === '9router' ? 'block' : 'none';
-  
-  saveSetting('llm_provider', provider);
 }
 
 function openModal(title, buildBody) {

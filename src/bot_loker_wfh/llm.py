@@ -546,65 +546,25 @@ def create_chat_llm(settings: Any, db_path: str | None = None) -> Callable[[str]
     return router.for_task("answer")
 
 
-def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRouter | AnthropicProvider | None:
+def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRouter | None:
     recorder = LLMCallRecorder(db_path) if db_path else None
-    prov = getattr(settings, "llm_provider", "template").lower()
+    prov = getattr(settings, "llm_provider", "9router").lower()
 
     if prov == "template":
         return None
 
-    if prov == "anthropic":
-        key = getattr(settings, "anthropic_api_key", None)
-        model = getattr(settings, "anthropic_model", "claude-sonnet-5")
-        if not key:
-            return None
-        anth_provider = AnthropicProvider(key, model)
-        chain = [(anth_provider, model)]
-        router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
-        setattr(router, "provider_name", "anthropic")
-        return router
+    base_url = getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1")
+    api_key = getattr(settings, "ninerouter_api_key", None) or "sk-dummy"
+    primary_model = getattr(settings, "ninerouter_model", "") or getattr(settings, "llm_model_draft", "") or "LokerHouse"
+    fallbacks = getattr(settings, "ninerouter_fallback_models", ())
 
-    if prov == "9router":
-        base_url = getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1")
-        api_key = getattr(settings, "ninerouter_api_key", None) or "sk-dummy"
-        primary_model = getattr(settings, "ninerouter_model", "") or getattr(settings, "llm_model_draft", "") or "loker-draft"
-        fallbacks = getattr(settings, "ninerouter_fallback_models", ())
+    primary_prov = OpenAICompatibleProvider(base_url, api_key, primary_model, timeout=getattr(settings, "llm_timeout_seconds", 60.0))
+    chain: list[tuple[Any, str]] = [(primary_prov, primary_model)]
 
-        primary_prov = OpenAICompatibleProvider(base_url, api_key, primary_model, timeout=getattr(settings, "llm_timeout_seconds", 60.0))
-        chain: list[tuple[Any, str]] = [(primary_prov, primary_model)]
+    for fb in fallbacks:
+        if fb:
+            chain.append((primary_prov, fb))
 
-        for fb in fallbacks:
-            if fb:
-                chain.append((primary_prov, fb))
-
-        anth_key = getattr(settings, "anthropic_api_key", None)
-        if anth_key:
-            anth_model = getattr(settings, "anthropic_model", "claude-sonnet-5")
-            chain.append((AnthropicProvider(anth_key, anth_model), anth_model))
-
-        router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
-        setattr(router, "provider_name", "9router")
-        return router
-
-    if prov == "opencode":
-        oc_model = getattr(settings, "opencode_model", "") or "9router/ComboOpenCode"
-        oc = OpenCodeProvider(
-            oc_model,
-            command=getattr(settings, "opencode_command", "") or "opencode",
-            timeout=getattr(settings, "llm_timeout_seconds", 120.0),
-        )
-        chain = [(oc, oc_model)]
-        # opencode down -> talk to 9Router directly
-        nine_model = getattr(settings, "ninerouter_model", "")
-        if nine_model:
-            nine = OpenAICompatibleProvider(
-                getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1"),
-                getattr(settings, "ninerouter_api_key", None) or "sk-dummy",
-                nine_model,
-            )
-            chain.append((nine, nine_model))
-        router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0) * 2)
-        setattr(router, "provider_name", "opencode")
-        return router
-
-    return None
+    router = LLMRouter(chain, recorder=recorder, task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
+    setattr(router, "provider_name", "9router")
+    return router
