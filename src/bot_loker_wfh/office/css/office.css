@@ -235,6 +235,31 @@ body.night .bub{color:#4a3426}
   display:none;
 }
 .settings-panel.show{display:block}
+
+.settings-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:16px;
+  padding-top:12px;
+  border-top:2px solid var(--line);
+}
+.settings-footer .save-btn{
+  background:var(--accent-2);
+  color:#fff;
+  font-weight:900;
+  padding:8px 16px;
+  border-radius:10px;
+  font-size:13px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.settings-footer .save-btn:disabled{
+  opacity:0.4;
+  cursor:not-allowed;
+}
 .modal-overlay{position:fixed;inset:0;background:rgba(35,27,16,.38);display:grid;place-items:center;z-index:160}
 .modal-content{width:min(640px, calc(100vw - 24px));max-height:min(72vh, 640px);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px}
 

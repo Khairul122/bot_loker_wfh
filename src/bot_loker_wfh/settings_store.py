@@ -67,7 +67,7 @@ def fetch_cloud_settings() -> dict[str, str]:
 
 def store_cloud_setting(key: str, value: str) -> None:
     """Upsert one setting in Supabase (authoritative). Raises on failure."""
-    _request(method="POST", data={"key": key, "value": value, "updated_at": "now()"}, prefer="resolution=merge-duplicates")
+    _request(method="POST", data={"key": key, "value": value}, prefer="resolution=merge-duplicates")
 
 
 def get_setting(connection: sqlite3.Connection, key: str) -> str:

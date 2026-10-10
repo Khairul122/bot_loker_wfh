@@ -10,14 +10,16 @@ const SETTINGS_TABS = [
 
 let settingsData = null;
 let settingsMeta = {}; // raw payload for masked secrets (hint/set)
+const dirty = new Map(); // key -> pending value (local edit not yet saved)
 
 export async function initSettings() {
   $('bSettings').onclick = () => toggleSettings(!$('settings').classList.contains('show'));
   $('settingsClose').onclick = () => toggleSettings(false);
   $('settings').onclick = e => { if (e.target === $('settings')) toggleSettings(false); };
-  
+
   await loadSettings();
   renderSettings();
+  renderFooter();
 }
 
 async function loadSettings() {
@@ -30,11 +32,34 @@ async function loadSettings() {
       for (const [key, val] of Object.entries(raw)) {
         settingsData[key] = val?.value ?? val;
       }
+      dirty.clear();
     }
   } catch {
     settingsData = {};
     settingsMeta = {};
   }
+}
+
+function renderFooter() {
+  const footer = $('settingsFooter');
+  if (!footer) return;
+
+  const count = dirty.size;
+  const info = el('span', 'settings-status', count > 0 ? `⚠️ ${count} perubahan belum disimpan` : '✅ Semua tersimpan');
+  info.style.fontSize = '12px';
+  info.style.fontWeight = '700';
+  info.style.color = count > 0 ? 'var(--low)' : 'var(--ink-soft)';
+
+  const saveBtn = el('button', 'save-btn', '💾 Simpan Pengaturan');
+  saveBtn.disabled = count === 0;
+  saveBtn.onclick = saveAllSettings;
+
+  footer.replaceChildren(info, saveBtn);
+}
+
+function markDirty(key, value) {
+  dirty.set(key, String(value));
+  renderFooter();
 }
 
 function renderSettings() {

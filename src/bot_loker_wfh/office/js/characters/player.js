@@ -30,8 +30,8 @@ let positionSaveT;
 export function savePosition() {
   clearTimeout(positionSaveT);
   positionSaveT = setTimeout(() => {
-    try { localStorage.setItem(POSITION_KEY, JSON.stringify({ level: me.level, x: me.pos.x, z: me.pos.z })); } catch {}
-    post('office/character-state', { owner: { level: me.level, x: me.pos.x, z: me.pos.z } }).catch(() => {});
+    try { localStorage.setItem(POSITION_KEY, JSON.stringify({ level: me.level, x: me.pos.x, z: me.pos.z, yaw: me.ry })); } catch {}
+    post('office/character-state', { owner: { level: me.level, x: me.pos.x, z: me.pos.z, y: me.level * FH, yaw: me.ry } }).catch(() => {});
   }, 150);
 }
 export const ring = add(new THREE.TorusGeometry(0.55, 0.05, 6, 24), 0xffb26b, 0, 0.05, 0, me.p.root, { cast: false }); ring.rotation.x = Math.PI / 2;

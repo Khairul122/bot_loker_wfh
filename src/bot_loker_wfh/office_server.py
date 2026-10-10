@@ -18,7 +18,7 @@ from . import settings_store
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
-from .office_state import load_state, save_state
+from .office_state import load_state, load_state_cloud, save_state
 from .office_events import bus as office_events
 from .settings_store import DEFAULTS, get_setting, set_setting
 from .config import save_dotenv
@@ -364,14 +364,17 @@ class _Handler(SimpleHTTPRequestHandler):
                 subscription.close()
             return
         if path == "/office/state.json":
-            if settings_store.cloud_configured():
-                with self._connect() as connection:
+            with self._connect() as connection:
+                if settings_store.cloud_configured():
                     try:
-                        return self._json(200, load_state(connection))
+                        # Cloud is authoritative: most recent spots live in Supabase.
+                        overrides = settings_store.fetch_cloud_settings() if settings_store.cloud_configured() else None
+                        cloud_state = load_state_cloud(connection)
+                        return self._json(200, cloud_state)
                     except settings_store.cloud_error_types():
                         return self._json(503, {"error": "supabase_unavailable"})
-            with self._connect() as connection:
-                return self._json(200, load_state(connection))
+                with self._connect() as connection2:
+                    return self._json(200, load_state(connection2))
         if path == "/stats.json":
             with self._connect() as connection:
                 return self._json(200, {**collect_stats(connection), "work": self.work.status(),

@@ -81,7 +81,8 @@ class CloudSettingsTest(unittest.TestCase):
         with mock.patch.object(settings_store.database, "supabase_request", request, create=True):
             store_cloud_setting("llm_provider", "9router")
         request.assert_called_once_with("app_settings", method="POST",
-                                        data={"key": "llm_provider", "value": "9router"})
+                                        data={"key": "llm_provider", "value": "9router"},
+                                        prefer="resolution=merge-duplicates")
 
     def test_missing_backend_request_raises_unavailable(self):
         with mock.patch.object(settings_store.database, "supabase_request", None, create=True):
