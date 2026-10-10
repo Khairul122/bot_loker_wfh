@@ -78,18 +78,6 @@ function renderSettings() {
     panel.id = `settings-${tab.id}`;
     panel.dataset.tab = tab.id;
     panel.append(renderPanelContent(tab.id));
-    
-    // Add unified Save Button at bottom of every panel
-    const saveFooter = el('div', 'settings-footer', [
-      createButton('💾 Simpan Semua Pengaturan', 'btn ok primary-save-btn', saveAllSettings)
-    ]);
-    saveFooter.style.marginTop = '20px';
-    saveFooter.style.paddingTop = '12px';
-    saveFooter.style.borderTop = '1px solid var(--line)';
-    saveFooter.style.display = 'flex';
-    saveFooter.style.justifyContent = 'flex-end';
-    panel.append(saveFooter);
-    
     return panel;
   }));
 }
@@ -302,9 +290,12 @@ function createSelect(id, label, options, value, onChange) {
   }));
   select.id = id;
   select.value = value;
-  // auto-save when onChange not supplied, so form_engine/skill_* persist
-  const handler = onChange || ((e) => saveSetting(id, e.target.value));
-  select.onchange = handler;
+  
+  select.onchange = (e) => {
+    markDirty(id, e.target.value);
+    if (onChange) onChange(e);
+    else saveSetting(id, e.target.value);
+  };
   
   wrapper.append(
     el('label', '', label),
@@ -320,6 +311,8 @@ function createInput(id, label, type, value, placeholder) {
   input.type = type;
   input.value = value;
   input.placeholder = placeholder;
+  
+  input.oninput = () => markDirty(id, input.value);
   input.onchange = () => saveSetting(id, input.value);
   
   wrapper.append(
@@ -336,6 +329,8 @@ function createTextarea(id, label, value, placeholder) {
   textarea.value = value;
   textarea.placeholder = placeholder;
   textarea.rows = 3;
+  
+  textarea.oninput = () => markDirty(id, textarea.value);
   textarea.onchange = () => saveSetting(id, textarea.value);
   
   wrapper.append(
@@ -354,6 +349,8 @@ function createNumberInput(id, label, value, min, max, step = 1) {
   input.min = min;
   input.max = max;
   input.step = step;
+  
+  input.oninput = () => markDirty(id, input.value);
   input.onchange = () => saveSetting(id, parseFloat(input.value));
   
   wrapper.append(
@@ -399,14 +396,17 @@ async function saveAllSettings() {
       failed++;
     } else if (settingsData) {
       settingsData[item.key] = item.value;
+      dirty.delete(item.key);
     }
   }
 
   if (failed === 0) {
     toast('✅ Semua pengaturan berhasil disimpan ke Supabase & sistem');
     await loadSettings();
+    renderFooter();
   } else {
     toast(`⚠️ Tersimpan dengan ${failed} kesalahan`);
+    renderFooter();
   }
 }
 
@@ -414,6 +414,8 @@ async function saveSetting(key, value) {
   const res = await post('settings', { key, value: String(value) });
   if (res.ok) {
     settingsData[key] = value;
+    dirty.delete(key);
+    renderFooter();
     toast('✅ Tersimpan (restart bot untuk berlaku penuh)');
   } else {
     const errorMsg = res.data?.error || (res.status === 403 ? 'Akses ditolak (Origin mismatch)' : res.status ? `HTTP ${res.status}` : 'Server tidak terjangkau');
@@ -421,6 +423,7 @@ async function saveSetting(key, value) {
     // Reload to revert
     await loadSettings();
     renderSettings();
+    renderFooter();
   }
 }
 
