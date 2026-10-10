@@ -1,4 +1,4 @@
-"""Small SQLite meeting runtime: scheduling, attendance, notes, and status."""
+"""Meeting runtime (Supabase Postgres): scheduling, attendance, notes, and status."""
 
 from __future__ import annotations
 

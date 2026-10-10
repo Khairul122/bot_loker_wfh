@@ -4,10 +4,10 @@
 
 - Python >= 3.11.
 - Package source under `src/bot_loker_wfh/`.
-- SQLite only. Schema lives in `src/bot_loker_wfh/migrations/`.
+- Supabase Postgres only (via `psycopg`, connection string in `SUPABASE_DB_URL`). Schema lives in `src/bot_loker_wfh/migrations/`; tables are in the `loker` schema.
 - Telegram controls the long-running bot.
 - BrowserMCP and Playwright MCP are optional form-assist engines.
-- Runtime dependencies stay empty unless feature requires an optional extra.
+- Runtime dependency is `psycopg` only; anything else needs an optional extra.
 
 ## Build and run
 
@@ -35,7 +35,7 @@ Install `[form]` and Chromium only for browser form assist.
 - `bot.py`: Telegram polling and cycle orchestration.
 - `scheduler.py`: source fetch scheduling.
 - `pipeline.py`: scoring and eligibility processing.
-- `database.py` and `migrations/`: SQLite schema.
+- `database.py` and `migrations/`: Postgres connection wrapper and schema.
 - `telegram_*.py`: Telegram auth, commands, approval, notifications.
 - `form_agent/`: guarded form planning and execution.
 - `office_server.py` and `office/`: local 3D office UI.
@@ -52,7 +52,7 @@ Full map: `docs/ONBOARDING.md`.
 - Keep fetchers idempotent through source identity and database uniqueness constraints.
 - Do not log CV data, cover letters, tokens, credentials, request bodies, or provider error text.
 - Convert external failures to sanitized error codes before logging.
-- Prefer SQLite and standard library over new dependencies.
+- Prefer Postgres and standard library over new dependencies.
 
 ## Safety rules
 
@@ -65,11 +65,11 @@ Full map: `docs/ONBOARDING.md`.
 
 ## Database changes
 
-Add a new migration under `src/bot_loker_wfh/migrations/` for schema changes. Update `database.py` when migration application order needs a new file. Add or update schema tests. Run `python -m bot_loker_wfh init-db` against a disposable database before delivery.
+Add a new migration under `src/bot_loker_wfh/migrations/` for schema changes. Update `database.py` when migration application order needs a new file. Add or update schema tests. Tests apply migrations to a throwaway `t_*` schema, never to the real tables.
 
 ## Testing
 
 - Add regression coverage for non-trivial behavior.
-- Prefer SQLite in-memory or temporary databases, fixtures, and fake clients.
+- Tests use the throwaway Postgres schema from `tests/conftest.py` (needs `SUPABASE_DB_URL`), fixtures, and fake clients. `pytest -n 8` (pytest-xdist) keeps the suite fast.
 - Do not call real job APIs, Telegram, LLM providers, or browsers in unit tests.
 - Run `python -m pytest -q` before claiming completion.

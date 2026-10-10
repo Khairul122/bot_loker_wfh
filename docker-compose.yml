@@ -5,7 +5,6 @@ services:
     env_file: .env
     environment:
       # Paths inside the container; the host folder ./data is mounted below.
-      DATABASE_URL: sqlite:///data/app.db
       PROFILE_PATH: data/profile.json
     volumes:
       - ./data:/app/data

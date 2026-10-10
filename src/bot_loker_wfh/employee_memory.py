@@ -1,4 +1,4 @@
-"""Bounded, validated employee learning records backed by SQLite.
+"""Bounded, validated employee learning records backed by Supabase Postgres.
 
 No model calls happen here. Callers store explicit observations, preferences,
 corrections, or outcomes and retrieve them for later use.

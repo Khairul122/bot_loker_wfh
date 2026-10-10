@@ -7,10 +7,10 @@ name = "bot-loker-wfh"
 version = "0.1.0"
 description = "Bot personal untuk sourcing dan review lowongan kerja remote."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["psycopg[binary]>=3.2"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pytest-xdist>=3.5"]
 form = ["playwright>=1.40"]
 
 [project.scripts]

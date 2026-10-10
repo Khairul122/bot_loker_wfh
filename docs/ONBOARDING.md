@@ -2,7 +2,7 @@
 
 ## Ringkasan
 
-Bot personal untuk mencari, menyaring, menilai, dan melacak lowongan kerja remote serta freelance lead. Telegram menjadi kontrol utama. SQLite menyimpan lowongan, kandidat, lamaran, draft, lead, event LLM, dan sesi pengisian form.
+Bot personal untuk mencari, menyaring, menilai, dan melacak lowongan kerja remote serta freelance lead. Telegram menjadi kontrol utama. Supabase Postgres menyimpan lowongan, kandidat, lamaran, draft, lead, event LLM, dan sesi pengisian form.
 
 Batas penting: pengiriman lamaran produksi masih disabled. Bot hanya menyiapkan draft, membuka form, mengisi field yang aman, lalu berhenti sebelum submit.
 
@@ -12,7 +12,7 @@ Batas penting: pengiriman lamaran produksi masih disabled. Bot hanya menyiapkan 
 |---|---|
 | Bahasa | Python >= 3.11 |
 | Packaging | `setuptools`, `pyproject.toml` |
-| Database | SQLite |
+| Database | Supabase Postgres (schema `loker`) |
 | Interface kontrol | Telegram Bot API |
 | Browser automation | BrowserMCP atau Playwright MCP |
 | LLM | Template, 9Router, OpenCode CLI, atau Anthropic |
@@ -32,7 +32,7 @@ Fetchers: RemoteOK, Remotive, Greenhouse, Lever, Kalibrr, Dealls,
          Freelancer, Projects.co.id, Telegram public channels
         |
         v
-SQLite: jobs / leads / applications / history / filters
+Supabase Postgres: jobs / leads / applications / history / filters
         |
         v
 JobPipeline: skill scoring -> eligibility filters -> CANDIDATE/FILTERED_OUT
@@ -49,11 +49,11 @@ JobPipeline: skill scoring -> eligibility filters -> CANDIDATE/FILTERED_OUT
 - `src/bot_loker_wfh/bot.py` — long-running Telegram polling loop.
 - `src/bot_loker_wfh/scheduler.py` — fetch cycle.
 - `src/bot_loker_wfh/pipeline.py` — scoring dan eligibility processing.
-- `src/bot_loker_wfh/database.py` — SQLite path resolution dan schema application.
+- `src/bot_loker_wfh/database.py` — koneksi Postgres (psycopg) dan penerapan migrasi.
 - `src/bot_loker_wfh/migrations/` — SQL schema files.
 - `src/bot_loker_wfh/form_agent/` — planner, policy, executor, classifier, extractor, report.
 - `src/bot_loker_wfh/office_server.py` — local office UI server dan stats endpoint.
-- `tests/` — unit dan integration-style tests berbasis SQLite/fakes.
+- `tests/` — unit dan integration-style tests berbasis schema Postgres sementara/fakes.
 
 ## Directory map
 
@@ -118,8 +118,6 @@ python -m bot_loker_wfh run-scheduler   # fetch-only scheduler
 python -m bot_loker_wfh office --port 8765
 python -m bot_loker_wfh check-llm
 python -m bot_loker_wfh check-browser
-python -m bot_loker_wfh backup-db --backup-path backups/app.sqlite
-python -m bot_loker_wfh restore-db --restore-path backups/app.sqlite
 python -m bot_loker_wfh cleanup-retention
 ```
 
@@ -151,11 +149,11 @@ Aktifkan `EXTERNAL_JOBS_ENABLED=true` hanya ketika API external memang boleh dip
 - Python modules memakai `snake_case`.
 - Class memakai `PascalCase`, function/variable memakai `snake_case`.
 - Dependency di-inject pada service yang perlu diuji, terutama client, clock, sleep, spawn, logger, dan submitter.
-- SQLite connection biasanya dibuat di entrypoint lalu diteruskan ke service.
+- Koneksi database biasanya dibuat di entrypoint lalu diteruskan ke service.
 - Status application berubah melalui centralized transition service, bukan update bebas dari handler.
 - Fetcher melakukan normalisasi dan deduplikasi sebelum penyimpanan.
 - Error eksternal dipetakan ke error code tersanitasi sebelum masuk log.
-- Test memakai SQLite/fake dependency agar tidak perlu network nyata.
+- Test memakai schema Postgres sementara/fake dependency agar tidak perlu network nyata.
 
 ## Where to look
 

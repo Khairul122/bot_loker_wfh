@@ -20,6 +20,7 @@ from psycopg import errors as pg_errors
 from psycopg.adapt import Loader
 from psycopg.types.numeric import Int2Dumper
 
+DEFAULT_SCHEMA = "loker"  # own schema: never exposed through the Supabase Data API
 MIGRATIONS_DIR = Path(__file__).with_name("migrations")
 SEED_PATH = MIGRATIONS_DIR / "seed.sql"
 
@@ -130,8 +131,9 @@ class Connection:
         raw.adapters.register_dumper(bool, Int2Dumper)  # INTEGER flag columns accept True/False
         _live.add(self)
 
-    # sqlite3 compatibility: callers assign this; rows are always name-addressable.
+    # callers may assign this; rows are always name-addressable.
     row_factory = None
+    schema = "public"
 
     def _begin_scope(self, write: bool) -> None:
         # reads outside a write transaction run autocommit so no idle transaction lingers
@@ -207,11 +209,16 @@ class Connection:
 
 
 def connect(schema: str | None = None) -> Connection:
-    """Open a connection to Supabase Postgres (optionally pinned to one schema, for tests)."""
-    schema = schema or os.getenv("BOT_DB_SCHEMA")
-    options = "-c extra_float_digits=3" + (f" -c search_path={schema}" if schema else "")
-    raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None)
-    return Connection(raw)
+    """Open a connection to Supabase Postgres, pinned to one schema (tests use a throwaway one)."""
+    schema = schema or os.getenv("BOT_DB_SCHEMA") or DEFAULT_SCHEMA
+    if schema != "public" and not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
+        raise ValueError("invalid schema name")
+    options = f"-c search_path={schema}" if schema != "public" else None
+    raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None, autocommit=True)
+    raw.execute("SET extra_float_digits = 3")  # exact float round-trip
+    connection = Connection(raw)
+    connection.schema = schema
+    return connection
 
 
 @contextlib.contextmanager
@@ -242,6 +249,7 @@ def apply_schema(connection: Connection) -> None:
     applied = _applied_versions(connection)
     pending = [p for p in sorted(MIGRATIONS_DIR.glob("[0-9]*.sql")) if p.name not in applied]
     if pending:
+        connection.executescript(f"CREATE SCHEMA IF NOT EXISTS {connection.schema}")
         connection.execute("SELECT pg_advisory_xact_lock(7001)")
         connection.executescript(
             "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT now()::text);"

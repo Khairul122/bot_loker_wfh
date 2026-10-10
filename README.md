@@ -32,7 +32,7 @@ Print the startup configuration (does not run the bot; use `run-bot` for that):
 python -m bot_loker_wfh
 ```
 
-Initialize the SQLite schema from an empty database:
+Create or upgrade the Supabase Postgres schema (needs `SUPABASE_DB_URL` in `.env`):
 
 ```powershell
 python -m bot_loker_wfh init-db
@@ -199,10 +199,10 @@ Also available: `/lowongan` (candidates and pending drafts), `/fetch` (run a cyc
 
 ### Deployment (VPS + Docker)
 
-The bot is a single process that keeps a local SQLite file, so one small VPS (1 vCPU / 512 MB–1 GB RAM) is enough.
+The bot is a single process whose data lives in Supabase, so one small VPS (1 vCPU / 512 MB-1 GB RAM) is enough.
 
 1. On the server, install Docker (with the Compose plugin) and clone the repository.
-2. Copy the files that are not in git from your machine (`.env`, `data/profile.json`, and optionally `data/app.db` to keep your history):
+2. Copy the files that are not in git from your machine (`.env` and `data/profile.json`):
    ```bash
    scp .env user@server:~/bot-loker-wfh/.env
    scp -r data user@server:~/bot-loker-wfh/data
@@ -213,27 +213,9 @@ The bot is a single process that keeps a local SQLite file, so one small VPS (1 
 
 Stop any locally running bot first: a Telegram token can be polled by only one process at a time.
 
-Back up the database from the server:
-
-```bash
-docker compose exec bot python -m bot_loker_wfh backup-db --backup-path data/backups/app.sqlite
-```
+The database is Supabase Postgres: use the dashboard's backups (Database > Backups) instead of file copies.
 
 ### Maintenance Operations
-
-#### Backup the Database
-```powershell
-python -m bot_loker_wfh backup-db --backup-path backups/app.sqlite
-```
-
-#### Restore from Backup
-```powershell
-python -m bot_loker_wfh restore-db --restore-path backups/app.sqlite
-```
-To restore to a different location:
-```powershell
-python -m bot_loker_wfh restore-db --restore-path backups/app.sqlite --target-db data/restored.db
-```
 
 #### Run Retention Cleanup
 ```powershell
@@ -243,9 +225,8 @@ This deletes `FILTERED_OUT` jobs older than 90 days that have no associated appl
 
 ### Troubleshooting
 
-#### "Unable to open database file" errors
-Ensure the database file path in `DATABASE_URL` is accessible and the directory exists.
-The init-db command will create directories automatically.
+#### "SUPABASE_DB_URL is not set" or connection errors
+Put the Supabase session-pooler URI (Dashboard > Connect) in `SUPABASE_DB_URL`. The direct `db.<ref>.supabase.co` host is IPv6-only; use the pooler host if your network has no IPv6.
 
 #### Telegram bot not responding
 Verify:
@@ -319,18 +300,7 @@ python -m bot_loker_wfh cleanup-retention
 
 The cleanup deletes only `FILTERED_OUT` jobs older than 90 days that have no application. Active jobs and jobs referenced by applications are preserved.
 
-Back up the local SQLite database. The backup command copies only the SQLite database file and does not include `.env` or credentials:
-
-```powershell
-python -m bot_loker_wfh backup-db --backup-path backups/app.sqlite
-```
-
-Restore a backup into the configured database path or an explicit target:
-
-```powershell
-python -m bot_loker_wfh restore-db --restore-path backups/app.sqlite
-python -m bot_loker_wfh restore-db --restore-path backups/app.sqlite --target-db data/restored.db
-```
+Back up the database from the Supabase dashboard (Database > Backups).
 
 Eligibility filters are stored in the `filters` table as JSON keyword lists and numeric thresholds. The default role list covers Laravel, Flutter, NestJS, React, Python, backend, full-stack, and mobile development; changing the row changes the next eligibility evaluation without a code change.
 
