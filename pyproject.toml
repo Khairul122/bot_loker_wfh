@@ -20,7 +20,7 @@ bot-loker-wfh = "bot_loker_wfh.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-bot_loker_wfh = ["migrations/*.sql", "office/*"]
+bot_loker_wfh = ["migrations/*.sql", "office/*", "office/**/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
