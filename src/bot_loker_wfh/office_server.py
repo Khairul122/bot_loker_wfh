@@ -347,8 +347,15 @@ class _Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         # Other sites open in the browser must not trigger actions on the owner's machine.
         origin = self.headers.get("Origin")
-        if origin and origin.split("://", 1)[-1] != self.headers.get("Host"):
-            return self._json(403, {"error": "forbidden"})
+        if origin:
+            origin_host = origin.split("://", 1)[-1].rstrip("/")
+            req_host = (self.headers.get("Host") or "").rstrip("/")
+            # Remove port numbers when comparing host origin (e.g. 127.0.0.1:8765 vs localhost)
+            def _norm_host(h: str) -> str:
+                h_no_port = h.split(":")[0]
+                return "127.0.0.1" if h_no_port in ("localhost", "127.0.0.1") else h_no_port
+            if _norm_host(origin_host) != _norm_host(req_host):
+                return self._json(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
         handled = self._desk_post(parts)
         if handled is not None:

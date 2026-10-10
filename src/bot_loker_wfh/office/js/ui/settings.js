@@ -489,7 +489,8 @@ async function saveSetting(key, value) {
     }
     toast('✅ Tersimpan (restart bot untuk berlaku penuh)');
   } else {
-    toast('❌ Gagal: ' + (res.data.error || 'Unknown'));
+    const errorMsg = res.data?.error || (res.status === 403 ? 'Akses ditolak (Origin mismatch)' : res.status ? `HTTP ${res.status}` : 'Server tidak terjangkau');
+    toast('❌ Gagal: ' + errorMsg);
     // Reload to revert
     await loadSettings();
     renderSettings();
