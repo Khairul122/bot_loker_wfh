@@ -31,6 +31,7 @@ import { keyMove } from './systems/input.js';
 import { loadStats, poll } from './systems/sync.js';
 import { initSettings } from './ui/settings.js';
 import './ui/logs.js';
+import './systems/realtime.js';
 
 let frameNo = 0;
 function frame() {

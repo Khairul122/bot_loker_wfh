@@ -13,6 +13,7 @@ import { $, toast } from '../ui/dom.js';
 import { endChat } from '../ui/card.js';
 import { openMenu } from '../ui/menu.js';
 import { toggleReports } from '../ui/reports.js';
+import { openMeeting } from '../ui/meeting.js';
 import { sendTo } from './routine.js';
 
 export function sitOwner(openPanel = true) {
@@ -31,6 +32,7 @@ export function useSpot(kindName, house) {
   if (kindName === 'hoop') return goShoot();
   if (kindName === 'kantin') return openMenu();
   if (kindName === 'owner') return sitOwner();
+  if (kindName === 'rapat') return openMeeting();
   if (kindName === 'lift') {
     me.goTo(me.level, DOOR_X, 0);
     me.path.push({ p: V(ELEV_X, 0) }); // enter through the door, not the glass

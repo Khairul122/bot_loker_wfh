@@ -14,10 +14,14 @@ import pantau from './rooms/pantau.js';
 import freelance from './rooms/freelance.js';
 import kantin from './rooms/kantin.js';
 import owner from './rooms/owner.js';
+import rapat from './rooms/rapat.js';
 import './rooftop.js';
 
-const ROOMS = { lobi, cari, seleksi, tulis, lamar, pantau, freelance, kantin, owner };
-DIVS.forEach((d, i) => ROOMS[d.id](buildFloor(i, d), d));
+const ROOMS = { lobi, cari, seleksi, tulis, lamar, pantau, freelance, kantin, owner, rapat };
+DIVS.forEach((d, i) => {
+  if (d.id === 'rapat') ROOMS.rapat(buildFloor(i, d), d);
+  else ROOMS[d.id](buildFloor(i, d), d);
+});
 
 const shaft = new THREE.Mesh(new THREE.BoxGeometry(2.2, ROOF * FH + 1, 2.4), new THREE.MeshToonMaterial({ color: 0xbfe3f2, gradientMap: gradient, transparent: true, opacity: 0.28 }));
 shaft.position.set(ELEV_X, (ROOF * FH + 1) / 2 - 0.4, 0); scene.add(shaft);

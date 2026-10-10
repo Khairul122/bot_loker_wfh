@@ -45,7 +45,7 @@ export function interact(h) {
   me.goTo(level, x, z);
   burst(new THREE.Vector3(x, level * FH - 1.8, z), ['📍'], 1);
 }
-const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja' };
+const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };
 renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
 let lastHover = 0;
 renderer.domElement.addEventListener('pointermove', e => {

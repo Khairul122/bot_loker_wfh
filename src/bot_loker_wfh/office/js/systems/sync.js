@@ -23,19 +23,25 @@ export function refreshPerf() {
   drawKpi(staff);
   if (perfOpen) renderPerf();
 }
-export async function loadStats() {
-  try {
-    const r = await fetch('stats.json', { cache: 'no-store' });
-    if (!r.ok) throw 0;
-    const prev = store.live ? derive() : null;
-    store.S = await r.json(); store.live = true;
-    if (store.S.desk) store.desk = store.S.desk;
-    if (prev) { const d = derive(); if (d.cand > prev.cand) toast(`🎉 ${d.cand - prev.cand} lowongan cocok baru!`); if (d.interview > prev.interview) toast('🎤 Ada panggilan interview baru!'); if (d.offer > prev.offer) toast('🏆 OFFER MASUK!!'); }
-  } catch { store.live = false; store.S = DEMO; }
+export function refreshPanels() {
   $('liveDot').classList.toggle('live', store.live);
   $('liveDot').title = store.live ? 'Data langsung dari bot' : 'Data contoh (jalankan: python -m bot_loker_wfh office)';
   refreshPerf();
   reactToWork(); renderAuto(); renderBadge(); scheduleDeliveries();
+}
+export function applyStats(data) {
+  const prev = store.live ? derive() : null;
+  store.S = data; store.live = true;
+  if (data.desk) store.desk = data.desk;
+  if (prev) { const d = derive(); if (d.cand > prev.cand) toast(`🎉 ${d.cand - prev.cand} lowongan cocok baru!`); if (d.interview > prev.interview) toast('🎤 Ada panggilan interview baru!'); if (d.offer > prev.offer) toast('🏆 OFFER MASUK!!'); }
+  refreshPanels();
+}
+export async function loadStats() {
+  try {
+    const r = await fetch('stats.json', { cache: 'no-store' });
+    if (!r.ok) throw 0;
+    applyStats(await r.json());
+  } catch { store.live = false; store.S = DEMO; refreshPanels(); }
 }
 // poll faster while the team works on its own, so reactions show up promptly
 export function poll() { setTimeout(async () => { await loadStats(); poll(); }, store.S.work?.auto ? 8000 : 60000); }

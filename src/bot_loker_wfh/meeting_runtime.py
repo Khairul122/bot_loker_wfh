@@ -174,9 +174,9 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             f"Sampaikan solusi konkret, bukan basa-basi."
         )
         try:
-            res = provider.complete([{"role": "user", "content": prompt}], max_tokens=150)
-            speech = res.content.strip()
-        except Exception as err:
+            res = provider.complete([{"role": "user", "content": prompt}])
+            speech = res.text.strip()
+        except Exception:
             speech = f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
 
         add_event(connection, meeting_id, emp, "note", speech)
@@ -190,8 +190,8 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         + "\nBuatkan 1 kesimpulan keputusan aksi konkret."
     )
     try:
-        dec_res = provider.complete([{"role": "user", "content": decision_prompt}], max_tokens=150)
-        decision = dec_res.content.strip()
+        dec_res = provider.complete([{"role": "user", "content": decision_prompt}])
+        decision = dec_res.text.strip()
     except Exception:
         decision = f"Tim sepakat mengeksekusi prioritas terkait {topic}."
 

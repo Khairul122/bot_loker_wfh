@@ -312,11 +312,17 @@ class _Handler(SimpleHTTPRequestHandler):
             try:
                 while True:
                     try:
-                        event = subscription.get(timeout=10)
+                        event = subscription.get(timeout=5)
                         send_ws_frame(json.dumps(event).encode("utf-8"))
                     except queue.Empty:
-                        self.wfile.write(bytes([0x89, 0x00]))
-                        self.wfile.flush()
+                        try:
+                            with self._connect() as connection:
+                                snapshot = {**collect_stats(connection), "work": self.work.status(),
+                                            "desk": desk_state(connection)}
+                            send_ws_frame(json.dumps({"type": "stats", "data": snapshot}).encode("utf-8"))
+                        except Exception:
+                            self.wfile.write(bytes([0x89, 0x00]))
+                            self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass
             finally:
@@ -439,7 +445,10 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 from .meeting_runtime import run_dynamic_meeting
                 result = run_dynamic_meeting(connection, topic, participants)
-                return self._json(200, result)
+            for line in result.get("transcript", []):
+                office_events.publish({"employee": line.get("employee"), "task": topic, "status": "rapat"})
+            office_events.publish({"employee": "owner", "task": topic, "status": "keputusan"})
+            return self._json(200, result)
         handled = self._desk_post(parts)
         if handled is not None:
             return handled

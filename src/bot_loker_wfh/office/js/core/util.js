@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // building dimensions: floor height, width, depth, number of floors (= DIVS.length), rooftop level
-export const FH = 4.2, W = 18, D = 12, NF = 9, ROOF = NF;
+export const FH = 4.2, W = 18, D = 12, NF = 10, ROOF = NF;
 export const ELEV_X = 10.9, DOOR_X = 9.0;
 
 export const rand = (a, b) => a + Math.random() * (b - a);

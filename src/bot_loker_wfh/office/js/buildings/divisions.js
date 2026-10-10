@@ -9,5 +9,6 @@ export const DIVS = [
   { id: 'freelance', icon: '🤝', name: 'Proyek Freelance', floor: 0xf4ecc6, wall: 0xfffbe8, accent: '#c9a227', screen: 0xffe58a },
   { id: 'kantin', icon: '🍛', name: 'Kantin & Toilet', floor: 0xf3e3c8, wall: 0xfff8ec, accent: '#e0844a', screen: 0xffd7a8 },
   { id: 'owner', icon: '👑', name: 'Ruang Owner', floor: 0xe3d3bd, wall: 0xf7efe3, accent: '#8a6b55', screen: 0x9fe6ff },
+  { id: 'rapat', icon: '💬', name: 'Ruang Rapat', floor: 0xd4e6f1, wall: 0xe8f0f7, accent: '#5b9bd5', screen: 0x8cc8ff },
 ];
-export const KANTIN = 7, OWNER = 8;
+export const KANTIN = 7, OWNER = 8, RAPAT = 9;

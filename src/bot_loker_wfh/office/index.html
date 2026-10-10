@@ -167,6 +167,16 @@
 <div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik lift kaca untuk pindah lantai · kantin & ruang owner di lantai atas · rumah di belakang gedung · V mode POV</div>
 <div id="loading">Menyiapkan kantor…</div>
 
+<div id="meeting"><div class="panel" role="dialog" aria-label="Ruang rapat">
+  <button class="xbtn" id="meetingClose" aria-label="Tutup">✕</button>
+  <h2>💬 Ruang Rapat</h2>
+  <div class="sub">Pilih topik & peserta. Tim berdiskusi lewat 9Router lalu sepakati satu keputusan.</div>
+  <label>Topik <input id="meetingTopic" maxlength="200" placeholder="Misal: Strategi lamaran minggu ini" aria-label="Topik rapat"></label>
+  <div class="chips" id="meetingPeople" aria-label="Peserta"></div>
+  <button class="btn ok" id="meetingRun" style="width:100%;justify-content:center">🚀 Mulai rapat</button>
+  <ul class="leads" id="meetingLog"></ul>
+</div></div>
+
 <script src="js/boot.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
