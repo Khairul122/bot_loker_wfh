@@ -279,6 +279,10 @@ class _Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
         if path == "/events":
             subscription = office_events.subscribe()
             self.send_response(200)
@@ -641,9 +645,18 @@ class _Handler(SimpleHTTPRequestHandler):
         pass
 
 
+class QuietThreadingHTTPServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        import sys
+        exctype = sys.exc_info()[0]
+        if exctype in (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
+            return
+        super().handle_error(request, client_address)
+
+
 def serve(work, port: int = 8765) -> None:
     # Bound to localhost only: the page shows a personal bot's pipeline and cover letters.
-    server = ThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
+    server = QuietThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
     work.start_daily_reports()
     print(f"kantor 3D siap di http://127.0.0.1:{port}  (Ctrl+C untuk berhenti)")
     try:
