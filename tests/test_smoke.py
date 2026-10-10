@@ -13,7 +13,6 @@ class ScaffoldSmokeTest(unittest.TestCase):
         settings = Settings.from_environment({})
 
         self.assertEqual(settings.environment, "development")
-        self.assertEqual(settings.database_url, "sqlite:///data/app.db")
         self.assertFalse(settings.external_jobs_enabled)
 
     def test_application_starts_without_external_jobs(self):

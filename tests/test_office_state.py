@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import shutil
@@ -21,7 +21,7 @@ from bot_loker_wfh.settings_store import SupabaseUnavailable
 
 class OfficeStateTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def tearDown(self):
@@ -46,9 +46,9 @@ class OfficeStateHttpTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         db = Path(self.tmp.name) / "app.db"
-        with sqlite3.connect(db) as connection:
+        with database.connect() as connection:
             apply_schema(connection)
-        work = OfficeWork(db, hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
+        work = OfficeWork(hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
                           interval_seconds=3600, lock=threading.Lock())
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_Handler, work=work))
         self.server.daemon_threads = True
@@ -81,14 +81,6 @@ class OfficeStateHttpTest(unittest.TestCase):
         })[0], 200)
         self.assertEqual(self.call("office/state.json")[1]["owner"]["x"], 1.0)
         self.assertEqual(self.call("office/character-state", {"owner": {"x": "bad"}})[0], 400)
-
-    def test_cloud_backend_down_falls_back_to_local_cache(self):
-        self.call("office/character-state", {"owner": {"x": 3, "y": 0, "z": 4}, "staff": {}})
-        with mock.patch.object(settings_store, "cloud_configured", lambda: True),              mock.patch("bot_loker_wfh.office_state.supabase_configured", lambda: True),              mock.patch("bot_loker_wfh.office_state.supabase_request",
-                        mock.Mock(side_effect=database.SupabaseUnavailable("down"))):
-            status, data = self.call("office/state.json")
-        self.assertEqual(status, 200)
-        self.assertEqual(data["owner"]["x"], 3.0)
 
 
 if __name__ == "__main__":

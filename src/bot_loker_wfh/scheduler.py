@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+from .database import Connection
 import time
 from collections.abc import Callable
 from time import perf_counter
@@ -24,7 +24,7 @@ IntervalSource = float | Callable[[], float]
 class JobScheduler:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         fetchers: dict[str, FetchFn] | None = None,
         interval_hours: IntervalSource = 4,
@@ -74,7 +74,7 @@ class JobScheduler:
             time.sleep(self.interval_seconds())
 
 
-def _default_fetchers(connection: sqlite3.Connection) -> dict[str, FetchFn]:
+def _default_fetchers(connection: Connection) -> dict[str, FetchFn]:
     return {
         "remoteok": RemoteOKFetcher(connection).fetch_and_store,
         "remotive": RemotiveFetcher(connection).fetch_and_store,

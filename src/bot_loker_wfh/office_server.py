@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import queue
 import shlex
-import sqlite3
+from .database import Connection
 import subprocess
 import time
 from functools import partial
@@ -14,13 +14,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import office_desk as desk
-from . import settings_store
+from . import database
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
-from .office_state import load_state, load_state_cloud, save_state
+from .office_state import load_state, save_state
 from .office_events import bus as office_events
-from .settings_store import DEFAULTS, get_setting, set_setting
+from .settings_store import DEFAULTS, all_settings, get_setting, set_setting
 from .config import save_dotenv
 from .status_transitions import InvalidTransitionError
 
@@ -76,11 +76,8 @@ def _validate_setting(key: str, value: str) -> str | None:
     return None
 
 
-def _grouped(connection: sqlite3.Connection, sql: str) -> dict:
-    try:
-        rows = connection.execute(sql).fetchall()
-    except sqlite3.OperationalError:
-        return {}
+def _grouped(connection: Connection, sql: str) -> dict:
+    rows = connection.execute(sql).fetchall()
     out: dict = {}
     for *keys, count in rows:
         node = out
@@ -90,7 +87,7 @@ def _grouped(connection: sqlite3.Connection, sql: str) -> dict:
     return out
 
 
-def collect_stats(connection: sqlite3.Connection) -> dict:
+def collect_stats(connection: Connection) -> dict:
     """Aggregate counts only; never titles, descriptions, CVs or cover letters."""
     return {
         "jobs": _grouped(connection, "SELECT source, status, COUNT(*) FROM jobs GROUP BY 1, 2"),
@@ -105,7 +102,7 @@ def collect_stats(connection: sqlite3.Connection) -> dict:
     }
 
 
-def _settings_payload(connection: sqlite3.Connection) -> dict:
+def _settings_payload(connection: Connection) -> dict:
     """Current runtime-tunable settings (interval in hours, min bound for the UI)."""
     payload = {
         key: {"value": get_setting(connection, key), "min": lower}
@@ -117,8 +114,8 @@ def _settings_payload(connection: sqlite3.Connection) -> dict:
 def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
     """All settings including from environment/config for the settings panel.
 
-    `overrides` lets the authoritative cloud store win over the environment on a
-    configured deployment. Secrets stay masked regardless of where they came from.
+    `overrides` (the stored `app_settings` rows) win over the environment. Secrets stay
+    masked regardless of where they came from.
     """
     from bot_loker_wfh.config import Settings
     settings = Settings.from_environment()
@@ -156,7 +153,7 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
 
     payload = {k: (_mask(v) if k in SECRET_KEYS else {"value": v}) for k, v in all_settings.items()}
     if overrides:
-        # Cloud is authoritative when configured: real secret values mark "set"
+        # Stored values win: real secret values mark "set"
         # and never leak, everything else shows the stored value.
         for key, value in overrides.items():
             if key in SECRET_KEYS:
@@ -166,7 +163,7 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
     return payload
 
 
-def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dict:
+def hunt_leads(connection: Connection, lead_service, source: str) -> dict:
     """Run one real fetch of a freelance source and return its newest leads.
 
     Only public project data (title, budget, link) is returned, never CV content.
@@ -187,7 +184,7 @@ def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dic
     }
 
 
-def hunt_jobs(connection: sqlite3.Connection, source: str, fetcher, pipeline) -> dict:
+def hunt_jobs(connection: Connection, source: str, fetcher, pipeline) -> dict:
     """Fetch one job source for real, score new jobs, return its newest candidates."""
     inserted = fetcher.fetch_and_store()
     matched = pipeline.process_discovered()["candidate"]
@@ -246,7 +243,7 @@ _RESULT_QUERIES = {
 }
 
 
-def employee_results(connection: sqlite3.Connection, view: str, source: str | None = None) -> list[dict]:
+def employee_results(connection: Connection, view: str, source: str | None = None) -> list[dict]:
     """Recent output of one kind of work, for the owner to review (never CV content)."""
     sql = _RESULT_QUERIES.get(view)
     if sql is None:
@@ -258,7 +255,7 @@ def employee_results(connection: sqlite3.Connection, view: str, source: str | No
     return [dict(zip(keys, row)) for row in connection.execute(sql, params).fetchall()]
 
 
-def desk_state(connection: sqlite3.Connection) -> dict:
+def desk_state(connection: Connection) -> dict:
     """What the 3D owner's office needs on every poll: ratings, instructions, reports to walk over."""
     return {
         "ratings": desk.ratings(connection),
@@ -290,7 +287,7 @@ class _Handler(SimpleHTTPRequestHandler):
         return True  # lets route helpers signal "handled"
 
     def _connect(self):
-        return open_db(self.work.database_path)
+        return open_db()
 
     def do_GET(self):
         path = self.path.split("?")[0]
@@ -365,15 +362,7 @@ class _Handler(SimpleHTTPRequestHandler):
             return
         if path == "/office/state.json":
             with self._connect() as connection:
-                if settings_store.cloud_configured():
-                    try:
-                        # Cloud is authoritative: most recent spots live in Supabase.
-                        cloud_state = load_state_cloud(connection)
-                        return self._json(200, cloud_state)
-                    except settings_store.cloud_error_types():
-                        return self._json(503, {"error": "supabase_unavailable"})
-                with self._connect() as connection2:
-                    return self._json(200, load_state(connection2))
+                return self._json(200, load_state(connection))
         if path == "/stats.json":
             with self._connect() as connection:
                 return self._json(200, {**collect_stats(connection), "work": self.work.status(),
@@ -422,14 +411,8 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 return self._json(200, self.work.inbox(connection))
         if path == "/settings.json":
-            if settings_store.cloud_configured():
-                try:
-                    overrides = settings_store.fetch_cloud_settings()
-                except settings_store.cloud_error_types():
-                    # Configured but unreachable: fail loudly, never a stale/false success.
-                    return self._json(503, {"error": "supabase_unavailable"})
-                return self._json(200, _all_settings_payload(overrides))
-            return self._json(200, _all_settings_payload())
+            with self._connect() as connection:
+                return self._json(200, _all_settings_payload(all_settings(connection)))
         if path == "/llm/test":
             return self._json(200, self._test_llm())
         if path == "/llm/list-models":
@@ -506,29 +489,18 @@ class _Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": "unknown_setting"})
             if key in SECRET_KEYS and value == "":
                 # Blank secret means "keep the stored one", never wipe it.
-                overrides = None
-                if settings_store.cloud_configured():
-                    try:
-                        overrides = settings_store.fetch_cloud_settings()
-                    except settings_store.cloud_error_types():
-                        return self._json(503, {"error": "supabase_unavailable"})
-                return self._json(200, _all_settings_payload(overrides))
+                with self._connect() as connection:
+                    return self._json(200, _all_settings_payload(all_settings(connection)))
             error = _validate_setting(key, value)
             if error:
                 return self._json(400, {"error": error})
 
-            # Cloud is authoritative: write there first and only report success
-            # once it is stored. An unreachable backend is a 503, not a false 200.
-            if settings_store.cloud_configured():
-                try:
-                    settings_store.store_cloud_setting(key, value)
-                except settings_store.cloud_error_types():
-                    return self._json(503, {"error": "supabase_unavailable"})
-
-            # Local cache + runtime environment refreshed only after a successful save.
-            if key in DEFAULTS:
+            try:
                 with self._connect() as connection:
                     set_setting(connection, key, value)
+            except database.Error:
+                # Success is only reported once the value is stored in Supabase.
+                return self._json(503, {"error": "supabase_unavailable"})
 
             # Persist to .env so it survives a restart (best effort).
             try:
@@ -536,7 +508,8 @@ class _Handler(SimpleHTTPRequestHandler):
             except Exception:
                 pass
 
-            return self._json(200, _all_settings_payload({key: value}))
+            with self._connect() as connection:
+                return self._json(200, _all_settings_payload(all_settings(connection)))
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-import sqlite3
+from .database import Connection
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -26,7 +26,7 @@ class RelevanceScore:
 class RelevanceScorer:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         embedder: Embedder | None = None,
         model: str = "local-hash-embedding",

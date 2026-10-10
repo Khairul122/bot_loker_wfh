@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sqlite3
 import threading
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
 
-from .backup import backup_database, restore_database
 from .bot import BotRunner
 from .config import Settings
 from .cv_profile import load_profile
+from . import database
 from .database import initialize_database
 from .drafts import DraftService
 from .greenhouse import GreenhouseFetcher
@@ -44,9 +43,6 @@ from .telegram_client import TelegramClient
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the bot-loker-wfh service.")
     parser.add_argument("--version", action="version", version="0.1.0")
-    parser.add_argument("--backup-path", help="Path for backup-db output")
-    parser.add_argument("--restore-path", help="Path for restore-db input")
-    parser.add_argument("--target-db", help="Target SQLite path for restore-db")
     parser.add_argument("--ats", choices=("greenhouse", "lever"), help="ATS for add-company")
     parser.add_argument("--slug", help="ATS board slug for add-company")
     parser.add_argument("--name", help="Company display name for add-company / add-ats")
@@ -90,8 +86,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             "draft-lead",
             "sync-github",
             "cleanup-retention",
-            "backup-db",
-            "restore-db",
             "check-llm",
             "check-browser",
             "add-ats",
@@ -108,50 +102,50 @@ def main(argv: Sequence[str] | None = None) -> int:
     settings = Settings.from_environment()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     if args.command == "init-db":
-        database_path = initialize_database(settings.database_url)
-        print(f"database initialized path={database_path}")
+        initialize_database()
+        print("database initialized (supabase postgres)")
         return 0
 
     if args.command == "fetch-remoteok":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             inserted_count = RemoteOKFetcher(connection).fetch_and_store()
         print(f"remoteok fetch complete inserted={inserted_count}")
         return 0
 
     if args.command == "fetch-remotive":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             inserted_count = RemotiveFetcher(connection).fetch_and_store()
         print(f"remotive fetch complete inserted={inserted_count}")
         return 0
 
     if args.command == "fetch-greenhouse":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             inserted_count = GreenhouseFetcher(connection).fetch_and_store()
         print(f"greenhouse fetch complete inserted={inserted_count}")
         return 0
 
     if args.command == "fetch-lever":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             inserted_count = LeverFetcher(connection).fetch_and_store()
         print(f"lever fetch complete inserted={inserted_count}")
         return 0
 
     if args.command in {"fetch-kalibrr", "fetch-dealls"}:
         fetcher_class = KalibrrFetcher if args.command == "fetch-kalibrr" else DeallsFetcher
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             inserted_count = fetcher_class(connection).fetch_and_store()
         print(f"{fetcher_class.source} fetch complete inserted={inserted_count}")
         return 0
 
     if args.command == "fetch-leads":
-        database_path = initialize_database(settings.database_url)
+        initialize_database()
         profile = load_profile(settings.profile_path)
-        with sqlite3.connect(database_path) as connection:
+        with database.session() as connection:
             counts = _lead_service(connection, profile, settings).collect()
         print(
             "leads fetch complete "
@@ -160,8 +154,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "fetch-once":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             results = JobScheduler(connection).run_once()
         print(
             "fetch once complete "
@@ -175,8 +169,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not settings.external_jobs_enabled:
             print("EXTERNAL_JOBS_ENABLED is false; scheduler not started")
             return 1
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             JobScheduler(
                 connection,
                 interval_hours=lambda: get_scrape_interval_hours(connection),
@@ -184,9 +178,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "process-jobs":
-        database_path = initialize_database(settings.database_url)
+        initialize_database()
         profile = load_profile(settings.profile_path)
-        with sqlite3.connect(database_path) as connection:
+        with database.session() as connection:
             counts = JobPipeline(connection, profile).process_discovered()
         print(
             "process complete "
@@ -197,11 +191,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "add-company":
         if not (args.ats and args.slug and args.name):
             parser.error("add-company requires --ats, --slug, and --name")
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             connection.execute(
-                "INSERT OR IGNORE INTO companies_ats "
-                "(id, company_name, ats_type, ats_slug) VALUES (?, ?, ?, ?)",
+                "INSERT INTO companies_ats "
+                "(id, company_name, ats_type, ats_slug) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT DO NOTHING",
                 (str(uuid.uuid4()), args.name, args.ats, args.slug),
             )
             connection.commit()
@@ -234,10 +229,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not args.lead_id:
             parser.error("draft-lead requires --lead-id")
         profile = load_profile(settings.profile_path)
-        database_path = initialize_database(settings.database_url)
-        llm = create_llm_from_settings(settings, str(database_path))
+        initialize_database()
+        llm = create_llm_from_settings(settings, record_calls=True)
         portfolio = load_portfolio()
-        with sqlite3.connect(database_path) as connection:
+        with database.session() as connection:
             try:
                 proposal = draft_proposal(connection, args.lead_id, profile, llm, portfolio=portfolio)
                 comment = draft_comment(connection, args.lead_id, llm, portfolio=portfolio)
@@ -311,8 +306,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "add-ats":
         if not (args.name and args.host):
             parser.error("add-ats requires --name and --host")
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             connection.execute(
                 "INSERT OR REPLACE INTO ats_registry (id, ats_name, host, mode, open_button_label) "
                 "VALUES (?, ?, ?, ?, ?)",
@@ -331,8 +326,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "set-ats-mode":
         if not (args.host and args.mode):
             parser.error("set-ats-mode requires --host and --mode")
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             connection.execute(
                 "UPDATE ats_registry SET mode = ? WHERE host = ?",
                 (args.mode, args.host),
@@ -342,8 +337,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "list-ats":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             rows = connection.execute(
                 "SELECT ats_name, host, mode, open_button_label, active FROM ats_registry ORDER BY ats_name"
             ).fetchall()
@@ -353,10 +348,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "office":
         profile = load_profile(settings.profile_path)
-        database_path = initialize_database(settings.database_url)
-        llm = create_llm_from_settings(settings, str(database_path))
+        initialize_database()
+        llm = create_llm_from_settings(settings, record_calls=True)
         work = OfficeWork(
-            database_path,
             hunters=_office_hunters(profile, settings),
             # Cora writes with the owner's standing instruction appended to every prompt
             draft_service_for=lambda connection: DraftService(
@@ -367,40 +361,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 portfolio=load_portfolio(), mark_interested=mark_interested,
             ),
             screener=_office_screener(profile),
-            llm=create_chat_llm(settings, str(database_path)),  # Q&A needs seconds, not an agent run
+            llm=create_chat_llm(settings, record_calls=True),  # Q&A needs seconds, not an agent run
             notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
             # scrape interval lives in the DB so the owner can tune it live from the dashboard
-            interval_seconds=lambda: _read_scrape_interval(database_path),
+            interval_seconds=lambda: _read_scrape_interval(),
             lock=threading.Lock(),
         )
         serve_office(work, args.port)
         return 0
 
     if args.command == "cleanup-retention":
-        database_path = initialize_database(settings.database_url)
-        with sqlite3.connect(database_path) as connection:
+        initialize_database()
+        with database.session() as connection:
             deleted_count = FilteredOutRetention(connection).cleanup()
         print(f"retention cleanup complete deleted={deleted_count}")
-        return 0
-
-    if args.command == "backup-db":
-        database_path = initialize_database(settings.database_url)
-        backup_path = Path(args.backup_path or "backups/app.sqlite")
-        backup_database(database_path, backup_path)
-        print(f"database backup complete path={backup_path}")
-        return 0
-
-    if args.command == "restore-db":
-        if not args.restore_path:
-            parser.error("restore-db requires --restore-path")
-        target_path = Path(args.target_db) if args.target_db else None
-        if target_path is None:
-            from .database import sqlite_path_from_url
-
-            target_path = sqlite_path_from_url(settings.database_url)
-        restore_database(Path(args.restore_path), target_path)
-        print(f"database restore complete path={target_path}")
         return 0
 
     print(
@@ -464,12 +439,9 @@ def _owner_notifier(settings: Settings):
     return notify
 
 
-def _read_scrape_interval(database_path: Path) -> float:
-    connection = sqlite3.connect(database_path)
-    try:
+def _read_scrape_interval() -> float:
+    with database.session() as connection:
         return get_scrape_interval_hours(connection) * 3600
-    finally:
-        connection.close()
 
 
 def _lead_service(connection, profile, settings: Settings) -> LeadService:
@@ -511,11 +483,11 @@ def _fill_form(
             except Exception:
                 pass
 
-    database_path = initialize_database(settings.database_url)
-    connection = sqlite3.connect(database_path)
+    initialize_database()
+    connection = database.connect()
     try:
         if settings.form_engine == "browsermcp":
-            router = create_llm_from_settings(settings, str(database_path))
+            router = create_llm_from_settings(settings, record_calls=True)
             agent = FormAgent(
                 connection,
                 router=router,
@@ -526,7 +498,7 @@ def _fill_form(
                 timeout_seconds=settings.form_timeout_seconds,
                 applicant_path=settings.applicant_path,
                 answers_path=settings.answers_path,
-                db_path=str(database_path),
+                persist_reports=True,
                 ai_answers=settings.form_ai_answers != "off",
             )
             page_num = 2 if next_page else 1
@@ -572,12 +544,12 @@ def _fill_lead(
     """Fill bid form; final submit requires --submit-bid and SUBMIT confirmation."""
     from .form_agent.agent import FormAgent
 
-    database_path = initialize_database(settings.database_url)
-    connection = sqlite3.connect(database_path)
+    initialize_database()
+    connection = database.connect()
     try:
         agent = FormAgent(
             connection,
-            router=create_llm_from_settings(settings, str(database_path)),
+            router=create_llm_from_settings(settings, record_calls=True),
             browser_command=(
                 settings.playwright_mcp_command if engine == "playwright" else settings.browser_mcp_command
             ),
@@ -587,7 +559,7 @@ def _fill_lead(
             timeout_seconds=settings.form_timeout_seconds,
             applicant_path=settings.applicant_path,
             answers_path=settings.answers_path,
-            db_path=str(database_path),
+            persist_reports=True,
             ai_answers=settings.form_ai_answers != "off",
         )
         keep_open = 0 if submit else PLAYWRIGHT_REVIEW_SECONDS if engine == "playwright" else 0
@@ -635,9 +607,9 @@ def _run_bot(settings: Settings) -> int:
         print("Profile has no skills; edit " + settings.profile_path)
         return 1
 
-    database_path = initialize_database(settings.database_url)
-    llm = create_llm_from_settings(settings, str(database_path))
-    connection = sqlite3.connect(database_path)
+    initialize_database()
+    llm = create_llm_from_settings(settings, record_calls=True)
+    connection = database.connect()
 
     def scrape_interval_hours() -> float:
         return get_scrape_interval_hours(connection)

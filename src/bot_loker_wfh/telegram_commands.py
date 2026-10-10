@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
+from .database import Connection
 from dataclasses import dataclass
 
 from .filters import FilterConfig, FilterRepository
@@ -22,7 +22,7 @@ class CommandResult:
 
 
 class TelegramCommandHandler:
-    def __init__(self, connection: sqlite3.Connection, *, auth: TelegramAuth):
+    def __init__(self, connection: Connection, *, auth: TelegramAuth):
         self.connection = connection
         self.auth = auth
 
@@ -369,7 +369,7 @@ class TelegramCommandHandler:
             llm_calls_count = self.connection.execute(
                 "SELECT COUNT(*), SUM(CASE WHEN status='success' THEN 1 ELSE 0 END), "
                 "SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) "
-                "FROM llm_calls WHERE created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')"
+                "FROM llm_calls WHERE created_at >= utc_now_iso('-7 days')"
             ).fetchone()
             total_c, success_c, error_c = (
                 llm_calls_count[0] or 0,
@@ -385,7 +385,7 @@ class TelegramCommandHandler:
         try:
             form_sessions_count = self.connection.execute(
                 "SELECT COUNT(*), AVG(filled_count), AVG(manual_count) "
-                "FROM form_sessions WHERE started_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days')"
+                "FROM form_sessions WHERE started_at >= utc_now_iso('-7 days')"
             ).fetchone()
             s_count = form_sessions_count[0] or 0
             avg_filled = round(form_sessions_count[1] or 0, 1)

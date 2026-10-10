@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+from .database import Connection
 import subprocess
 import time
 from collections.abc import Callable
@@ -50,7 +50,7 @@ MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of configured interval
 class BotRunner:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         client: TelegramClient,
         allowed_chat_ids: frozenset[int],
@@ -183,7 +183,7 @@ class BotRunner:
             # candidate would be silently skipped on every later cycle.
             if delivered:
                 self.connection.execute(
-                    "UPDATE jobs SET notified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                    "UPDATE jobs SET notified_at = utc_now_iso() "
                     "WHERE id = ?",
                     (job_id,),
                 )

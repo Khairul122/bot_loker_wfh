@@ -1,12 +1,11 @@
-"""Validated durable state for 3D office characters (sqlite + Supabase cloud)."""
+"""Validated durable state for 3D office characters (Supabase Postgres)."""
 
 from __future__ import annotations
 
 import math
-import sqlite3
 from collections.abc import Mapping
 
-from .database import SupabaseUnavailable, supabase_configured, supabase_request
+from .database import Connection
 
 
 _MAX_COORDINATE = 10000.0
@@ -59,57 +58,23 @@ def _rows_to_state(rows) -> dict:
     return {"owner": owner, "staff": staff}
 
 
-def load_state(connection: sqlite3.Connection) -> dict:
-    cursor = connection.execute(
+def load_state(connection: Connection) -> dict:
+    rows = connection.execute(
         "SELECT character_id, role, x, y, z, yaw FROM office_character_state ORDER BY character_id"
-    )
-    columns = [description[0] for description in cursor.description]
-    return _rows_to_state([dict(zip(columns, row)) for row in cursor.fetchall()])
+    ).fetchall()
+    return _rows_to_state(rows)
 
 
-def load_state_cloud(connection: sqlite3.Connection) -> dict:
-    """Cloud-authoritative read: last position saved in Supabase, else the local cache."""
-    if supabase_configured():
-        try:
-            rows = supabase_request(
-                "office_character_state",
-                query={"select": "character_id,role,x,y,z,yaw", "order": "character_id"},
-            )
-            if rows:
-                return _rows_to_state(rows)
-        except SupabaseUnavailable:
-            pass
-    return load_state(connection)
-
-
-def _state_rows(state: Mapping) -> list[dict]:
-    return [
-        {"character_id": character_id, "role": role,
-         "x": position["x"], "y": position["y"], "z": position["z"], "yaw": position["yaw"]}
-        for character_id, role, position in _state_input(state)
-    ]
-
-
-def save_state(connection: sqlite3.Connection, state: Mapping) -> dict:
+def save_state(connection: Connection, state: Mapping) -> dict:
     rows = _state_input(state)
     with connection:
-        for character_id, role, position in rows:
-            connection.execute(
-                "INSERT INTO office_character_state "
-                "(character_id, role, x, y, z, yaw) VALUES (?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT(character_id) DO UPDATE SET role=excluded.role, x=excluded.x, "
-                "y=excluded.y, z=excluded.z, yaw=excluded.yaw, "
-                "updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
-                (character_id, role, position["x"], position["y"], position["z"], position["yaw"]),
-            )
-    if supabase_configured():
-        try:
-            supabase_request(
-                "office_character_state", method="POST", data=_state_rows(state),
-                prefer="resolution=merge-duplicates",
-            )
-        except SupabaseUnavailable:
-            pass
+        connection.executemany(
+            "INSERT INTO office_character_state (character_id, role, x, y, z, yaw) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(character_id) DO UPDATE SET role=excluded.role, x=excluded.x, "
+            "y=excluded.y, z=excluded.z, yaw=excluded.yaw, updated_at=utc_now_iso()",
+            [(cid, role, p["x"], p["y"], p["z"], p["yaw"]) for cid, role, p in rows],
+        )
     return load_state(connection)
 
 

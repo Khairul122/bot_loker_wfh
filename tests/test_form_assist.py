@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import unittest
 from pathlib import Path
@@ -92,7 +92,7 @@ class FormAssistPureTest(unittest.TestCase):
 
 class ResolveTargetTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def add_application(self, number, *, source, apply_url, company="Acme"):
@@ -258,7 +258,7 @@ class FormAssistBrowserTest(unittest.TestCase):
 
 class BotFillFormTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.connection.execute(
             "INSERT INTO companies_ats (id, company_name, ats_type, ats_slug) "

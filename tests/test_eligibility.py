@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timezone
 
@@ -31,7 +31,7 @@ def job(**overrides):
 
 class EligibilityEngineTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.engine = EligibilityEngine(self.connection, now=NOW)
 
@@ -156,7 +156,7 @@ class EligibilityEngineTest(unittest.TestCase):
 
 class EligibilitySampleCountTest(unittest.TestCase):
     def test_twenty_sample_cases_have_expected_results(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
         engine = EligibilityEngine(connection, now=NOW)
         samples = [

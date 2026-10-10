@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -202,7 +202,7 @@ def lead(number, *, title="Laravel dashboard", description="", days_ago=1, sourc
 
 class LeadServiceTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def service(self, *fetchers):
@@ -279,7 +279,7 @@ class LeadServiceTest(unittest.TestCase):
 
 class BotLeadTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.client = FakeClient()
         self.leads = LeadService(

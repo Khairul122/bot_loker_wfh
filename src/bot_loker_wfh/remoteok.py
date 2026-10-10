@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sqlite3
+from .database import Connection
 import time
 import uuid
 from collections.abc import Callable, Iterable
@@ -24,7 +24,7 @@ class RetryableFetchError(RuntimeError):
 class RemoteOKFetcher:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         fetch_json: Callable[[], list[dict[str, Any]]] | None = None,
         max_retries: int = 3,
@@ -61,34 +61,30 @@ class RemoteOKFetcher:
 
     def _insert_job(self, item: dict[str, Any]) -> bool:
         normalized = _normalize_job(item)
-        try:
-            self.connection.execute(
-                "INSERT INTO jobs (id, source, external_id, source_external_key, "
-                "canonical_fingerprint, title, company, description, location, "
-                "salary_min, salary_max, currency, apply_url, posted_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    str(uuid.uuid4()),
-                    "remoteok",
-                    normalized["external_id"],
-                    normalized["source_external_key"],
-                    normalized["canonical_fingerprint"],
-                    normalized["title"],
-                    normalized["company"],
-                    normalized["description"],
-                    normalized["location"],
-                    normalized["salary_min"],
-                    normalized["salary_max"],
-                    normalized["currency"],
-                    normalized["apply_url"],
-                    normalized["posted_at"],
-                ),
-            )
-        except sqlite3.IntegrityError as error:
-            if "UNIQUE constraint failed: jobs." not in str(error):
-                raise
-            return False
-        return True
+        cursor = self.connection.execute(
+            "INSERT INTO jobs (id, source, external_id, source_external_key, "
+            "canonical_fingerprint, title, company, description, location, "
+            "salary_min, salary_max, currency, apply_url, posted_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT DO NOTHING",
+            (
+                str(uuid.uuid4()),
+                "remoteok",
+                normalized["external_id"],
+                normalized["source_external_key"],
+                normalized["canonical_fingerprint"],
+                normalized["title"],
+                normalized["company"],
+                normalized["description"],
+                normalized["location"],
+                normalized["salary_min"],
+                normalized["salary_max"],
+                normalized["currency"],
+                normalized["apply_url"],
+                normalized["posted_at"],
+            ),
+        )
+        return cursor.rowcount == 1
 
 
 def fetch_remoteok_json() -> list[dict[str, Any]]:

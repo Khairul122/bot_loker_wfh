@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timezone
 
@@ -7,7 +7,7 @@ from bot_loker_wfh.database import apply_schema
 
 class DatabaseSchemaTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def tearDown(self):
@@ -17,7 +17,7 @@ class DatabaseSchemaTest(unittest.TestCase):
         table_names = {
             row[0]
             for row in self.connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
+                "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
             )
         }
 
@@ -63,13 +63,15 @@ class DatabaseSchemaTest(unittest.TestCase):
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             job,
         )
-        with self.assertRaises(sqlite3.IntegrityError):
+        self.connection.commit()
+        with self.assertRaises(database.IntegrityError):
             self.connection.execute(
                 "INSERT INTO jobs (id, source, external_id, source_external_key, "
                 "canonical_fingerprint, title, company, description, location, apply_url, posted_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (*job[:3], "remoteok:999", "hash-2", *job[5:]),
             )
+        self.connection.rollback()
 
         application = (
             "application-1",
@@ -85,7 +87,8 @@ class DatabaseSchemaTest(unittest.TestCase):
             "cover_letter, cv_summary, method) VALUES (?, ?, ?, ?, ?, ?, ?)",
             application,
         )
-        with self.assertRaises(sqlite3.IntegrityError):
+        self.connection.commit()
+        with self.assertRaises(database.IntegrityError):
             self.connection.execute(
                 "INSERT INTO applications (id, job_id, idempotency_key, status, "
                 "cover_letter, cv_summary, method) VALUES (?, ?, ?, ?, ?, ?, ?)",

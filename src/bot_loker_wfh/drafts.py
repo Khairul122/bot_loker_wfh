@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+from .database import Connection
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -56,7 +56,7 @@ def template_cover_letter(
 class DraftService:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         profile: SafeCvProfile,
         *,
         llm: Callable[[str], str] | None = None,

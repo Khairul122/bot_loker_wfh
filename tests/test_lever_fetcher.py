@@ -1,5 +1,5 @@
 ﻿import json
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from pathlib import Path
 from urllib.error import URLError
@@ -20,7 +20,7 @@ COMPANIES = [
 
 class LeverFetcherTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         for company_name, slug in COMPANIES:
             self.connection.execute(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
+from .database import Connection
 import uuid
 from enum import StrEnum
 
@@ -34,7 +34,7 @@ APPLICATION_TRANSITIONS = {
 
 
 def transition_job_status(
-    connection: sqlite3.Connection,
+    connection: Connection,
     *,
     job_id: str,
     to_status: str,
@@ -62,7 +62,7 @@ def transition_job_status(
 
 
 def transition_application_status(
-    connection: sqlite3.Connection,
+    connection: Connection,
     *,
     application_id: str,
     to_status: str,
@@ -96,7 +96,7 @@ def transition_application_status(
     connection.commit()
 
 
-def mark_applied_manually(connection: sqlite3.Connection, application_id: str, *, via: str) -> None:
+def mark_applied_manually(connection: Connection, application_id: str, *, via: str) -> None:
     """APPROVED -> SUBMITTED after the owner sent the application themselves."""
     if _fetch_status(connection, table="applications", row_id=application_id) != "APPROVED":
         raise InvalidTransitionError("only APPROVED applications can be marked as applied")
@@ -110,14 +110,14 @@ def mark_applied_manually(connection: sqlite3.Connection, application_id: str, *
     )
     connection.execute(
         "UPDATE applications SET method = 'manual', "
-        "submitted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        "submitted_at = utc_now_iso() WHERE id = ?",
         (application_id,),
     )
     connection.commit()
 
 
 def _fetch_status(
-    connection: sqlite3.Connection, *, table: str, row_id: str
+    connection: Connection, *, table: str, row_id: str
 ) -> str:
     row = connection.execute(
         f"SELECT status FROM {table} WHERE id = ?",

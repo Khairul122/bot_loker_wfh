@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
+from .database import Connection
 from dataclasses import dataclass
 
 
@@ -20,7 +20,7 @@ class TelegramMessage:
 
 
 class TelegramNotificationService:
-    def __init__(self, connection: sqlite3.Connection, *, chat_id: int):
+    def __init__(self, connection: Connection, *, chat_id: int):
         self.connection = connection
         self.chat_id = chat_id
 

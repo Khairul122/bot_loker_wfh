@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-import sqlite3
+from .database import Connection
 from collections.abc import Iterable
 
 from .cv_profile import SafeCvProfile
@@ -42,7 +42,7 @@ def _contains_term(haystack: str, term: str) -> bool:
 class SkillCoverageScorer:
     """Scores a job by how many of the candidate's skills the posting mentions."""
 
-    def __init__(self, connection: sqlite3.Connection, profile: SafeCvProfile) -> None:
+    def __init__(self, connection: Connection, profile: SafeCvProfile) -> None:
         self.connection = connection
         self.profile = profile
 

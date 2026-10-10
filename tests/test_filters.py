@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timezone
 
@@ -9,7 +9,7 @@ from bot_loker_wfh.filters import FilterConfig, FilterRepository
 
 class FilterRepositoryTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.repository = FilterRepository(self.connection)
 

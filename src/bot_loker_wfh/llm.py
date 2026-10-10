@@ -358,14 +358,14 @@ class LLMRouter:
         return callable_prompt
 
 
-def create_chat_llm(settings: Any, db_path: str | None = None) -> Callable[[str], str] | None:
+def create_chat_llm(settings: Any, record_calls: bool = False) -> Callable[[str], str] | None:
     """Fast chat answers (office Q&A): straight to 9Router, skipping the slow `opencode run` agent.
 
     Falls back to the normal chain when 9Router is not configured.
     """
     model = getattr(settings, "ninerouter_model", "")
     if not model:
-        router = create_llm_from_settings(settings, db_path)
+        router = create_llm_from_settings(settings, record_calls)
         return router.for_task("answer") if isinstance(router, LLMRouter) else router
     provider = OpenAICompatibleProvider(
         getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1"),
@@ -374,13 +374,13 @@ def create_chat_llm(settings: Any, db_path: str | None = None) -> Callable[[str]
         timeout=getattr(settings, "llm_timeout_seconds", 60.0),
     )
     chain = [(provider, model)] + [(provider, fb) for fb in getattr(settings, "ninerouter_fallback_models", ()) if fb]
-    router = LLMRouter(chain, recorder=LLMCallRecorder(db_path) if db_path else None,
+    router = LLMRouter(chain, recorder=LLMCallRecorder() if record_calls else None,
                        task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
     return router.for_task("answer")
 
 
-def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRouter | None:
-    recorder = LLMCallRecorder(db_path) if db_path else None
+def create_llm_from_settings(settings: Any, record_calls: bool = False) -> LLMRouter | None:
+    recorder = LLMCallRecorder() if record_calls else None
     # Legacy provider environment values are ignored; 9Router is sole selectable provider.
     base_url = getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1")
     api_key = getattr(settings, "ninerouter_api_key", None) or "sk-dummy"

@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import re
-import sqlite3
+from .database import Connection
 import uuid
 from datetime import datetime, timezone
 from typing import Any
-
-from .database import sync_to_supabase
 
 MAX_TITLE_LENGTH = 200
 MAX_TEXT_LENGTH = 4000
@@ -17,35 +15,6 @@ MAX_EVENTS = 200
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _STATUSES = frozenset({"scheduled", "active", "completed", "cancelled"})
 _EVENT_TYPES = frozenset({"join", "leave", "note", "decision", "action"})
-
-
-def ensure_schema(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS meetings (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
-            starts_at TEXT NOT NULL,
-            status TEXT NOT NULL CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled')),
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS meeting_participants (
-            meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-            employee_id TEXT NOT NULL,
-            PRIMARY KEY (meeting_id, employee_id)
-        );
-        CREATE TABLE IF NOT EXISTS meeting_events (
-            id TEXT PRIMARY KEY,
-            meeting_id TEXT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-            employee_id TEXT NOT NULL,
-            event_type TEXT NOT NULL CHECK (event_type IN ('join', 'leave', 'note', 'decision', 'action')),
-            content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 4000),
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_meeting_events ON meeting_events(meeting_id, created_at);
-        """
-    )
-    connection.commit()
 
 
 def _text(value: Any, name: str, limit: int) -> str:
@@ -79,7 +48,7 @@ def _meeting(row) -> dict[str, Any]:
     return {"id": meeting_id, "title": title, "starts_at": starts_at, "status": status, "created_at": created_at}
 
 
-def create_meeting(connection: sqlite3.Connection, title: str, starts_at: str, participants: list[str] | tuple[str, ...]) -> dict[str, Any]:
+def create_meeting(connection: Connection, title: str, starts_at: str, participants: list[str] | tuple[str, ...]) -> dict[str, Any]:
     title = _text(title, "title", MAX_TITLE_LENGTH)
     starts_at = _timestamp(starts_at)
     if not isinstance(participants, (list, tuple)) or len(participants) > MAX_PARTICIPANTS:
@@ -92,13 +61,10 @@ def create_meeting(connection: sqlite3.Connection, title: str, starts_at: str, p
     with connection:
         connection.execute("INSERT INTO meetings VALUES (?, ?, ?, 'scheduled', ?)", (meeting_id, title, starts_at, created_at))
         connection.executemany("INSERT INTO meeting_participants VALUES (?, ?)", [(meeting_id, employee) for employee in participants])
-    sync_to_supabase("meetings", {"id": meeting_id, "title": title, "starts_at": starts_at, "status": "scheduled", "created_at": created_at})
-    if participants:
-        sync_to_supabase("meeting_participants", [{"meeting_id": meeting_id, "employee_id": e} for e in participants])
     return get_meeting(connection, meeting_id)
 
 
-def get_meeting(connection: sqlite3.Connection, meeting_id: str) -> dict[str, Any]:
+def get_meeting(connection: Connection, meeting_id: str) -> dict[str, Any]:
     _text(meeting_id, "meeting_id", 100)
     row = connection.execute("SELECT id, title, starts_at, status, created_at FROM meetings WHERE id = ?", (meeting_id,)).fetchone()
     if row is None:
@@ -109,7 +75,7 @@ def get_meeting(connection: sqlite3.Connection, meeting_id: str) -> dict[str, An
     return result
 
 
-def set_status(connection: sqlite3.Connection, meeting_id: str, status: str) -> dict[str, Any]:
+def set_status(connection: Connection, meeting_id: str, status: str) -> dict[str, Any]:
     _text(meeting_id, "meeting_id", 100)
     if status not in _STATUSES:
         raise ValueError("status is invalid")
@@ -117,12 +83,10 @@ def set_status(connection: sqlite3.Connection, meeting_id: str, status: str) -> 
         cursor = connection.execute("UPDATE meetings SET status = ? WHERE id = ?", (status, meeting_id))
     if cursor.rowcount != 1:
         raise KeyError(meeting_id)
-    meeting = get_meeting(connection, meeting_id)
-    sync_to_supabase("meetings", {k: meeting[k] for k in ("id", "title", "starts_at", "status", "created_at")})
-    return meeting
+    return get_meeting(connection, meeting_id)
 
 
-def add_event(connection: sqlite3.Connection, meeting_id: str, employee_id: str, event_type: str, content: str) -> dict[str, Any]:
+def add_event(connection: Connection, meeting_id: str, employee_id: str, event_type: str, content: str) -> dict[str, Any]:
     _text(meeting_id, "meeting_id", 100)
     employee_id = _employee(employee_id)
     content = _text(content, "content", MAX_TEXT_LENGTH)
@@ -136,12 +100,10 @@ def add_event(connection: sqlite3.Connection, meeting_id: str, employee_id: str,
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     with connection:
         connection.execute("INSERT INTO meeting_events VALUES (?, ?, ?, ?, ?, ?)", (event_id, meeting_id, employee_id, event_type, content, created_at))
-    event = {"id": event_id, "meeting_id": meeting_id, "employee_id": employee_id, "event_type": event_type, "content": content, "created_at": created_at}
-    sync_to_supabase("meeting_events", event)
-    return event
+    return {"id": event_id, "meeting_id": meeting_id, "employee_id": employee_id, "event_type": event_type, "content": content, "created_at": created_at}
 
 
-def list_events(connection: sqlite3.Connection, meeting_id: str) -> list[dict[str, Any]]:
+def list_events(connection: Connection, meeting_id: str) -> list[dict[str, Any]]:
     _text(meeting_id, "meeting_id", 100)
     rows = connection.execute("SELECT id, meeting_id, employee_id, event_type, content, created_at FROM meeting_events WHERE meeting_id = ? ORDER BY created_at, id", (meeting_id,)).fetchall()
     return [dict(zip(("id", "meeting_id", "employee_id", "event_type", "content", "created_at"), row)) for row in rows]
@@ -162,7 +124,6 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
 
     from .office_events import bus as _bus
 
-    ensure_schema(connection)
     starts_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     meeting = create_meeting(connection, topic, starts_at, participants)
     meeting_id = meeting["id"]

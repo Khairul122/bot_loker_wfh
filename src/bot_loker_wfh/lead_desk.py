@@ -7,7 +7,7 @@ filler stops before the submit button and the owner sends the bid themselves.
 from __future__ import annotations
 
 import re
-import sqlite3
+from .database import Connection
 from collections import Counter
 from collections.abc import Callable
 
@@ -40,7 +40,7 @@ def portfolio_stack(portfolio: dict, limit: int = 6) -> str:
     return ", ".join(f"{lang} ({n} repos)" for lang, n in counts.most_common(limit))
 
 
-FRESH = "COALESCE(posted_at, fetched_at) >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 days')"
+FRESH = "COALESCE(posted_at, fetched_at) >= utc_now_iso('-3 days')"
 # board filters: "new" and "old" split untouched projects at 3 days
 LEAD_VIEWS = {
     "all": "status != 'IGNORED'",
@@ -52,7 +52,7 @@ LEAD_VIEWS = {
 }
 
 
-def list_leads(connection: sqlite3.Connection, source: str | None = None, view: str = "all") -> list[dict]:
+def list_leads(connection: Connection, source: str | None = None, view: str = "all") -> list[dict]:
     sql = (
         "SELECT id, source, kind, title, description, budget, url, status, posted_at, "
         f"fetched_at, proposal FROM leads WHERE {LEAD_VIEWS.get(view, LEAD_VIEWS['all'])}"
@@ -71,7 +71,7 @@ def list_leads(connection: sqlite3.Connection, source: str | None = None, view: 
     return [{**dict(zip(keys, row)), "description": (row[4] or "")[:600]} for row in rows]
 
 
-def lead_counts(connection: sqlite3.Connection, source: str | None = None) -> dict[str, int]:
+def lead_counts(connection: Connection, source: str | None = None) -> dict[str, int]:
     """How many projects each board filter would show (for the filter chips)."""
     where, params = (" AND source = ?", (source,)) if source else ("", ())
     return {
@@ -146,7 +146,7 @@ def proposal_prompt(
 
 
 def draft_proposal(
-    connection: sqlite3.Connection,
+    connection: Connection,
     lead_id: str,
     profile: SafeCvProfile,
     llm: Callable[[str], str] | None = None,
@@ -199,7 +199,7 @@ def template_comment(title: str, repos: list[dict], *, indonesian: bool) -> str:
 
 
 def draft_comment(
-    connection: sqlite3.Connection,
+    connection: Connection,
     lead_id: str,
     llm: Callable[[str], str] | None = None,
     portfolio: dict | None = None,
@@ -224,7 +224,7 @@ def draft_comment(
 
 
 def save_proposal(
-    connection: sqlite3.Connection, lead_id: str, text: str, *, mark_interested: bool = True
+    connection: Connection, lead_id: str, text: str, *, mark_interested: bool = True
 ) -> None:
     # the owner writing/asking for a proposal means interest; an automatic draft does not
     status_sql = "CASE WHEN status = 'NEW' THEN 'INTERESTED' ELSE status END" if mark_interested else "status"
@@ -237,7 +237,7 @@ def save_proposal(
         raise KeyError(lead_id)
 
 
-def undrafted_leads(connection: sqlite3.Connection, limit: int) -> list[str]:
+def undrafted_leads(connection: Connection, limit: int) -> list[str]:
     """Best-scored new projects that have no proposal yet."""
     return [
         row[0]
@@ -249,7 +249,7 @@ def undrafted_leads(connection: sqlite3.Connection, limit: int) -> list[str]:
     ]
 
 
-def set_lead_status(connection: sqlite3.Connection, lead_id: str, status: str) -> None:
+def set_lead_status(connection: Connection, lead_id: str, status: str) -> None:
     if status not in LEAD_STATUSES:
         raise ValueError("unsupported lead status")
     updated = connection.execute("UPDATE leads SET status = ? WHERE id = ?", (status, lead_id)).rowcount

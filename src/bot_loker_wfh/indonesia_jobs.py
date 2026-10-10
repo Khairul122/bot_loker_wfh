@@ -12,7 +12,7 @@ import hashlib
 import html
 import json
 import re
-import sqlite3
+from .database import Connection
 import time
 import uuid
 from collections.abc import Callable
@@ -40,7 +40,7 @@ class _BoardFetcher:
 
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         max_retries: int = 3,
         retry_delay_seconds: float = 1.0,
@@ -80,34 +80,30 @@ class _BoardFetcher:
         )
 
     def _insert_job(self, normalized: dict[str, Any]) -> bool:
-        try:
-            self.connection.execute(
-                "INSERT INTO jobs (id, source, external_id, source_external_key, "
-                "canonical_fingerprint, title, company, description, location, "
-                "salary_min, salary_max, currency, apply_url, posted_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    str(uuid.uuid4()),
-                    self.source,
-                    normalized["external_id"],
-                    f"{self.source}:{normalized['external_id']}",
-                    normalized["canonical_fingerprint"],
-                    normalized["title"],
-                    normalized["company"],
-                    normalized["description"],
-                    normalized["location"],
-                    normalized["salary_min"],
-                    normalized["salary_max"],
-                    normalized["currency"],
-                    normalized["apply_url"],
-                    normalized["posted_at"],
-                ),
-            )
-        except sqlite3.IntegrityError as error:
-            if "UNIQUE constraint failed: jobs." not in str(error):
-                raise
-            return False
-        return True
+        cursor = self.connection.execute(
+            "INSERT INTO jobs (id, source, external_id, source_external_key, "
+            "canonical_fingerprint, title, company, description, location, "
+            "salary_min, salary_max, currency, apply_url, posted_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT DO NOTHING",
+            (
+                str(uuid.uuid4()),
+                self.source,
+                normalized["external_id"],
+                f"{self.source}:{normalized['external_id']}",
+                normalized["canonical_fingerprint"],
+                normalized["title"],
+                normalized["company"],
+                normalized["description"],
+                normalized["location"],
+                normalized["salary_min"],
+                normalized["salary_max"],
+                normalized["currency"],
+                normalized["apply_url"],
+                normalized["posted_at"],
+            ),
+        )
+        return cursor.rowcount == 1
 
 
 class KalibrrFetcher(_BoardFetcher):
@@ -115,7 +111,7 @@ class KalibrrFetcher(_BoardFetcher):
 
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         fetch_page: Callable[[int], dict[str, Any]] | None = None,
         **options: Any,
@@ -148,7 +144,7 @@ class DeallsFetcher(_BoardFetcher):
 
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         fetch_list: Callable[[int], dict[str, Any]] | None = None,
         fetch_detail: Callable[[str], dict[str, Any]] | None = None,

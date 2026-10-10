@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+from .database import Connection
 from dataclasses import dataclass
 
 
@@ -18,25 +18,20 @@ class FilterConfig:
 
 
 class FilterRepository:
-    def __init__(self, connection: sqlite3.Connection, filter_id: str = "default"):
+    def __init__(self, connection: Connection, filter_id: str = "default"):
         self.connection = connection
         self.filter_id = filter_id
 
     def get(self) -> FilterConfig:
-        cols = {
-            row[1] for row in self.connection.execute("PRAGMA table_info(filters)").fetchall()
-        }
-        has_bids = "max_bids" in cols
-        query = (
+        row = self.connection.execute(
             "SELECT role_keywords, exclusion_keywords, min_relevance_score, "
-            "max_posting_age_days, no_response_after_days"
-            + (", max_bids" if has_bids else "")
-            + " FROM filters WHERE id = ?"
-        )
-        row = self.connection.execute(query, (self.filter_id,)).fetchone()
+            "max_posting_age_days, no_response_after_days, max_bids "
+            "FROM filters WHERE id = ?",
+            (self.filter_id,),
+        ).fetchone()
         if row is None:
             raise ValueError(f"Filter configuration not found: {self.filter_id}")
-        max_bids = int(row[5]) if has_bids and row[5] is not None else None
+        max_bids = int(row[5]) if row[5] is not None else None
         return FilterConfig(
             role_keywords=tuple(json.loads(row[0])),
             exclusion_keywords=tuple(json.loads(row[1])),
@@ -48,16 +43,11 @@ class FilterRepository:
 
     def update(self, config: FilterConfig) -> None:
         _validate(config)
-        cols = {
-            row[1] for row in self.connection.execute("PRAGMA table_info(filters)").fetchall()
-        }
-        if "max_bids" not in cols:
-            self.connection.execute("ALTER TABLE filters ADD COLUMN max_bids INTEGER DEFAULT NULL")
         cursor = self.connection.execute(
             "UPDATE filters SET role_keywords = ?, exclusion_keywords = ?, "
             "min_relevance_score = ?, max_posting_age_days = ?, "
             "no_response_after_days = ?, max_bids = ?, "
-            "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "updated_at = utc_now_iso() WHERE id = ?",
             (
                 json.dumps(config.role_keywords),
                 json.dumps(config.exclusion_keywords),

@@ -3,7 +3,7 @@
 import io
 import json
 import logging
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
@@ -59,7 +59,7 @@ class EmployeeActivityLogTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "app.db"
-        self.connection = sqlite3.connect(self.db)
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.stream = io.StringIO()
         self.logger = logging.getLogger("office-activity-test")
@@ -83,7 +83,7 @@ class EmployeeActivityLogTest(unittest.TestCase):
             interval_seconds=4 * 3600, lock=threading.Lock(), logger=self.logger,
         )
         options.update(kwargs)
-        return OfficeWork(self.db, **options)
+        return OfficeWork(**options)
 
     def test_cycle_logs_one_line_per_scout_with_its_employee_name(self):
         def ok(connection):
@@ -209,7 +209,7 @@ class ManualOfficeActionLogTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "app.db"
-        connection = sqlite3.connect(self.db)
+        connection = database.connect()
         apply_schema(connection)
         connection.close()
         self.stream = io.StringIO()
@@ -220,8 +220,7 @@ class ManualOfficeActionLogTest(unittest.TestCase):
         handler.setFormatter(logging.Formatter("%(message)s"))
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
-        self.work = OfficeWork(
-            self.db, hunters={"remoteok": lambda connection: {"inserted": 1, "matched": 3, "top": []}},
+        self.work = OfficeWork(hunters={"remoteok": lambda connection: {"inserted": 1, "matched": 3, "top": []}},
             draft_service_for=FakeDrafts, form_assist_enabled=False, interval_seconds=3600,
             lock=threading.Lock(), logger=logger,
             screener=lambda connection: {"matched": 2, "filtered_out": 5},

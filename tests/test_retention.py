@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timezone
 
@@ -8,7 +8,7 @@ from bot_loker_wfh.retention import FilteredOutRetention
 
 class FilteredOutRetentionTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.now = datetime(2026, 9, 18, tzinfo=timezone.utc)
         self._insert_job("filtered-old", "FILTERED_OUT", "2026-06-19T00:00:00+00:00")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+from .database import Connection
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -20,7 +20,7 @@ class EligibilityResult:
 class EligibilityEngine:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         now: datetime | None = None,
         filter_id: str = "default",

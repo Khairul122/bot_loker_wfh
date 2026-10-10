@@ -1,5 +1,5 @@
 import os
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -48,7 +48,7 @@ class SkillScorerTest(unittest.TestCase):
         self.assertEqual(matched_skills("PHP and Dart", PROFILE.skills), [])
 
     def test_score_saturates_at_three_skills_and_is_persisted(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
         insert_job(connection, 1, description="Python, Laravel and React stack")
         insert_job(connection, 2, description="Only Python here")
@@ -64,7 +64,7 @@ class SkillScorerTest(unittest.TestCase):
 
 class PipelineTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def test_relevant_remote_job_becomes_candidate_others_filtered(self):
@@ -101,7 +101,7 @@ class PipelineTest(unittest.TestCase):
 
 class RemoteRuleTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.engine = EligibilityEngine(self.connection)
 
@@ -131,7 +131,7 @@ class RemoteRuleTest(unittest.TestCase):
 
 class DraftServiceTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         insert_job(self.connection, 1, description="We use NestJS and React.", status="CANDIDATE")
 

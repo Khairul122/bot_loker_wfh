@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
+from ..database import Connection
 import time
 import re
 from typing import Any
@@ -29,7 +29,7 @@ from bot_loker_wfh.llm import LLMRouter
 class FormAgent:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         router: LLMRouter | None = None,
         browser_command: str = "npx -y @browsermcp/mcp@0.1.3",
@@ -41,7 +41,7 @@ class FormAgent:
         applicant_path: str = "data/applicant.json",
         answers_path: str = "data/answers.json",
         profile_path: str = "data/profile.json",
-        db_path: str | None = None,
+        persist_reports: bool = False,
         custom_client: Any | None = None,
         ai_answers: bool = True,
     ):
@@ -56,7 +56,7 @@ class FormAgent:
         self.applicant_path = applicant_path
         self.answers_path = answers_path
         self.profile_path = profile_path
-        self.db_path = db_path
+        self.persist_reports = persist_reports
         self.custom_client = custom_client
         self.ai_answers = ai_answers
 
@@ -421,7 +421,7 @@ class FormAgent:
                             self.connection.commit()
 
             # 8. Laporan & Record
-            report_builder = ReportBuilder(self.db_path)
+            report_builder = ReportBuilder(self.persist_reports)
             record_input = SessionRecordInput(
                 application_id=application_id,
                 engine="browsermcp",

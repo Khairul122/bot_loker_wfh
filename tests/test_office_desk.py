@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
@@ -21,7 +21,7 @@ def insert_job(connection, job_id, *, source="remoteok", status="CANDIDATE", tit
 
 class DeskTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def test_scout_report_counts_only_its_source_in_the_window(self):
@@ -123,7 +123,7 @@ class OfficeWorkDeskTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "app.db"
-        self.connection = sqlite3.connect(self.db)
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.sent = []
         self.drafted = []
@@ -134,8 +134,7 @@ class OfficeWorkDeskTest(unittest.TestCase):
                 from bot_loker_wfh.drafts import DraftResult
                 return DraftResult("created", job_id, "PENDING_APPROVAL")
 
-        self.work = OfficeWork(
-            self.db, hunters={}, draft_service_for=lambda c: Drafts(), form_assist_enabled=False,
+        self.work = OfficeWork(hunters={}, draft_service_for=lambda c: Drafts(), form_assist_enabled=False,
             interval_seconds=3600, lock=threading.Lock(), notify=self.sent.append,
         )
 

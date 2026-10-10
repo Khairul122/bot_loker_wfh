@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 
 from bot_loker_wfh.database import apply_schema
@@ -35,7 +35,7 @@ def kalibrr_job(number, *, wfh=True, hybrid=False, name="Backend Engineer"):
 
 class KalibrrFetcherTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.offsets = []
 
@@ -131,7 +131,7 @@ DEALLS_DETAIL = {
 
 class DeallsFetcherTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.detail_calls = []
 

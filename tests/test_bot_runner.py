@@ -1,6 +1,6 @@
 import io
 import json
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from unittest.mock import patch
 from urllib.error import URLError
@@ -68,7 +68,7 @@ def callback_update(chat_id, data, update_id=1):
 
 class BotRunnerTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         insert_job(self.connection, 1, description="NestJS and React", status="CANDIDATE")
         self.client = FakeClient()

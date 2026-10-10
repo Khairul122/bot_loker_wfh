@@ -1,7 +1,7 @@
 import io
 import json
 import logging
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 
 from bot_loker_wfh.database import apply_schema
@@ -10,7 +10,7 @@ from bot_loker_wfh.scheduler import JobScheduler
 
 class SchedulerTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def tearDown(self):

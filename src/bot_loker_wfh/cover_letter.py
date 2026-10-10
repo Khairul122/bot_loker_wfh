@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import sqlite3
+from .database import Connection, IntegrityError
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -25,7 +25,7 @@ class GenerationResult:
 class CoverLetterGenerator:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         provider: Callable[[str], str],
         logger: logging.Logger | None = None,
@@ -78,7 +78,7 @@ class CoverLetterGenerator:
                 ),
             )
             self.connection.commit()
-        except sqlite3.IntegrityError:
+        except IntegrityError:
             self.connection.rollback()
             existing = self._existing_application(job_id)
             if existing is not None:

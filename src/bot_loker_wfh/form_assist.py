@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
-import sqlite3
+from .database import Connection
 import subprocess
 import sys
 import tempfile
@@ -134,7 +134,7 @@ def load_answers(path: str | Path) -> dict[str, str]:
     return {str(key): str(value) for key, value in data.items() if str(value).strip()}
 
 
-def ats_for_url(url: str, connection: sqlite3.Connection | None = None) -> str | None:
+def ats_for_url(url: str, connection: Connection | None = None) -> str | None:
     """Return the ATS name for allowlisted hosts or ats_registry entries."""
     parsed = urlparse(url)
     if parsed.scheme != "https":
@@ -154,7 +154,7 @@ def ats_for_url(url: str, connection: sqlite3.Connection | None = None) -> str |
 
 
 def resolve_form_target(
-    connection: sqlite3.Connection, application_id: str
+    connection: Connection, application_id: str
 ) -> tuple[str, str, str, str]:
     """Return (ats, form_url, cover_letter, job_title) for an application."""
     row = connection.execute(
@@ -322,7 +322,7 @@ def _fill_custom(page: Any, label: str, value: str, report: FillReport) -> None:
 
 
 def open_and_fill(
-    connection: sqlite3.Connection,
+    connection: Connection,
     application_id: str,
     applicant: Applicant,
     answers: dict[str, str],

@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
@@ -41,7 +41,7 @@ class OfficeWorkTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.db = Path(self.tmp.name) / "app.db"
-        self.connection = sqlite3.connect(self.db)
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.spawned = []
         self.work = self.make_work(form_assist_enabled=False)
@@ -51,9 +51,7 @@ class OfficeWorkTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def make_work(self, *, form_assist_enabled, hunters=None):
-        return OfficeWork(
-            self.db,
-            hunters=hunters or {},
+        return OfficeWork(hunters=hunters or {},
             draft_service_for=FakeDrafts,
             form_assist_enabled=form_assist_enabled,
             interval_seconds=4 * 3600,

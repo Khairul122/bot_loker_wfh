@@ -1,6 +1,6 @@
 import json
 import shutil
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
@@ -21,10 +21,10 @@ class OfficeHttpTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         db = Path(self.tmp.name) / "app.db"
-        connection = sqlite3.connect(db)
+        connection = database.connect()
         apply_schema(connection)
         connection.close()
-        work = OfficeWork(db, hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
+        work = OfficeWork(hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
                           interval_seconds=3600, lock=threading.Lock())
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_Handler, work=work))
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -77,9 +77,9 @@ class SettingsCloudHttpTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         db = Path(self.tmp.name) / "app.db"
-        with sqlite3.connect(db) as connection:
+        with database.connect() as connection:
             apply_schema(connection)
-        work = OfficeWork(db, hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
+        work = OfficeWork(hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
                           interval_seconds=3600, lock=threading.Lock())
         self.db = db
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_Handler, work=work))
@@ -152,7 +152,7 @@ class SettingsCloudHttpTest(unittest.TestCase):
         self.assertEqual(data, {"error": "supabase_unavailable"})
         store.assert_called_once_with("scrape_interval_hours", "9")
         # cloud failed -> local cache must not have been written
-        with sqlite3.connect(self.db) as connection:
+        with database.connect() as connection:
             row = connection.execute(
                 "SELECT value FROM app_settings WHERE key = 'scrape_interval_hours'"
             ).fetchone()

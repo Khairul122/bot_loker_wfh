@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+from .database import Connection
 from collections import Counter
 
 from .cv_profile import SafeCvProfile
@@ -28,7 +28,7 @@ _JOB_COLUMNS = (
 class JobPipeline:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         profile: SafeCvProfile,
         *,
         logger: logging.Logger | None = None,

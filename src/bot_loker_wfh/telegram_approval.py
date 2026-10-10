@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import sqlite3
+from .database import Connection
 from dataclasses import dataclass
 
 from .status_transitions import (
@@ -20,7 +20,7 @@ class ApprovalResult:
 
 
 class TelegramApprovalHandler:
-    def __init__(self, connection: sqlite3.Connection, *, auth: TelegramAuth):
+    def __init__(self, connection: Connection, *, auth: TelegramAuth):
         self.connection = connection
         self.auth = auth
 

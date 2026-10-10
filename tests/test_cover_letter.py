@@ -1,5 +1,5 @@
 ﻿import logging
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from io import StringIO
 
@@ -10,7 +10,7 @@ from bot_loker_wfh.database import apply_schema
 
 class CoverLetterGeneratorTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.connection.execute(
             "INSERT INTO jobs (id, source, external_id, source_external_key, "

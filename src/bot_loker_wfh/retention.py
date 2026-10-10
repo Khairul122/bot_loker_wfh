@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import sqlite3
+from .database import Connection
 from datetime import datetime, timedelta, timezone
 
 
 class FilteredOutRetention:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         now: datetime | None = None,
         retention_days: int = 90,

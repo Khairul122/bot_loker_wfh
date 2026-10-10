@@ -6,7 +6,7 @@ import hashlib
 import html
 import json
 import re
-import sqlite3
+from .database import Connection
 import time
 import uuid
 from collections.abc import Callable
@@ -28,7 +28,7 @@ class RetryableFetchError(RuntimeError):
 class GreenhouseFetcher:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         fetch_company_jobs: Callable[[str], list[dict[str, Any]]] | None = None,
         fetch_job_detail: Callable[[str, int], dict[str, Any]] | None = None,
@@ -148,34 +148,30 @@ class GreenhouseFetcher:
         return str(detail.get("content") or "")
 
     def _insert_job(self, normalized: dict[str, Any]) -> bool:
-        try:
-            self.connection.execute(
-                "INSERT INTO jobs (id, source, external_id, source_external_key, "
-                "canonical_fingerprint, title, company, description, location, "
-                "salary_min, salary_max, currency, apply_url, posted_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    str(uuid.uuid4()),
-                    normalized["source"],
-                    normalized["external_id"],
-                    normalized["source_external_key"],
-                    normalized["canonical_fingerprint"],
-                    normalized["title"],
-                    normalized["company"],
-                    normalized["description"],
-                    normalized["location"],
-                    normalized["salary_min"],
-                    normalized["salary_max"],
-                    normalized["currency"],
-                    normalized["apply_url"],
-                    normalized["posted_at"],
-                ),
-            )
-        except sqlite3.IntegrityError as error:
-            if "UNIQUE constraint failed: jobs." not in str(error):
-                raise
-            return False
-        return True
+        cursor = self.connection.execute(
+            "INSERT INTO jobs (id, source, external_id, source_external_key, "
+            "canonical_fingerprint, title, company, description, location, "
+            "salary_min, salary_max, currency, apply_url, posted_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT DO NOTHING",
+            (
+                str(uuid.uuid4()),
+                normalized["source"],
+                normalized["external_id"],
+                normalized["source_external_key"],
+                normalized["canonical_fingerprint"],
+                normalized["title"],
+                normalized["company"],
+                normalized["description"],
+                normalized["location"],
+                normalized["salary_min"],
+                normalized["salary_max"],
+                normalized["currency"],
+                normalized["apply_url"],
+                normalized["posted_at"],
+            ),
+        )
+        return cursor.rowcount == 1
 
 
 def _fetch_company_jobs(ats_slug: str) -> list[dict[str, Any]]:

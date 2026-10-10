@@ -12,7 +12,7 @@ import html
 import json
 import logging
 import re
-import sqlite3
+from .database import Connection
 import time
 import uuid
 from collections.abc import Callable, Sequence
@@ -495,7 +495,7 @@ def _money(value: Any) -> str:
 class LeadService:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         profile: SafeCvProfile,
         *,
         fetchers: Sequence[Any] | None = None,
@@ -547,19 +547,17 @@ class LeadService:
         if kind is None:
             return False
         lead = replace(lead, kind=kind, score=score)
-        try:
-            self.connection.execute(
-                "INSERT INTO leads (id, source, external_id, kind, title, description, "
-                "url, budget, posted_at, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    str(uuid.uuid4()), lead.source, lead.external_id, lead.kind,
-                    lead.title, lead.description, lead.url, lead.budget,
-                    lead.posted_at, lead.score,
-                ),
-            )
-        except sqlite3.IntegrityError:
-            return False
-        return True
+        cursor = self.connection.execute(
+            "INSERT INTO leads (id, source, external_id, kind, title, description, "
+            "url, budget, posted_at, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT DO NOTHING",
+            (
+                str(uuid.uuid4()), lead.source, lead.external_id, lead.kind,
+                lead.title, lead.description, lead.url, lead.budget,
+                lead.posted_at, lead.score,
+            ),
+        )
+        return cursor.rowcount == 1
 
     def _exceeds_max_bids(self, lead: Lead) -> bool:
         if lead.bids is None:
@@ -594,7 +592,7 @@ class LeadService:
 
     def mark_notified(self, lead_id: str) -> None:
         self.connection.execute(
-            "UPDATE leads SET notified_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+            "UPDATE leads SET notified_at = utc_now_iso() WHERE id = ?",
             (lead_id,),
         )
         self.connection.commit()

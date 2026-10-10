@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 
 from bot_loker_wfh.database import apply_schema
@@ -8,7 +8,7 @@ from bot_loker_wfh.telegram_auth import TelegramAuth, TelegramRequest
 
 class TelegramApprovalHandlerTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self.connection.execute(
             "INSERT INTO jobs (id, source, external_id, source_external_key, "

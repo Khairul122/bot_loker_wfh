@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from .database import Connection
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -41,21 +41,18 @@ ROLES = {
 EMPLOYEES = tuple(ROLES)
 SOURCE_OWNER = {s: e for e, s in {**JOB_SCOUTS, **LEAD_SCOUTS}.items()}
 
-_SINCE = "strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?)"
+_SINCE = "utc_now_iso(?)"
 
 
-def _n(connection: sqlite3.Connection, sql: str, *params) -> int:
-    try:
-        return connection.execute(sql, params).fetchone()[0] or 0
-    except sqlite3.OperationalError:  # optional table missing in an old database
-        return 0
+def _n(connection: Connection, sql: str, *params) -> int:
+    return connection.execute(sql, params).fetchone()[0] or 0
 
 
 def _cap(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-def measure(connection: sqlite3.Connection, employee: str, hours: int = 24) -> dict:
+def measure(connection: Connection, employee: str, hours: int = 24) -> dict:
     """What one employee really did in the last `hours`: metrics, lines, score 0..1."""
     w = f"-{int(hours)} hours"
     if employee in JOB_SCOUTS:
@@ -171,7 +168,7 @@ def _row(row) -> dict:
 _COLUMNS = "id, employee, kind, hours, score, body, rating, note, delivered_at, created_at"
 
 
-def create_report(connection: sqlite3.Connection, employee: str, *, hours: int = 24,
+def create_report(connection: Connection, employee: str, *, hours: int = 24,
                   kind: str = "manual", day: str | None = None) -> dict:
     data = measure(connection, employee, hours)
     report_id = str(uuid.uuid4())
@@ -184,14 +181,14 @@ def create_report(connection: sqlite3.Connection, employee: str, *, hours: int =
     return get_report(connection, report_id)
 
 
-def get_report(connection: sqlite3.Connection, report_id: str) -> dict:
+def get_report(connection: Connection, report_id: str) -> dict:
     row = connection.execute(f"SELECT {_COLUMNS} FROM office_reports WHERE id = ?", (report_id,)).fetchone()
     if row is None:
         raise KeyError(report_id)
     return _row(row)
 
 
-def ensure_daily_reports(connection: sqlite3.Connection, now: datetime | None = None) -> list[dict]:
+def ensure_daily_reports(connection: Connection, now: datetime | None = None) -> list[dict]:
     """The morning round: one report per employee per local day, created once."""
     now = now or datetime.now()
     if now.hour < DAILY_HOUR:
@@ -202,7 +199,7 @@ def ensure_daily_reports(connection: sqlite3.Connection, now: datetime | None = 
     return [create_report(connection, e, kind="daily", day=day) for e in EMPLOYEES if e not in done]
 
 
-def list_reports(connection: sqlite3.Connection, employee: str | None = None, limit: int = 60) -> list[dict]:
+def list_reports(connection: Connection, employee: str | None = None, limit: int = 60) -> list[dict]:
     where, params = ("WHERE employee = ?", (employee,)) if employee else ("", ())
     rows = connection.execute(
         f"SELECT {_COLUMNS} FROM office_reports {where} ORDER BY created_at DESC LIMIT ?", (*params, limit)
@@ -210,7 +207,7 @@ def list_reports(connection: sqlite3.Connection, employee: str | None = None, li
     return [_row(r) for r in rows]
 
 
-def undelivered(connection: sqlite3.Connection) -> list[dict]:
+def undelivered(connection: Connection) -> list[dict]:
     """Reports still to be walked to the owner's desk in 3D, oldest first."""
     rows = connection.execute(
         "SELECT id, employee, body FROM office_reports WHERE delivered_at IS NULL ORDER BY created_at LIMIT 40"
@@ -218,21 +215,21 @@ def undelivered(connection: sqlite3.Connection) -> list[dict]:
     return [{"id": i, "employee": e, "lines": json.loads(b)["lines"]} for i, e, b in rows]
 
 
-def tray_count(connection: sqlite3.Connection) -> int:
+def tray_count(connection: Connection) -> int:
     """Delivered reports the owner has not rated yet: the paper stack on the desk."""
     return _n(connection, "SELECT COUNT(*) FROM office_reports WHERE delivered_at IS NOT NULL AND rating IS NULL "
-                          "AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 days')")
+                          "AND created_at >= utc_now_iso('-3 days')")
 
 
-def mark_delivered(connection: sqlite3.Connection, report_id: str) -> None:
+def mark_delivered(connection: Connection, report_id: str) -> None:
     get_report(connection, report_id)
     connection.execute(
-        "UPDATE office_reports SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+        "UPDATE office_reports SET delivered_at = utc_now_iso() "
         "WHERE id = ? AND delivered_at IS NULL", (report_id,))
     connection.commit()
 
 
-def review_report(connection: sqlite3.Connection, report_id: str, rating, note: str = "") -> dict:
+def review_report(connection: Connection, report_id: str, rating, note: str = "") -> dict:
     rating = int(rating)
     if not 1 <= rating <= 5:
         raise ValueError("rating must be 1..5")
@@ -243,7 +240,7 @@ def review_report(connection: sqlite3.Connection, report_id: str, rating, note: 
     return get_report(connection, report_id)
 
 
-def ratings(connection: sqlite3.Connection) -> dict:
+def ratings(connection: Connection) -> dict:
     """Average owner rating over each employee's last 10 rated reports."""
     out = {}
     for employee in EMPLOYEES:
@@ -255,7 +252,7 @@ def ratings(connection: sqlite3.Connection) -> dict:
     return out
 
 
-def profile(connection: sqlite3.Connection, employee: str) -> dict:
+def profile(connection: Connection, employee: str) -> dict:
     """One employee's own page: today vs this week vs this month, score trend, owner feedback."""
     if employee not in ROLES:
         raise KeyError(employee)
@@ -284,26 +281,26 @@ def profile(connection: sqlite3.Connection, employee: str) -> dict:
 
 # ---------------------------------------------------------------- instructions
 
-def get_instruction(connection: sqlite3.Connection, employee: str) -> str:
+def get_instruction(connection: Connection, employee: str) -> str:
     row = connection.execute("SELECT text FROM office_instructions WHERE employee = ?", (employee,)).fetchone()
     return row[0] if row else ""
 
 
-def set_instruction(connection: sqlite3.Connection, employee: str, text: str) -> str:
+def set_instruction(connection: Connection, employee: str, text: str) -> str:
     if employee not in ROLES:
         raise KeyError(employee)
     text = " ".join(str(text or "").split())[:INSTRUCTION_LIMIT]
     if text:
         connection.execute(
             "INSERT INTO office_instructions (employee, text) VALUES (?, ?) ON CONFLICT(employee) DO UPDATE "
-            "SET text = excluded.text, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')", (employee, text))
+            "SET text = excluded.text, updated_at = utc_now_iso()", (employee, text))
     else:
         connection.execute("DELETE FROM office_instructions WHERE employee = ?", (employee,))
     connection.commit()
     return text
 
 
-def instructions(connection: sqlite3.Connection) -> dict:
+def instructions(connection: Connection) -> dict:
     return dict(connection.execute("SELECT employee, text FROM office_instructions").fetchall())
 
 
@@ -327,7 +324,7 @@ def prioritize(items: list[dict], words: list[str]) -> list[dict]:
     return sorted(items, key=lambda i: -keyword_hits(f"{i.get('title', '')} {i.get('sub', '')}", words))
 
 
-def instructed(llm: Callable[[str], str] | None, connection: sqlite3.Connection, employee: str):
+def instructed(llm: Callable[[str], str] | None, connection: Connection, employee: str):
     """Wrap an LLM so every prompt carries the owner's standing instruction for `employee`."""
     if llm is None:
         return None
@@ -349,7 +346,7 @@ class _Instructed:
 
 # ---------------------------------------------------------------- Q&A and digests
 
-def ask(connection: sqlite3.Connection, llm: Callable[[str], str] | None, employee: str, question: str) -> dict:
+def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str, question: str) -> dict:
     """Answer the owner's question from this employee's real numbers; the LLM only phrases it."""
     if employee not in ROLES:
         raise KeyError(employee)

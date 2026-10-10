@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import sqlite3
 import uuid
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from bot_loker_wfh import database
 from bot_loker_wfh.form_agent.executor import ExecutionEvent
 from bot_loker_wfh.form_agent.extractor import FormField
 from bot_loker_wfh.form_agent.policy import RejectedAction
@@ -31,8 +31,8 @@ class SessionRecordInput:
 
 
 class ReportBuilder:
-    def __init__(self, db_path: str | None = None):
-        self.db_path = db_path
+    def __init__(self, persist: bool = False):
+        self.persist = persist
 
     def build_report_text(self, record_input: SessionRecordInput) -> str:
         inp = record_input
@@ -115,7 +115,7 @@ class ReportBuilder:
 
     def record_session(self, record_input: SessionRecordInput) -> str:
         session_id = str(uuid.uuid4())
-        if not self.db_path:
+        if not self.persist:
             return session_id
 
         inp = record_input
@@ -135,7 +135,7 @@ class ReportBuilder:
         )
 
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with database.session() as conn:
                 conn.execute(
                     """
                     INSERT INTO form_sessions (

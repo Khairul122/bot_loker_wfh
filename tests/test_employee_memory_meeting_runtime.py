@@ -1,14 +1,14 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 
-from bot_loker_wfh.employee_memory import MAX_RECORDS_PER_EMPLOYEE, ensure_schema as ensure_memory_schema, list_memories, remember
-from bot_loker_wfh.meeting_runtime import add_event, create_meeting, ensure_schema as ensure_meeting_schema, set_status
+from bot_loker_wfh.employee_memory import MAX_RECORDS_PER_EMPLOYEE, list_memories, remember
+from bot_loker_wfh.meeting_runtime import add_event, create_meeting, set_status
 
 
 class EmployeeMemoryTest(unittest.TestCase):
     def setUp(self):
-        self.db = sqlite3.connect(":memory:")
-        ensure_memory_schema(self.db)
+        self.db = database.connect()
+        database.apply_schema(self.db)
 
     def tearDown(self):
         self.db.close()
@@ -30,8 +30,8 @@ class EmployeeMemoryTest(unittest.TestCase):
 
 class MeetingRuntimeTest(unittest.TestCase):
     def setUp(self):
-        self.db = sqlite3.connect(":memory:")
-        ensure_meeting_schema(self.db)
+        self.db = database.connect()
+        database.apply_schema(self.db)
 
     def tearDown(self):
         self.db.close()

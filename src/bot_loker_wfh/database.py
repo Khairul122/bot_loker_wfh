@@ -1,232 +1,273 @@
-﻿"""Supabase cloud database layer and local sqlite persistence integration."""
+"""Supabase Postgres database layer (psycopg).
+
+Exposes a small connection wrapper so the rest of the code keeps one calling style:
+`connection.execute(sql, params)` with `?` placeholders, rows readable by index or column
+name, `with connection:` for a commit/rollback block, `executescript` for multi-statement SQL.
+"""
 
 from __future__ import annotations
 
-import datetime
-import json
-import logging
+import contextlib
+import itertools
 import os
-import sqlite3
-import urllib.parse
-import urllib.request
+import re
+import weakref
 from pathlib import Path
 from typing import Any
 
-DEFAULT_SUPABASE_URL = "https://iujhspshmggmptoatbof.supabase.co"
+import psycopg
+from psycopg import errors as pg_errors
+from psycopg.adapt import Loader
+from psycopg.types.numeric import Int2Dumper
+
+MIGRATIONS_DIR = Path(__file__).with_name("migrations")
+SEED_PATH = MIGRATIONS_DIR / "seed.sql"
+
+Error = psycopg.Error
+IntegrityError = pg_errors.IntegrityError
+UniqueViolation = pg_errors.UniqueViolation
+OperationalError = psycopg.OperationalError
+UndefinedTable = pg_errors.UndefinedTable
 
 
-def _supabase_url() -> str:
-    # Read lazily: .env is loaded after this module is imported.
-    return os.getenv("SUPABASE_URL") or DEFAULT_SUPABASE_URL
+class DatabaseNotConfigured(RuntimeError):
+    """Raised when SUPABASE_DB_URL is missing."""
 
 
-def _supabase_key() -> str:
-    # Service-role key preferred: RLS restricts app_settings/office_character_state to it.
-    return (
-        os.getenv("SUPABASE_SECRET_KEY")
-        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        or os.getenv("SUPABASE_SERVICE_KEY")
-        or os.getenv("SUPABASE_KEY", "")
-    )
+def database_url() -> str:
+    url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL", "")
+    if not url.startswith(("postgresql://", "postgres://")):
+        raise DatabaseNotConfigured("SUPABASE_DB_URL is not set")
+    return url
 
 
-class SupabaseUnavailable(RuntimeError):
-    """Raised when Supabase is not configured or a request fails."""
-
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-DEFAULT_DB_PATH = DATA_DIR / "app.db"
-
-SCHEMA_PATH = Path(__file__).with_name("migrations") / "001_initial_schema.sql"
-SCHEMA_002_PATH = Path(__file__).with_name("migrations") / "002_llm_and_form_agent.sql"
-SCHEMA_003_PATH = Path(__file__).with_name("migrations") / "003_app_settings.sql"
-SCHEMA_004_PATH = Path(__file__).with_name("migrations") / "004_office_desk.sql"
-SCHEMA_005_PATH = Path(__file__).with_name("migrations") / "005_office_state.sql"
-
-EXTRA_TABLES_SQL = """
-CREATE TABLE IF NOT EXISTS employee_memories (
-    id TEXT PRIMARY KEY,
-    employee_id TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    content TEXT NOT NULL,
-    importance REAL NOT NULL DEFAULT 1.0,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-
-CREATE TABLE IF NOT EXISTS office_meetings (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'scheduled',
-    starts_at TEXT NOT NULL,
-    ended_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS office_meeting_events (
-    id TEXT PRIMARY KEY,
-    meeting_id TEXT NOT NULL,
-    employee_id TEXT NOT NULL,
-    event_type TEXT NOT NULL,
-    content TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-);
-"""
-
-INITIAL_CHARACTER_COORDINATES = [
-    ("owner", "owner", 2.0, 0.0, 9.0, 0.0),
-    ("bimo", "staff", 8.5, 0.0, 2.1, 1.57),
-    ("cora", "staff", 5.2, 0.0, -3.4, 3.14),
-    ("dela", "staff", -4.1, 0.0, 6.2, 0.0),
-    ("eli", "staff", 7.0, 0.0, -1.2, 0.78),
-    ("faris", "staff", -6.5, 0.0, -5.0, 1.57),
-    ("gery", "staff", 3.8, 0.0, 4.5, 2.1),
-    ("ivan", "staff", -2.2, 0.0, -8.1, 0.0),
-    ("kalia", "staff", 9.1, 0.0, -4.2, 1.2),
-    ("leva", "staff", -8.0, 0.0, 1.5, 2.7),
-    ("lido", "staff", 1.4, 0.0, -6.0, 0.5),
-    ("lulu", "staff", -5.0, 0.0, 3.0, 1.8),
-    ("nara", "staff", 6.0, 0.0, 8.0, 0.0),
-    ("reno", "staff", -1.0, 0.0, 5.0, 3.0),
-    ("rima", "staff", 4.0, 0.0, -7.0, 1.4),
-    ("sari", "staff", -7.5, 0.0, -2.5, 0.2),
-    ("subi", "staff", 2.5, 0.0, -2.5, 2.5),
-    ("tama", "staff", -3.5, 0.0, -1.5, 1.1),
-    ("tara", "staff", 8.0, 0.0, 5.5, 0.8),
-    ("tegar", "staff", 0.0, 0.0, 0.0, 0.0),
-]
+def database_configured() -> bool:
+    try:
+        database_url()
+    except DatabaseNotConfigured:
+        return False
+    return True
 
 
-def sqlite_path_from_url(database_url: str) -> Path:
-    if database_url.startswith("sqlite:///"):
-        path_str = database_url[len("sqlite///"):]
-        return Path(path_str).resolve()
-    return Path(database_url).resolve()
+class Row(tuple):
+    """A result row readable by index or by column name."""
+
+    _cols: tuple[str, ...]
+
+    def __new__(cls, cols, values):
+        row = super().__new__(cls, values)
+        row._cols = tuple(cols)
+        return row
+
+    def __getitem__(self, key):
+        if isinstance(key, str):
+            return tuple.__getitem__(self, self._cols.index(key))
+        return tuple.__getitem__(self, key)
+
+    def keys(self) -> list[str]:
+        return list(self._cols)
 
 
-def apply_schema(connection: sqlite3.Connection) -> None:
-    """Apply database migrations and extra schemas."""
-    connection.execute("PRAGMA foreign_keys = ON")
-    connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-    _ensure_embedding_columns(connection)
-    _apply_002_schema(connection)
-    _apply_003_schema(connection)
-    connection.executescript(SCHEMA_004_PATH.read_text(encoding="utf-8"))
-    connection.executescript(SCHEMA_005_PATH.read_text(encoding="utf-8"))
-    connection.executescript(EXTRA_TABLES_SQL)
+def _row_factory(cursor):
+    cols = [column.name for column in cursor.description] if cursor.description else []
+    return lambda values: Row(cols, values)
+
+
+class _FloatLoader(Loader):
+    """numeric (AVG, SUM of reals) -> float, so results stay JSON serializable."""
+
+    def load(self, data):
+        return float(bytes(data))
+
+
+_WRITE = re.compile(r"^\s*(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|SELECT\s+pg_advisory)", re.I)
+_LITERAL = re.compile(r"('(?:[^']|'')*')")
+_live: "weakref.WeakSet[Connection]" = weakref.WeakSet()
+_savepoints = itertools.count(1)
+
+
+def _translate(sql: str, has_params: bool) -> str:
+    """qmark -> psycopg placeholders; `%` is escaped only when parameters are passed."""
+    if not has_params:
+        return sql
+    parts = _LITERAL.split(sql)
+    for i, part in enumerate(parts):
+        part = part.replace("%", "%%")
+        parts[i] = part if i % 2 else part.replace("?", "%s")
+    return "".join(parts)
+
+
+class Cursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchmany(self, size: int = 1):
+        return self._cursor.fetchmany(size)
+
+    def __iter__(self):
+        return iter(self._cursor)
+
+    @property
+    def rowcount(self) -> int:
+        return self._cursor.rowcount
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+
+class Connection:
+    def __init__(self, raw: "psycopg.Connection"):
+        self._raw = raw
+        self._dirty = False
+        raw.adapters.register_loader("numeric", _FloatLoader)
+        raw.adapters.register_dumper(bool, Int2Dumper)  # INTEGER flag columns accept True/False
+        _live.add(self)
+
+    # sqlite3 compatibility: callers assign this; rows are always name-addressable.
+    row_factory = None
+
+    def _begin_scope(self, write: bool) -> None:
+        # reads outside a write transaction run autocommit so no idle transaction lingers
+        if self._raw.info.transaction_status == psycopg.pq.TransactionStatus.IDLE:
+            self._raw.autocommit = not write and not self._dirty
+
+    def execute(self, sql: str, params=None) -> Cursor:
+        params = tuple(params) if params else None
+        query = _translate(sql, params is not None)
+        write = bool(_WRITE.match(query))
+        if write:
+            self._dirty = True
+        self._begin_scope(write)
+        cursor = self._raw.cursor(row_factory=_row_factory)
+        cursor.execute(query, params)
+        return Cursor(cursor)
+
+    def executemany(self, sql: str, seq) -> Cursor:
+        rows = [tuple(item) for item in seq]
+        self._dirty = True
+        self._begin_scope(True)
+        cursor = self._raw.cursor(row_factory=_row_factory)
+        if rows:
+            cursor.executemany(_translate(sql, True), rows)
+        return Cursor(cursor)
+
+    def executescript(self, script: str) -> None:
+        self._dirty = True
+        self._begin_scope(True)
+        self._raw.execute(script)  # no parameters: multiple statements allowed
+
+    def begin(self) -> None:
+        """Open a write transaction now (rows read afterwards can be locked with FOR UPDATE)."""
+        self._dirty = True
+        self._begin_scope(True)
+        self._raw.execute("SELECT 1")
+
+    def commit(self) -> None:
+        self._raw.commit()
+        self._dirty = False
+
+    def rollback(self) -> None:
+        self._raw.rollback()
+        self._dirty = False
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._raw.close()
+
+    @contextlib.contextmanager
+    def savepoint(self):
+        """Let one statement fail (e.g. a duplicate insert) without aborting the transaction."""
+        name = f"sp_{next(_savepoints)}"
+        self._dirty = True
+        self._begin_scope(True)
+        self._raw.execute(f"SAVEPOINT {name}")
+        try:
+            yield
+        except BaseException:
+            self._raw.execute(f"ROLLBACK TO SAVEPOINT {name}")
+            raise
+        else:
+            self._raw.execute(f"RELEASE SAVEPOINT {name}")
+
+    def __enter__(self) -> "Connection":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+
+
+def connect(schema: str | None = None) -> Connection:
+    """Open a connection to Supabase Postgres (optionally pinned to one schema, for tests)."""
+    schema = schema or os.getenv("BOT_DB_SCHEMA")
+    options = f"-c search_path={schema}" if schema else None
+    raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None)
+    return Connection(raw)
+
+
+@contextlib.contextmanager
+def session():
+    """One short-lived connection: commit on success, roll back on error, always close."""
+    connection = connect()
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
+def close_all() -> None:
+    for connection in list(_live):
+        connection.close()
+
+
+def _applied_versions(connection: Connection) -> set[str]:
+    exists = connection.execute("SELECT to_regclass('schema_migrations') IS NOT NULL").fetchone()[0]
+    if not exists:
+        return set()
+    return {row[0] for row in connection.execute("SELECT version FROM schema_migrations")}
+
+
+def apply_schema(connection: Connection) -> None:
+    """Apply pending migrations once, then (re)apply idempotent seed rows."""
+    applied = _applied_versions(connection)
+    pending = [p for p in sorted(MIGRATIONS_DIR.glob("[0-9]*.sql")) if p.name not in applied]
+    if pending:
+        connection.execute("SELECT pg_advisory_xact_lock(7001)")
+        connection.executescript(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT now()::text);"
+            "ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY;"
+        )
+        applied = {row[0] for row in connection.execute("SELECT version FROM schema_migrations")}
+        for path in pending:
+            if path.name in applied:
+                continue
+            connection.executescript(path.read_text(encoding="utf-8"))
+            connection.execute("INSERT INTO schema_migrations (version) VALUES (?)", (path.name,))
+    connection.executescript(SEED_PATH.read_text(encoding="utf-8"))
     connection.commit()
 
 
-def _ensure_embedding_columns(connection: sqlite3.Connection) -> None:
-    job_columns = {
-        row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()
-    }
-    for column in ("embedding_model", "embedding_version", "notified_at"):
-        if column not in job_columns:
-            connection.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
-
-
-def _apply_002_schema(connection: sqlite3.Connection) -> None:
-    app_columns = {
-        row[1]
-        for row in connection.execute("PRAGMA table_info(applications)").fetchall()
-    }
-    for column in ("llm_provider", "llm_model"):
-        if column not in app_columns:
-            connection.execute(f"ALTER TABLE applications ADD COLUMN {column} TEXT")
-
-    filter_columns = {
-        row[1]
-        for row in connection.execute("PRAGMA table_info(filters)").fetchall()
-    }
-    if "max_bids" not in filter_columns:
-        connection.execute("ALTER TABLE filters ADD COLUMN max_bids INTEGER DEFAULT NULL")
-
-    lead_columns = {row[1] for row in connection.execute("PRAGMA table_info(leads)").fetchall()}
-    if "proposal" not in lead_columns:
-        connection.execute("ALTER TABLE leads ADD COLUMN proposal TEXT")
-    if "comment" not in lead_columns:
-        connection.execute("ALTER TABLE leads ADD COLUMN comment TEXT")
-
-    statements = SCHEMA_002_PATH.read_text(encoding="utf-8").split(";")
-    for stmt in statements:
-        stmt = stmt.strip()
-        if not stmt or stmt.startswith("ALTER TABLE applications ADD COLUMN llm_"):
-            continue
-        connection.execute(stmt)
-
-
-def _apply_003_schema(connection: sqlite3.Connection) -> None:
-    connection.executescript(SCHEMA_003_PATH.read_text(encoding="utf-8"))
-
-
-def initialize_database(database_url: str = "sqlite:///data/app.db") -> Path:
-    """Initialize database and ensure migrations applied."""
-    database_path = sqlite_path_from_url(database_url)
-    database_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(database_path) as connection:
+def initialize_database() -> None:
+    """Create/upgrade the schema on the configured Supabase database."""
+    connection = connect()
+    try:
         apply_schema(connection)
-    return database_path
+    finally:
+        connection.close()
 
 
-def supabase_configured() -> bool:
-    return bool(_supabase_key())
-
-
-def supabase_request(
-    table: str,
-    *,
-    method: str = "GET",
-    data: Any = None,
-    query: dict[str, str] | None = None,
-    prefer: str | None = None,
-    timeout: float = 5.0,
-) -> Any:
-    """Call the Supabase REST endpoint. Raises SupabaseUnavailable on any failure."""
-    key = _supabase_key()
-    if not key:
-        raise SupabaseUnavailable("supabase key not configured")
-    url = f"{_supabase_url().rstrip('/')}/rest/v1/{table}"
-    if query:
-        url += "?" + urllib.parse.urlencode(query)
-    headers = {
-        "apikey": key,
-        "Authorization": f"Bearer {key}",
-        "Accept": "application/json",
-    }
-    body = None
-    if data is not None:
-        headers["Content-Type"] = "application/json"
-        body = json.dumps(data).encode("utf-8")
-    if prefer:
-        headers["Prefer"] = prefer
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            raw = response.read()
-    except Exception as error:  # URLError, HTTPError, timeout...
-        raise SupabaseUnavailable(str(error)) from error
-    if not raw:
-        return None
-    try:
-        return json.loads(raw)
-    except ValueError:
-        return None
-
-
-def sync_to_supabase(table: str, data: dict[str, Any] | list[dict[str, Any]]) -> None:
-    """Best-effort upsert to Supabase; never raises (callers treat it as a cache write)."""
-    if not supabase_configured():
-        return
-    try:
-        supabase_request(table, method="POST", data=data, prefer="resolution=merge-duplicates")
-    except SupabaseUnavailable:
-        # sanitized: table name only, never the provider error text or the payload
-        logging.getLogger(__name__).warning("supabase_sync_failed table=%s", table)
-
-
-def open_db(database_path: str | Path | None = None) -> sqlite3.Connection:
-    """Open database connection and apply schema."""
-    target = Path(database_path) if database_path else DEFAULT_DB_PATH
-    target.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(target)
-    conn.row_factory = sqlite3.Row
-    apply_schema(conn)
-    return conn
+def open_db() -> Connection:
+    """Open a connection with the schema applied."""
+    connection = connect()
+    apply_schema(connection)
+    return connection

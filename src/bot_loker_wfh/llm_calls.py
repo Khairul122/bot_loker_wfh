@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import sqlite3
 import uuid
 from typing import Any
 
+from . import database
+
 
 class LLMCallRecorder:
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-
     def record_call(
         self,
         *,
@@ -28,7 +26,7 @@ class LLMCallRecorder:
     ) -> None:
         call_id = str(uuid.uuid4())
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with database.session() as conn:
                 conn.execute(
                     """
                     INSERT INTO llm_calls (

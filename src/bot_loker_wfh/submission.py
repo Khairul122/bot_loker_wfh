@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
+from .database import Connection
 import uuid
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -33,7 +33,7 @@ Submitter = Callable[[dict[str, Any]], SubmissionOutcome]
 class SubmissionService:
     def __init__(
         self,
-        connection: sqlite3.Connection,
+        connection: Connection,
         *,
         submitter: Submitter,
         logger: logging.Logger | None = None,
@@ -57,10 +57,10 @@ class SubmissionService:
         return outcome
 
     def _claim(self, application_id: str) -> tuple[dict[str, Any], int]:
-        self.connection.execute("BEGIN IMMEDIATE")
+        self.connection.begin()
         row = self.connection.execute(
             "SELECT id, job_id, status, cover_letter, cv_summary, method "
-            "FROM applications WHERE id = ?",
+            "FROM applications WHERE id = ? FOR UPDATE",
             (application_id,),
         ).fetchone()
         if row is None:
@@ -112,10 +112,10 @@ class SubmissionService:
         if outcome.result not in status_by_result:
             raise ValueError(f"unsupported submission result: {outcome.result}")
         to_status = status_by_result[outcome.result]
-        self.connection.execute("BEGIN IMMEDIATE")
+        self.connection.begin()
         updated = self.connection.execute(
             "UPDATE applications SET status = ?, submitted_at = "
-            "CASE WHEN ? = 'SUBMITTED' THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+            "CASE WHEN ? = 'SUBMITTED' THEN utc_now_iso() "
             "ELSE submitted_at END WHERE id = ? AND status = 'SUBMITTING'",
             (to_status, to_status, application_id),
         ).rowcount

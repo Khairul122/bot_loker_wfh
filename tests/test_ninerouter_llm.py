@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -51,7 +51,7 @@ class TestNineRouterLLM(unittest.TestCase):
         self.assertEqual(res.model, "fallback-model")
 
     def test_router_records_call(self):
-        conn = sqlite3.connect(":memory:")
+        conn = database.connect()
         apply_schema(conn)
 
         recorder = MagicMock()
@@ -77,7 +77,6 @@ class TestNineRouterLLM(unittest.TestCase):
     def test_create_llm_from_settings_9router(self):
         settings = Settings(
             environment="test",
-            database_url="sqlite:///data/test.db",
             external_jobs_enabled=False,
             telegram_bot_token=None,
             telegram_allowed_chat_ids=frozenset(),

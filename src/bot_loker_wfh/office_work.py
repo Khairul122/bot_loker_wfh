@@ -7,13 +7,13 @@ Applying starts after an explicit approval, and the form filler stops before sub
 from __future__ import annotations
 
 import logging
-import sqlite3
+from . import database
+from .database import Connection
 import subprocess
 import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Any
 
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
@@ -40,9 +40,9 @@ STATUS_ACTIONS = {
 
 
 @contextmanager
-def open_db(path: Path) -> Iterator[sqlite3.Connection]:
-    """Commit on success and always close (sqlite3's own context manager never closes)."""
-    connection = sqlite3.connect(path, timeout=30)
+def open_db() -> Iterator[Connection]:
+    """Commit on success and always close."""
+    connection = database.open_db()
     try:
         with connection:
             yield connection
@@ -53,22 +53,20 @@ def open_db(path: Path) -> Iterator[sqlite3.Connection]:
 class OfficeWork:
     def __init__(
         self,
-        database_path: Path,
         *,
-        hunters: dict[str, Callable[[sqlite3.Connection], dict]],
-        draft_service_for: Callable[[sqlite3.Connection], Any],
+        hunters: dict[str, Callable[[Connection], dict]],
+        draft_service_for: Callable[[Connection], Any],
         form_assist_enabled: bool,
         interval_seconds: float | Callable[[], float],
         lock: threading.Lock,
         proposal_writer: Callable[..., str] | None = None,
-        screener: Callable[[sqlite3.Connection], dict] | None = None,
+        screener: Callable[[Connection], dict] | None = None,
         llm: Callable[[str], str] | None = None,
         notify: Callable[[str], None] | None = None,
         spawn: Callable[..., Any] = subprocess.Popen,
         clock: Callable[[], float] = time.time,
         logger: logging.Logger | None = None,
     ) -> None:
-        self.database_path = database_path
         self.hunters = hunters
         self.draft_service_for = draft_service_for
         self.form_assist_enabled = form_assist_enabled
@@ -135,7 +133,7 @@ class OfficeWork:
 
     # ------------------------------------------------------------------ inbox
 
-    def inbox(self, connection: sqlite3.Connection) -> dict:
+    def inbox(self, connection: Connection) -> dict:
         rows = connection.execute(
             "SELECT a.id, a.status, j.title, j.company, j.location, j.apply_url, "
             "j.relevance_score, a.cover_letter FROM applications a JOIN jobs j ON j.id = a.job_id "
@@ -155,7 +153,7 @@ class OfficeWork:
             "form_assist": self.form_assist_enabled,
         }
 
-    def draft_next(self, connection: sqlite3.Connection, limit: int = DRAFTS_PER_CYCLE) -> int:
+    def draft_next(self, connection: Connection, limit: int = DRAFTS_PER_CYCLE) -> int:
         """Let Cora draft letters for the best candidates that have none yet.
 
         Jobs matching Sari's standing instruction (owner keywords) go first.
@@ -176,7 +174,7 @@ class OfficeWork:
         self.log_work("cora", "draft", count=drafted)
         return drafted
 
-    def decide(self, connection: sqlite3.Connection, application_id: str, action: str) -> dict:
+    def decide(self, connection: Connection, application_id: str, action: str) -> dict:
         """approve | reject | apply | applied. Raises InvalidTransitionError when stale."""
         started = self.clock()
         try:
@@ -204,7 +202,7 @@ class OfficeWork:
                     to_status=STATUS_ACTIONS[action], actor=TransitionActor.USER,
                 )
                 connection.execute(
-                    "UPDATE applications SET last_status_check_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                    "UPDATE applications SET last_status_check_at = utc_now_iso() WHERE id = ?",
                     (application_id,),
                 )
                 result = {"status": STATUS_ACTIONS[action]}
@@ -221,7 +219,7 @@ class OfficeWork:
         )
         return result
 
-    def _apply(self, connection: sqlite3.Connection, application_id: str) -> dict:
+    def _apply(self, connection: Connection, application_id: str) -> dict:
         url = connection.execute(
             "SELECT j.apply_url FROM applications a JOIN jobs j ON j.id = a.job_id WHERE a.id = ?",
             (application_id,),
@@ -240,14 +238,14 @@ class OfficeWork:
         return {"mode": "manual", "url": url}
 
     @staticmethod
-    def _status(connection: sqlite3.Connection, application_id: str) -> str | None:
+    def _status(connection: Connection, application_id: str) -> str | None:
         row = connection.execute(
             "SELECT status FROM applications WHERE id = ?", (application_id,)
         ).fetchone()
         return row[0] if row else None
 
     @staticmethod
-    def _undrafted_count(connection: sqlite3.Connection) -> int:
+    def _undrafted_count(connection: Connection) -> int:
         return connection.execute(
             "SELECT COUNT(*) FROM jobs j LEFT JOIN applications a ON a.job_id = j.id "
             "WHERE j.status = 'CANDIDATE' AND a.id IS NULL"
@@ -255,7 +253,7 @@ class OfficeWork:
 
     # ------------------------------------------------------------------ freelance desk
 
-    def draft_proposals(self, connection: sqlite3.Connection, limit: int = PROPOSALS_PER_CYCLE) -> int:
+    def draft_proposals(self, connection: Connection, limit: int = PROPOSALS_PER_CYCLE) -> int:
         """Cora pre-writes bids for the best new projects; they stay NEW until the owner acts."""
         lead_ids = undrafted_leads(connection, limit)
         for lead_id in lead_ids:
@@ -263,11 +261,11 @@ class OfficeWork:
         self.log_work("cora", "proposal", count=len(lead_ids))
         return len(lead_ids)
 
-    def leads(self, connection: sqlite3.Connection, source: str | None, view: str = "all") -> dict:
+    def leads(self, connection: Connection, source: str | None, view: str = "all") -> dict:
         return {"items": list_leads(connection, source, view), "counts": lead_counts(connection, source),
                 "browser_fill": self.form_assist_enabled}
 
-    def lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> dict:
+    def lead_action(self, connection: Connection, lead_id: str, action: str, body: dict) -> dict:
         """interested | ignored | new | proposal | fill. Raises KeyError for unknown leads."""
         started = self.clock()
         employee, result = self._lead_action(connection, lead_id, action, body)
@@ -277,7 +275,7 @@ class OfficeWork:
         )
         return result
 
-    def _lead_action(self, connection: sqlite3.Connection, lead_id: str, action: str, body: dict) -> tuple[str, dict]:
+    def _lead_action(self, connection: Connection, lead_id: str, action: str, body: dict) -> tuple[str, dict]:
         if action in ("interested", "ignored", "new"):
             set_lead_status(connection, lead_id, action.upper())
             return "bimo", {"status": action.upper()}  # the bidding desk files the owner's verdict
@@ -304,7 +302,7 @@ class OfficeWork:
 
     # ------------------------------------------------------------------ owner's office
 
-    def request_reports(self, connection: sqlite3.Connection, employee: str) -> dict:
+    def request_reports(self, connection: Connection, employee: str) -> dict:
         """An employee (or 'all') writes a 24h report now; it is walked to the owner in 3D."""
         names = desk.EMPLOYEES if employee == "all" else (employee,)
         if any(name not in desk.ROLES for name in names):
@@ -315,7 +313,7 @@ class OfficeWork:
         self._tell(desk.digest_text(reports) if len(reports) > 1 else desk.report_text(reports[0]))
         return {"items": reports, "telegram": self.notify is not None}
 
-    def daily_reports(self, connection: sqlite3.Connection) -> list[dict]:
+    def daily_reports(self, connection: Connection) -> list[dict]:
         reports = desk.ensure_daily_reports(connection)
         if reports:
             for report in reports:
@@ -323,7 +321,7 @@ class OfficeWork:
             self._tell(desk.digest_text(reports, "Laporan pagi tim"))
         return reports
 
-    def telegram_digest(self, connection: sqlite3.Connection) -> dict:
+    def telegram_digest(self, connection: Connection) -> dict:
         """Tegar sends the owner a fresh team summary on Telegram (nothing is stored)."""
         if self.notify is None:
             return {"sent": False}
@@ -344,7 +342,7 @@ class OfficeWork:
         def loop() -> None:
             while True:
                 try:
-                    with open_db(self.database_path) as connection:
+                    with open_db() as connection:
                         self.daily_reports(connection)
                 except Exception as error:  # never kill the thread, but never hide it either
                     self.log_failure(None, "report_loop", error)
@@ -387,7 +385,7 @@ class OfficeWork:
     def run_cycle(self) -> None:
         """Every scout searches once, then Cora drafts the best new matches."""
         try:
-            with open_db(self.database_path) as connection:
+            with open_db() as connection:
                 for source, hunt in self.hunters.items():
                     if not self.auto:
                         return

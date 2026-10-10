@@ -1,5 +1,5 @@
 import json
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from pathlib import Path
 from urllib.error import URLError
@@ -24,7 +24,7 @@ DETAIL_CONTENT = "<p>Build &amp; maintain Python &amp; APIs remotely.</p>"
 
 class GreenhouseFetcherTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         self._add_greenhouse_companies(COMPANIES)
         self.payload = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))

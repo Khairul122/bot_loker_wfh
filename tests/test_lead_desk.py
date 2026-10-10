@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
@@ -22,7 +22,7 @@ def insert_lead(connection, lead_id, source="freelancer", status="NEW"):
 
 class LeadDeskTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def test_template_proposal_language_follows_source_and_marks_interest(self):
@@ -64,12 +64,11 @@ class LeadFillTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         db = Path(self.tmp.name) / "app.db"
-        self.connection = sqlite3.connect(db)
+        self.connection = database.connect()
         apply_schema(self.connection)
         insert_lead(self.connection, "a")
         self.spawned = []
-        self.work = OfficeWork(
-            db, hunters={}, draft_service_for=None, form_assist_enabled=True, interval_seconds=1,
+        self.work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=True, interval_seconds=1,
             lock=threading.Lock(),
             proposal_writer=lambda connection, lead_id: draft_proposal(connection, lead_id, PROFILE),
             spawn=lambda cmd, **kwargs: self.spawned.append(cmd),
@@ -95,7 +94,7 @@ class LeadFillTest(unittest.TestCase):
 
 class AutoProposalTest(unittest.TestCase):
     def test_cycle_drafts_best_new_leads_without_marking_interest(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
         insert_lead(connection, "low")
         insert_lead(connection, "high")
@@ -103,8 +102,7 @@ class AutoProposalTest(unittest.TestCase):
         connection.execute("UPDATE leads SET score = 0.9 WHERE id = 'high'")
         portfolio = {"repos": [{"name": "laravel-api", "url": "https://github.com/u/laravel-api",
                                 "language": "PHP", "description": "", "topics": []}]}
-        work = OfficeWork(
-            Path("unused.db"), hunters={}, draft_service_for=None, form_assist_enabled=False,
+        work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=False,
             interval_seconds=1, lock=threading.Lock(),
             proposal_writer=lambda c, lead_id, mark_interested=True: draft_proposal(
                 c, lead_id, PROFILE, portfolio=portfolio, mark_interested=mark_interested),
@@ -142,7 +140,7 @@ if __name__ == "__main__":
 
 class LanguageAndCommentTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
 
     def test_language_follows_post_text_not_source(self):

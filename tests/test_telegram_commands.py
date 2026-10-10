@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -9,7 +9,7 @@ from bot_loker_wfh.telegram_commands import TelegramCommandHandler
 
 class TelegramCommandHandlerTest(unittest.TestCase):
     def setUp(self):
-        self.connection = sqlite3.connect(":memory:")
+        self.connection = database.connect()
         apply_schema(self.connection)
         jobs = [
             ("job-candidate", "CANDIDATE", "Backend Developer"),

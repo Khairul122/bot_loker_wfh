@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
+from .database import Connection
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -19,27 +19,6 @@ MAX_SOURCE_LENGTH = 100
 MAX_KIND_LENGTH = 40
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _KINDS = frozenset({"observation", "preference", "correction", "outcome"})
-
-
-def ensure_schema(connection: sqlite3.Connection) -> None:
-    """Create memory tables. Safe to call for every connection."""
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS employee_memory (
-            id TEXT PRIMARY KEY,
-            employee_id TEXT NOT NULL,
-            kind TEXT NOT NULL CHECK (kind IN ('observation', 'preference', 'correction', 'outcome')),
-            content TEXT NOT NULL CHECK (length(content) BETWEEN 1 AND 2000),
-            source TEXT NOT NULL CHECK (length(source) BETWEEN 1 AND 100),
-            importance REAL NOT NULL CHECK (importance >= 0.0 AND importance <= 1.0),
-            metadata TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_employee_memory_lookup
-            ON employee_memory (employee_id, importance DESC, created_at DESC);
-        """
-    )
-    connection.commit()
 
 
 def _text(value: Any, name: str, limit: int) -> str:
@@ -71,7 +50,7 @@ def _metadata(value: Any) -> str:
     return encoded
 
 
-def _row(row: sqlite3.Row | tuple) -> dict[str, Any]:
+def _row(row: tuple) -> dict[str, Any]:
     keys = ("id", "employee_id", "kind", "content", "source", "importance", "metadata", "created_at")
     result = dict(zip(keys, row))
     result["metadata"] = json.loads(result["metadata"])
@@ -79,7 +58,7 @@ def _row(row: sqlite3.Row | tuple) -> dict[str, Any]:
 
 
 def remember(
-    connection: sqlite3.Connection,
+    connection: Connection,
     employee_id: str,
     content: str,
     *,
@@ -118,7 +97,7 @@ def remember(
     return _row(row)
 
 
-def list_memories(connection: sqlite3.Connection, employee_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
+def list_memories(connection: Connection, employee_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
     """Return highest-value recent records, with a hard retrieval cap."""
     employee_id = _employee_id(employee_id)
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_RECORDS_PER_EMPLOYEE:
@@ -131,7 +110,7 @@ def list_memories(connection: sqlite3.Connection, employee_id: str, *, limit: in
     return [_row(row) for row in rows]
 
 
-def delete_memory(connection: sqlite3.Connection, memory_id: str) -> bool:
+def delete_memory(connection: Connection, memory_id: str) -> bool:
     """Delete one record by ID. Return whether record existed."""
     _text(memory_id, "memory_id", 100)
     with connection:

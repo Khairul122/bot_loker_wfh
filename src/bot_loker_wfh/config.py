@@ -11,7 +11,6 @@ from typing import Mapping
 @dataclass(frozen=True)
 class Settings:
     environment: str
-    database_url: str
     external_jobs_enabled: bool
     telegram_bot_token: str | None
     telegram_allowed_chat_ids: frozenset[int]
@@ -62,7 +61,6 @@ class Settings:
 
         return cls(
             environment=source.get("APP_ENV", "development"),
-            database_url=source.get("DATABASE_URL", "sqlite:///data/app.db"),
             external_jobs_enabled=enabled in {"1", "true", "yes", "on"},
             telegram_bot_token=source.get("TELEGRAM_BOT_TOKEN") or None,
             telegram_allowed_chat_ids=_parse_chat_ids(

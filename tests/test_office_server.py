@@ -1,4 +1,4 @@
-import sqlite3
+from bot_loker_wfh import database
 import unittest
 
 from bot_loker_wfh.database import apply_schema
@@ -7,7 +7,7 @@ from bot_loker_wfh.office_server import collect_stats, employee_results, hunt_jo
 
 class CollectStatsTest(unittest.TestCase):
     def test_counts_are_grouped_and_contain_no_job_text(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
         for job_id, source, status in [
             ("a", "remoteok", "CANDIDATE"),
@@ -34,7 +34,7 @@ class CollectStatsTest(unittest.TestCase):
         self.assertNotIn("Secret", repr(stats))
 
     def test_hunt_returns_inserted_count_and_newest_freelancer_leads(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
 
         class FakeLeadService:
@@ -60,7 +60,7 @@ class CollectStatsTest(unittest.TestCase):
         )
 
     def test_hunt_jobs_scores_then_returns_candidates_of_that_source_only(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
 
         def insert(job_id, source):
@@ -92,7 +92,7 @@ class CollectStatsTest(unittest.TestCase):
 
 
     def test_employee_results_cover_every_view_and_filter_jobs_by_source(self):
-        connection = sqlite3.connect(":memory:")
+        connection = database.connect()
         apply_schema(connection)
         for job_id, source in [("a", "remoteok"), ("b", "greenhouse")]:
             connection.execute(
