@@ -16,6 +16,7 @@ RENDER_WAIT_SECONDS = 25.0  # SPA pages (Freelancer) render long after navigate 
 from bot_loker_wfh.browser_mcp import McpBrowserClient, McpNotConnectedError
 from bot_loker_wfh.cv_profile import load_profile
 from bot_loker_wfh.form_agent.answers_v2 import AnswersStore
+from bot_loker_wfh.form_agent.bid_terms import choose_bid_terms
 from bot_loker_wfh.form_agent.classifier import FieldClassifier
 from bot_loker_wfh.form_agent.executor import Executor, ValueResolver
 from bot_loker_wfh.form_agent.extractor import FormExtractor, FormField
@@ -109,20 +110,24 @@ class FormAgent:
         if text not in ("proposal", "comment"):
             raise ValueError("text must be proposal or comment")
         row = self.connection.execute(
-            f"SELECT url, source, title, description, {text} FROM leads WHERE id = ?",
+            f"SELECT url, source, title, description, budget, {text} FROM leads WHERE id = ?",
             (lead_id,),
         ).fetchone()
         if not row:
             return "Proyek tidak ditemukan."
-        url, source, title, description, proposal = row
+        url, source, title, description, budget, proposal = row
         if not (proposal or "").strip():
             return f"Tulis {text} dulu (draft-lead) sebelum mengisi formulir."
+        if text == "proposal" and len(proposal.strip()) < 100:
+            return "Proposal minimal 100 karakter untuk mengajukan penawaran."
+        bid_terms = choose_bid_terms(self.router, title=title, description=description, budget=budget)
         return self._session(
             apply_url=url,
             company=source,
             title=title,
             description=description,
             cover_letter=proposal,
+            bid_data=bid_terms.as_values() if bid_terms else {},
             record_id=None,  # form_sessions belongs to job applications
             page_number=1,
             force_assist=True,  # bid pages are not in the ATS registry
@@ -169,6 +174,7 @@ class FormAgent:
         page_number: int,
         force_assist: bool,
         keep_open_seconds: float = 0,
+        bid_data: dict[str, str] | None = None,
     ) -> str:
         application_id = record_id or ""
         parsed_url = urlparse(apply_url)
@@ -265,6 +271,8 @@ class FormAgent:
             resolver = ValueResolver.from_files(
                 self.applicant_path, self.answers_path, cover_letter
             )
+            if bid_data:
+                resolver.bid_data = bid_data
 
             candidate_summary = ""
             try:

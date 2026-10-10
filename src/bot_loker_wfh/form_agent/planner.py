@@ -206,6 +206,13 @@ class FormPlanner:
                         )
                     )
 
+            elif f_cls == "bid_term":
+                key = self._bid_key(f.label)
+                if key and key in avail_set:
+                    actions.append(PlanAction(ref=f.ref, action="type", value=f"{{{{{key}}}}}", source=key, confidence=1.0))
+                else:
+                    skipped.append({"ref": f.ref, "reason": "no_bid_value"})
+
             elif f_cls in {"known_answer", "salary"}:
                 item = self.answers_store.find_by_label(f.label)
                 if item:
@@ -238,6 +245,19 @@ class FormPlanner:
                 skipped.append({"ref": f.ref, "reason": "unsupported_in_assist"})
 
         return PlanResult(actions=actions, skipped=skipped, mode_used="assist")
+
+    @staticmethod
+    def _bid_key(label: str) -> str | None:
+        text = label.lower()
+        if "hourly" in text or "nilai penawaran" in text or "rate" in text:
+            return "bid.hourly_rate"
+        if "weekly" in text or "mingguan" in text:
+            return "bid.weekly_limit"
+        if "milestone" in text:
+            return "bid.milestones"
+        if "duration" in text or "diselesaikan dalam" in text:
+            return "bid.duration_days"
+        return None
 
     def _resolve_identity_placeholder(
         self, label: str, available: set[str]

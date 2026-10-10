@@ -129,6 +129,10 @@ _RESULT_QUERIES = {
         "SELECT title, COALESCE(budget, '') || ' · ' || source, url, status, score, fetched_at, kind "
         "FROM leads WHERE source = ? ORDER BY fetched_at DESC LIMIT ?"
     ),
+    "bid": (
+        "SELECT title, COALESCE(budget, '') || ' · ' || source, url, status, score, fetched_at, kind "
+        "FROM leads WHERE proposal IS NOT NULL ORDER BY fetched_at DESC LIMIT ?"
+    ),
 }
 
 
@@ -138,6 +142,8 @@ def employee_results(connection: sqlite3.Connection, view: str, source: str | No
     if sql is None:
         return []
     params = (source, RESULT_LIMIT) if view in ("jobs", "leads") else (RESULT_LIMIT,)
+    if view == "bid":
+        params = (RESULT_LIMIT,)
     keys = ("title", "sub", "url", "tag", "score", "when", "detail")
     return [dict(zip(keys, row)) for row in connection.execute(sql, params).fetchall()]
 

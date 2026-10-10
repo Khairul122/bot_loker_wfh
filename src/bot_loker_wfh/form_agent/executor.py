@@ -32,10 +32,12 @@ class ValueResolver:
         applicant_data: dict[str, Any] | None = None,
         answers_store: AnswersStore | None = None,
         cover_letter: str = "",
+        bid_data: dict[str, str] | None = None,
     ):
         self.applicant_data = applicant_data or {}
         self.answers_store = answers_store or AnswersStore([])
         self.cover_letter = cover_letter
+        self.bid_data = bid_data or {}
 
     @classmethod
     def from_files(
@@ -69,6 +71,7 @@ class ValueResolver:
             "application.cover_letter",
         ]
         keys.extend(self.answers_store.get_available_keys())
+        keys.extend(self.bid_data)
         return keys
 
     def resolve(self, placeholder_or_val: str) -> str | None:
@@ -84,6 +87,10 @@ class ValueResolver:
             if res is not None and str(res).strip():
                 return str(res).strip()
             return None
+
+        if key.startswith("bid."):
+            value = self.bid_data.get(key)
+            return value.strip() if value and value.strip() else None
 
         if key == "application.cover_letter":
             if self.cover_letter.strip():

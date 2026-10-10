@@ -43,7 +43,8 @@ LEGAL_KEYWORDS = (
     "persetujuan",
     "syarat",
 )
-SALARY_KEYWORDS = ("salary", "compensation", "gaji", "expected pay", "rate")
+SALARY_KEYWORDS = ("salary", "compensation", "gaji", "expected pay")
+BID_KEYWORDS = ("bid", "hourly rate", "weekly limit", "weekly hours", "milestone", "duration", "nilai penawaran", "batas mingguan", "diselesaikan dalam")
 IDENTITY_KEYWORDS = (
     "first name",
     "last name",
@@ -87,11 +88,15 @@ class FieldClassifier:
         if any(k in lbl_lower for k in LEGAL_KEYWORDS):
             return "legal"
 
-        # 5. salary
+        # 5. bid terms are model-selected, never guessed by generic answer mapping
+        if any(k in lbl_lower for k in BID_KEYWORDS):
+            return "bid_term"
+
+        # 6. salary
         if any(k in lbl_lower for k in SALARY_KEYWORDS):
             return "salary"
 
-        # 6. identity
+        # 7. identity
         if any(k in lbl_lower for k in IDENTITY_KEYWORDS):
             return "identity"
 

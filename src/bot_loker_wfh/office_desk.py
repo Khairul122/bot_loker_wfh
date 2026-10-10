@@ -29,6 +29,7 @@ ROLES = {
     "sari": "penilai skill yang memberi skor relevansi lowongan",
     "eli": "penjaga kelayakan yang menyaring lowongan tidak remote / tidak cocok",
     "cora": "penulis surat lamaran dan proposal freelance",
+    "bimo": "eksekutor penawaran proyek freelance (bidding freelancer.com & projects.co.id)",
     "lulu": "asisten AI yang menjalankan panggilan model bahasa",
     "faris": "pengisi formulir lamaran di browser",
     "subi": "pengirim lamaran",
@@ -105,6 +106,14 @@ def measure(connection: sqlite3.Connection, employee: str, hours: int = 24) -> d
             "metrics": [["📝", "Surat lamaran", drafts], ["✍️", "Draf bid", bids], ["📥", "Belum ada surat", waiting]],
             "lines": [f"{drafts} surat lamaran dan {bids} draf bid selesai." + (f" {waiting} lowongan cocok masih menunggu surat." if waiting else "")],
             "score": 0.7 * _cap((drafts + bids) / 5) + (0.3 if not waiting else 0),
+        }
+    if employee == "bimo":
+        bids = _n(connection, f"SELECT COUNT(*) FROM leads WHERE proposal IS NOT NULL AND fetched_at >= {_SINCE}", w)
+        filled = _n(connection, f"SELECT COUNT(*) FROM leads WHERE status IN ('INTERESTED', 'SUBMITTED') AND proposal IS NOT NULL AND fetched_at >= {_SINCE}", w)
+        return {
+            "metrics": [["🤝", "Siap Ditawar", bids], ["🎯", "Diproses/Diajukan", filled]],
+            "lines": [f"{filled} dari {bids} penawaran freelance siap diajukan." if bids else "Belum ada penawaran freelance yang diproses."],
+            "score": 0.5 * _cap(bids / 3) + 0.5 * _cap(filled / max(bids, 1)),
         }
     if employee == "lulu":
         total = _n(connection, f"SELECT COUNT(*) FROM llm_calls WHERE created_at >= {_SINCE}", w)

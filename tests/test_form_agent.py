@@ -161,6 +161,18 @@ class FreelancerBidSnapshotTest(unittest.TestCase):
         self.assertEqual(fields[0].current_value, "500.00")
 
 
+class BidTermsTest(unittest.TestCase):
+    def test_parse_bid_terms_rejects_non_numeric_values(self):
+        from bot_loker_wfh.form_agent.bid_terms import parse_bid_terms
+        with self.assertRaises(ValueError):
+            parse_bid_terms('{"hourly_rate":"free","weekly_limit":"20","duration_days":"7","milestones":"build"}')
+
+    def test_parse_bid_terms_accepts_model_values(self):
+        from bot_loker_wfh.form_agent.bid_terms import parse_bid_terms
+        terms = parse_bid_terms('{"hourly_rate":"25","weekly_limit":"20","duration_days":"7","milestones":"Build; test; handover"}')
+        self.assertEqual(terms.as_values()["bid.hourly_rate"], "25")
+
+
 class BidProposalClassifierTest(unittest.TestCase):
     def test_bid_proposal_textbox_is_cover_letter(self):
         from bot_loker_wfh.form_agent.classifier import FieldClassifier
