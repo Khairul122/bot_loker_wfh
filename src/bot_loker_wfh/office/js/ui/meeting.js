@@ -1,10 +1,11 @@
-// ---------- interactive dynamic meeting room: pick topic + crew, run via 9Router ----------
+﻿// ---------- interactive dynamic meeting room: pick topic + crew, run via 9Router ----------
 import { store } from '../core/store.js';
 import { staff, byId } from '../characters/team.js';
 import { me } from '../characters/player.js';
 import { spots } from '../world/spots.js';
 import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from '../ai/routine.js';
+import { pick } from '../core/util.js';
 import { $, el, post, toast } from './dom.js';
 
 const DEFAULT = ['cora', 'tegar', 'reno'];
@@ -14,7 +15,7 @@ let activeRun = null; // { crew, streamed }
 
 export function toggleMeeting(v = !$('meeting').classList.contains('show')) {
   $('meeting').classList.toggle('show', v);
-  if (v) render();
+  if (v) { $('meeting').classList.toggle('live', busy); render(); }
 }
 export function openMeeting() { toggleMeeting(true); }
 
@@ -37,7 +38,7 @@ const line = text => { const l = $('meetingLog'); if (l) l.append(el('li', null,
 // walk the picked crew to the meeting table so the discussion is visible in 3D.
 // Returns promises that settle once each character has actually sat down (or a safety timeout fires).
 function gather(crew) {
-  const seats = spots.filter(s => s.kind === 'rapat' && !s.by);
+  const seats = spots.filter(s => s.kind === 'rapat' && s.emo !== '👑' && !s.by);
   const waits = [];
   crew.forEach(c => {
     const s = seats.shift();
@@ -54,14 +55,28 @@ function gather(crew) {
   return waits;
 }
 
-// one turn: bubble the text, make the character nod, so it reads as a live discussion
+// one turn: the speaker gestures, everyone else turns to listen and nods now and then
 function speak(emp, text) {
   if (!text) return;
-  line(`${nameOf(emp)}: ${text}`);
+  line(${nameOf(emp)}: );
   const c = byId(emp);
-  if (c) { c.doEmote('nod', 1.2); c.showEmo('💬'); say(c, text, Math.max(2.4, Math.min(6, text.length / 20))); }
+  if (!c) return;
+  const seated = activeRun ? activeRun.crew : [];
+  seated.forEach(o => { if (o !== c) { o.face(c.pos.x, c.pos.z); if (Math.random() < 0.6) o.doEmote('nod', 1.4); } });
+  if (me.spot?.kind === 'rapat') me.face(c.pos.x, c.pos.z);
+  c.doEmote(pick(['give', 'nod', 'give']), 2.4); c.showEmo('💬');
+  say(c, text, Math.max(2.4, Math.min(6, text.length / 20)));
 }
 
+// while 9Router is still thinking, the table is not frozen: people glance around and ponder
+function ponder(crew) {
+  return setInterval(() => {
+    const c = pick(crew), o = pick(crew);
+    if (c.state !== 'chat' || c.path.length) return;
+    if (o !== c) c.face(o.pos.x, o.pos.z);
+    c.doEmote(pick(['nod', 'sigh', 'give']), 1.6); c.showEmo(pick(['🤔', '💭', '💬']));
+  }, 1800);
+}
 // only release characters still frozen in the meeting, never override a state someone else set
 function returnCrew(crew) {
   crew.forEach(c => { if (c.state === 'chat') goBack(c); });
@@ -86,12 +101,14 @@ $('meetingRun').onclick = async () => {
   if (ready.length < crew.length) toast('Sebagian karyawan sedang mengantar laporan, rapat jalan tanpa mereka 📋');
   crew = ready;
   if (!crew.length) return toast('Semua peserta sedang sibuk, coba lagi sebentar ⏳');
-  busy = true; $('meetingRun').disabled = true;
+  busy = true; $('meetingRun').disabled = true; $('meeting').classList.add('live');
   $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan… tim sedang berdiskusi lewat 9Router'));
   const run = { crew, streamed: false };
   activeRun = run;
   const arrivals = gather(crew);
+  const thinking = ponder(crew);
   const r = await post('/api/meetings/run', { topic, participants: [...picked] });
+  clearInterval(thinking);
   await Promise.race([Promise.all(arrivals), sleep(10000)]); // let them sit before anyone talks
   if (activeRun !== run) return; // a live meeting stream already finished this run
   if (!run.streamed) {
@@ -116,7 +133,7 @@ export function meetingEvent(evt) {
     const ids = Array.isArray(evt.participants) ? evt.participants : [];
     const crew = staff.filter(c => ids.includes(c.def.id) && c.state !== 'report');
     if (!crew.length) return;
-    busy = true; $('meetingRun').disabled = true;
+    busy = true; $('meetingRun').disabled = true; $('meeting').classList.add('live');
     $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan…'));
     const run = { crew, streamed: true };
     activeRun = run;

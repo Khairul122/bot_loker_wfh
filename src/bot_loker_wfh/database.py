@@ -11,13 +11,21 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://iujhspshmggmptoatbof.supabase.co")
-# Service-role key preferred: RLS restricts app_settings/office_character_state to it.
-SUPABASE_KEY = (
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-    or os.getenv("SUPABASE_SERVICE_KEY")
-    or os.getenv("SUPABASE_KEY", "")
-)
+DEFAULT_SUPABASE_URL = "https://iujhspshmggmptoatbof.supabase.co"
+
+
+def _supabase_url() -> str:
+    # Read lazily: .env is loaded after this module is imported.
+    return os.getenv("SUPABASE_URL") or DEFAULT_SUPABASE_URL
+
+
+def _supabase_key() -> str:
+    # Service-role key preferred: RLS restricts app_settings/office_character_state to it.
+    return (
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or os.getenv("SUPABASE_SERVICE_KEY")
+        or os.getenv("SUPABASE_KEY", "")
+    )
 
 
 class SupabaseUnavailable(RuntimeError):
@@ -157,7 +165,7 @@ def initialize_database(database_url: str = "sqlite:///data/app.db") -> Path:
 
 
 def supabase_configured() -> bool:
-    return bool(SUPABASE_KEY)
+    return bool(_supabase_key())
 
 
 def supabase_request(
@@ -170,14 +178,15 @@ def supabase_request(
     timeout: float = 5.0,
 ) -> Any:
     """Call the Supabase REST endpoint. Raises SupabaseUnavailable on any failure."""
-    if not SUPABASE_KEY:
+    key = _supabase_key()
+    if not key:
         raise SupabaseUnavailable("supabase key not configured")
-    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
+    url = f"{_supabase_url().rstrip('/')}/rest/v1/{table}"
     if query:
         url += "?" + urllib.parse.urlencode(query)
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
         "Accept": "application/json",
     }
     body = None

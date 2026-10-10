@@ -368,7 +368,6 @@ class _Handler(SimpleHTTPRequestHandler):
                 if settings_store.cloud_configured():
                     try:
                         # Cloud is authoritative: most recent spots live in Supabase.
-                        overrides = settings_store.fetch_cloud_settings() if settings_store.cloud_configured() else None
                         cloud_state = load_state_cloud(connection)
                         return self._json(200, cloud_state)
                     except settings_store.cloud_error_types():

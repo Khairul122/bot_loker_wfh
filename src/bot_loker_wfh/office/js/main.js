@@ -30,6 +30,7 @@ import { updateCamera } from './systems/camera.js';
 import { keyMove } from './systems/input.js';
 import { loadStats, poll } from './systems/sync.js';
 import { initSettings } from './ui/settings.js';
+import { restorePositions, startPositionSync } from './systems/positions.js';
 import './ui/logs.js';
 import './systems/realtime.js';
 
@@ -58,6 +59,8 @@ function frame() {
 followClock();
 await loadStats();
 initSettings();
+await restorePositions();
+startPositionSync();
 poll();
 if (store.live && wantAuto() && !store.S.work?.auto) setAuto(true);
 staff.forEach(c => c.setMood(staffMood(c, 0)));
