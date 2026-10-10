@@ -58,7 +58,7 @@ function gather(crew) {
 // one turn: the speaker gestures, everyone else turns to listen and nods now and then
 function speak(emp, text) {
   if (!text) return;
-  line(${nameOf(emp)}: );
+  line(`${nameOf(emp)}: ${text}`);
   const c = byId(emp);
   if (!c) return;
   const seated = activeRun ? activeRun.crew : [];

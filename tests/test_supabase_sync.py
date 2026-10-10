@@ -39,3 +39,17 @@ class SupabaseRequestTest(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class MeetingSyncTest(unittest.TestCase):
+    def test_meeting_writes_are_mirrored(self):
+        import sqlite3
+        from bot_loker_wfh import meeting_runtime as mr
+        conn = sqlite3.connect(":memory:")
+        mr.ensure_schema(conn)
+        with mock.patch.object(mr, "sync_to_supabase") as sync:
+            m = mr.create_meeting(conn, "Topik", "2026-10-11T00:00:00Z", ["cora"])
+            mr.set_status(conn, m["id"], "active")
+            mr.add_event(conn, m["id"], "cora", "note", "halo")
+        tables = [c.args[0] for c in sync.call_args_list]
+        self.assertEqual(tables, ["meetings", "meeting_participants", "meetings", "meeting_events"])

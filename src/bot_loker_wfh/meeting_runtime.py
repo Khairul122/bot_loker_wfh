@@ -8,6 +8,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from .database import sync_to_supabase
+
 MAX_TITLE_LENGTH = 200
 MAX_TEXT_LENGTH = 4000
 MAX_PARTICIPANTS = 50
@@ -90,6 +92,9 @@ def create_meeting(connection: sqlite3.Connection, title: str, starts_at: str, p
     with connection:
         connection.execute("INSERT INTO meetings VALUES (?, ?, ?, 'scheduled', ?)", (meeting_id, title, starts_at, created_at))
         connection.executemany("INSERT INTO meeting_participants VALUES (?, ?)", [(meeting_id, employee) for employee in participants])
+    sync_to_supabase("meetings", {"id": meeting_id, "title": title, "starts_at": starts_at, "status": "scheduled", "created_at": created_at})
+    if participants:
+        sync_to_supabase("meeting_participants", [{"meeting_id": meeting_id, "employee_id": e} for e in participants])
     return get_meeting(connection, meeting_id)
 
 
@@ -112,7 +117,9 @@ def set_status(connection: sqlite3.Connection, meeting_id: str, status: str) -> 
         cursor = connection.execute("UPDATE meetings SET status = ? WHERE id = ?", (status, meeting_id))
     if cursor.rowcount != 1:
         raise KeyError(meeting_id)
-    return get_meeting(connection, meeting_id)
+    meeting = get_meeting(connection, meeting_id)
+    sync_to_supabase("meetings", {k: meeting[k] for k in ("id", "title", "starts_at", "status", "created_at")})
+    return meeting
 
 
 def add_event(connection: sqlite3.Connection, meeting_id: str, employee_id: str, event_type: str, content: str) -> dict[str, Any]:
@@ -129,7 +136,9 @@ def add_event(connection: sqlite3.Connection, meeting_id: str, employee_id: str,
     created_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     with connection:
         connection.execute("INSERT INTO meeting_events VALUES (?, ?, ?, ?, ?, ?)", (event_id, meeting_id, employee_id, event_type, content, created_at))
-    return {"id": event_id, "meeting_id": meeting_id, "employee_id": employee_id, "event_type": event_type, "content": content, "created_at": created_at}
+    event = {"id": event_id, "meeting_id": meeting_id, "employee_id": employee_id, "event_type": event_type, "content": content, "created_at": created_at}
+    sync_to_supabase("meeting_events", event)
+    return event
 
 
 def list_events(connection: sqlite3.Connection, meeting_id: str) -> list[dict[str, Any]]:

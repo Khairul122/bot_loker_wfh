@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import os
 import sqlite3
 import urllib.parse
@@ -209,12 +210,15 @@ def supabase_request(
         return None
 
 
-def sync_to_supabase(table: str, data: dict[str, Any]) -> None:
+def sync_to_supabase(table: str, data: dict[str, Any] | list[dict[str, Any]]) -> None:
     """Best-effort upsert to Supabase; never raises (callers treat it as a cache write)."""
+    if not supabase_configured():
+        return
     try:
         supabase_request(table, method="POST", data=data, prefer="resolution=merge-duplicates")
     except SupabaseUnavailable:
-        pass
+        # sanitized: table name only, never the provider error text or the payload
+        logging.getLogger(__name__).warning("supabase_sync_failed table=%s", table)
 
 
 def open_db(database_path: str | Path | None = None) -> sqlite3.Connection:

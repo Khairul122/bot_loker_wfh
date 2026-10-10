@@ -15,6 +15,7 @@ from bot_loker_wfh.database import apply_schema
 from bot_loker_wfh.office_server import _Handler
 from bot_loker_wfh.office_state import load_state, save_state
 from bot_loker_wfh.office_work import OfficeWork
+from bot_loker_wfh import database
 from bot_loker_wfh.settings_store import SupabaseUnavailable
 
 
@@ -81,13 +82,13 @@ class OfficeStateHttpTest(unittest.TestCase):
         self.assertEqual(self.call("office/state.json")[1]["owner"]["x"], 1.0)
         self.assertEqual(self.call("office/character-state", {"owner": {"x": "bad"}})[0], 400)
 
-    def test_cloud_backend_down_is_503(self):
-        with mock.patch.object(settings_store, "cloud_configured", lambda: True), \
-             mock.patch.object(office_server, "load_state",
-                               mock.Mock(side_effect=SupabaseUnavailable("down"))):
+    def test_cloud_backend_down_falls_back_to_local_cache(self):
+        self.call("office/character-state", {"owner": {"x": 3, "y": 0, "z": 4}, "staff": {}})
+        with mock.patch.object(settings_store, "cloud_configured", lambda: True),              mock.patch("bot_loker_wfh.office_state.supabase_configured", lambda: True),              mock.patch("bot_loker_wfh.office_state.supabase_request",
+                        mock.Mock(side_effect=database.SupabaseUnavailable("down"))):
             status, data = self.call("office/state.json")
-        self.assertEqual(status, 503)
-        self.assertEqual(data, {"error": "supabase_unavailable"})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["owner"]["x"], 3.0)
 
 
 if __name__ == "__main__":
