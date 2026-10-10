@@ -26,7 +26,7 @@ from .leads import (
     TelegramChannelFetcher,
 )
 from .lever import LeverFetcher
-from .llm import AnthropicProvider, create_llm_from_settings
+from .llm import AnthropicProvider, create_chat_llm, create_llm_from_settings
 from . import office_desk
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
 from .github_portfolio import load_portfolio, sync_portfolio
@@ -359,7 +359,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 portfolio=load_portfolio(), mark_interested=mark_interested,
             ),
             screener=lambda connection: {"matched": JobPipeline(connection, profile).process_discovered()["candidate"]},
-            llm=llm,
+            llm=create_chat_llm(settings, str(database_path)),  # Q&A needs seconds, not an agent run
             notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
             # scrape interval lives in the DB so the owner can tune it live from the dashboard

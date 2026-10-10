@@ -221,7 +221,7 @@ class OpenAICompatibleProvider:
         req = Request(url, data=body, headers=headers, method="POST")
         try:
             with urlopen(req, timeout=self.timeout) as resp:
-                return json.load(resp)
+                return _parse_chat_body(resp.read().decode("utf-8", "replace"))
         except HTTPError as err:
             code = _map_http_status_to_code(err.code)
             raise LLMError(code, f"HTTP {err.code}", retryable=(err.code == 429)) from err
@@ -243,6 +243,36 @@ class OpenAICompatibleProvider:
     def __call__(self, prompt: str) -> str:
         res = self.complete([{"role": "user", "content": prompt}])
         return res.text
+
+
+def _parse_chat_body(body: str) -> dict[str, Any]:
+    """Plain JSON, JSON followed by a stray `data: [DONE]` (9Router does this), or an SSE stream."""
+    body = body.strip()
+    try:
+        return json.loads(body)
+    except ValueError:
+        pass
+    try:  # one JSON document with trailing junk
+        return json.JSONDecoder().raw_decode(body)[0]
+    except ValueError:
+        pass
+    text, last = [], {}
+    for line in body.splitlines():
+        line = line.strip()
+        if not line.startswith("data:") or line == "data: [DONE]":
+            continue
+        try:
+            chunk = json.loads(line[5:])
+        except ValueError:
+            continue
+        last = chunk
+        for choice in chunk.get("choices") or []:
+            part = (choice.get("delta") or choice.get("message") or {}).get("content")
+            if part:
+                text.append(part)
+    if not last:
+        raise LLMError("bad_response", "unreadable response body")
+    return {**last, "choices": [{"message": {"content": "".join(text)}}]}
 
 
 class OpenCodeProvider:
@@ -493,6 +523,27 @@ class LLMRouter:
             return res.text
 
         return callable_prompt
+
+
+def create_chat_llm(settings: Any, db_path: str | None = None) -> Callable[[str], str] | None:
+    """Fast chat answers (office Q&A): straight to 9Router, skipping the slow `opencode run` agent.
+
+    Falls back to the normal chain when 9Router is not configured.
+    """
+    model = getattr(settings, "ninerouter_model", "")
+    if not model:
+        router = create_llm_from_settings(settings, db_path)
+        return router.for_task("answer") if isinstance(router, LLMRouter) else router
+    provider = OpenAICompatibleProvider(
+        getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1"),
+        getattr(settings, "ninerouter_api_key", None) or "sk-dummy",
+        model,
+        timeout=getattr(settings, "llm_timeout_seconds", 60.0),
+    )
+    chain = [(provider, model)] + [(provider, fb) for fb in getattr(settings, "ninerouter_fallback_models", ()) if fb]
+    router = LLMRouter(chain, recorder=LLMCallRecorder(db_path) if db_path else None,
+                       task_budget_seconds=getattr(settings, "llm_task_budget_seconds", 90.0))
+    return router.for_task("answer")
 
 
 def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRouter | AnthropicProvider | None:

@@ -172,3 +172,12 @@ class OfficeWorkDeskTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChatBodyParsingTest(unittest.TestCase):
+    def test_json_with_trailing_done_and_sse_stream(self):
+        from bot_loker_wfh.llm import _parse_chat_body
+        tail = '{"choices": [{"message": {"content": "halo"}}]}data: [DONE]'
+        self.assertEqual(_parse_chat_body(tail)["choices"][0]["message"]["content"], "halo")
+        sse = 'data: {"choices": [{"delta": {"content": "ha"}}]}\ndata: {"choices": [{"delta": {"content": "lo"}}]}\ndata: [DONE]'
+        self.assertEqual(_parse_chat_body(sse)["choices"][0]["message"]["content"], "halo")
