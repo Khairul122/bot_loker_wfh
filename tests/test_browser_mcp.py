@@ -90,6 +90,24 @@ class TestBrowserMCP(unittest.TestCase):
 
         stop.assert_called_once_with()
 
+    def test_hold_open_stops_when_extension_relay_page_replaces_tab(self):
+        client = McpBrowserClient()
+        client.process = MagicMock()
+        client.process.stdin = MagicMock()
+        client._send_request = MagicMock(return_value={
+            "result": {
+                "content": [{
+                    "type": "text",
+                    "text": "Page URL: chrome-extension://mmlmfjhmonkocbjadbfplnigmagldckm/connect.html?client=bot-loker-wfh",
+                }]
+            }
+        })
+
+        with patch.object(client, "stop") as stop:
+            client.hold_open(max_seconds=1, poll_seconds=0)
+
+        stop.assert_called_once_with()
+
     def test_stop_kills_whole_process_tree(self):
         import os
 
