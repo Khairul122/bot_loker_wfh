@@ -29,6 +29,7 @@ import { updateWorld } from './systems/life.js';
 import { updateCamera } from './systems/camera.js';
 import { keyMove } from './systems/input.js';
 import { loadStats, poll } from './systems/sync.js';
+import { initSettings } from './ui/settings.js';
 
 let frameNo = 0;
 function frame() {
@@ -54,6 +55,7 @@ function frame() {
 
 followClock();
 await loadStats();
+initSettings();
 poll();
 if (store.live && wantAuto() && !store.S.work?.auto) setAuto(true);
 staff.forEach(c => c.setMood(staffMood(c, 0)));

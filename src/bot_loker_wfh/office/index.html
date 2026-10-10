@@ -32,6 +32,7 @@
     <button class="panel tbtn" id="bSound" title="Musik & efek suara">🔇</button>
     <button class="panel tbtn" id="bNight" title="Siang / malam">🌙</button>
     <button class="panel tbtn" id="bCustom" title="Ubah karakter">🎨</button>
+    <button class="panel tbtn" id="bSettings" title="Pengaturan model, provider, skill, BrowserMCP">⚙️<span>Setting</span></button>
   </div>
 </div>
 
@@ -152,6 +153,12 @@
   <label>Rambut <input type="color" id="cuHair"></label>
   <label>Baju <input type="color" id="cuShirt"></label>
   <label>Celana <input type="color" id="cuPants"></label>
+</div>
+
+<div id="settings" class="panel">
+  <div style="font-weight:900;font-size:16px;margin-bottom:6px">⚙️ Pengaturan Bot</div>
+  <div class="settings-tabs" id="settingsTabs" role="tablist"></div>
+  <div class="settings-panels" id="settingsPanels"></div>
 </div>
 
 <div id="toast" class="panel"></div>

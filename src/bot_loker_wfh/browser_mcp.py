@@ -271,11 +271,14 @@ class McpBrowserClient:
             item.get("text", "") for item in payload.get("content", []) if isinstance(item, dict)
         )
 
-    def hold_open(self, max_seconds: float, poll_seconds: float = 10.0) -> None:
-        """Keep the server (and the browser it launched) alive until the owner closes it.
+    def hold_open(self, max_seconds: float, poll_seconds: float = 3.0) -> None:
+        """Keep the server alive until the owner closes the page they were reviewing.
 
-        Used for Playwright MCP, whose browser dies with the server process. Polls a
-        read-only snapshot that does not count against max_tool_calls.
+        In Playwright extension mode, closing the reviewed tab makes the extension
+        reopen its relay tab (``chrome-extension://.../connect.html``). That page is
+        a valid snapshot (no error), so an error-only check never fires and the relay
+        keeps reopening the tab. Seeing the relay page means the real page is gone, so
+        stop the server: the relay drops and the extension stops reopening the tab.
         """
         deadline = time.time() + max_seconds
         while time.time() < deadline:
@@ -287,6 +290,15 @@ class McpBrowserClient:
                 return
             payload = res.get("result", {})
             if "error" in res or (isinstance(payload, dict) and payload.get("isError")):
+                self.stop()
+                return
+            text = " ".join(
+                item.get("text", "")
+                for item in payload.get("content", [])
+                if isinstance(item, dict)
+            )
+            # The extension relay page only shows once the reviewed page is closed.
+            if "chrome-extension://" in text and "/connect.html" in text:
                 self.stop()
                 return
 
