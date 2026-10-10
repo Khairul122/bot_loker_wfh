@@ -30,6 +30,7 @@ import { updateCamera } from './systems/camera.js';
 import { keyMove } from './systems/input.js';
 import { loadStats, poll } from './systems/sync.js';
 import { initSettings } from './ui/settings.js';
+import './ui/logs.js';
 
 let frameNo = 0;
 function frame() {

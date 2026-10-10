@@ -41,7 +41,9 @@ export function useSpot(kindName, house) {
   if (!cands.length) { toast('Lagi dipakai, coba yang lain 🙂'); return; }
   const dist = s => s.swing ? 0 : Math.hypot(s.x - me.pos.x, s.z - me.pos.z) + Math.abs(s.level - me.level) * 20;
   const s = cands.reduce((a, b) => dist(a) < dist(b) ? a : b);
+  const sameHouse = house && me.inside?.box === house.box;
   me.leaveSpot();
+  if (sameHouse) me.inside = null;
   sendTo(me, s, () => {
     say(me, SAY[s.kind] || '😊');
     Snd.play('pop');

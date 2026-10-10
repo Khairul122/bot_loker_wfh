@@ -1,5 +1,11 @@
 export const $ = id => document.getElementById(id);
-export const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+export const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (Array.isArray(text)) e.append(...text.filter(node => node instanceof Node));
+  else if (text != null) e.textContent = String(text);
+  return e;
+};
 
 let toastT;
 export function toast(t) { const box = $('toast'); box.textContent = t; box.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => box.classList.remove('show'), 3200); }

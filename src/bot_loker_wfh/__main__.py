@@ -26,7 +26,7 @@ from .leads import (
     TelegramChannelFetcher,
 )
 from .lever import LeverFetcher
-from .llm import AnthropicProvider, create_chat_llm, create_llm_from_settings
+from .llm import create_chat_llm, create_llm_from_settings
 from . import office_desk
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
 from .github_portfolio import load_portfolio, sync_portfolio
@@ -259,13 +259,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "check-llm":
         from .llm import OpenAICompatibleProvider, LLMError
-        if settings.llm_provider != "9router":
-            print(f"LLM provider saat ini: {settings.llm_provider}")
-            return 0
         prov = OpenAICompatibleProvider(
             settings.ninerouter_base_url,
             settings.ninerouter_api_key or "sk-dummy",
-            settings.ninerouter_model or "loker-draft",
+            settings.ninerouter_model or "LokerHouse",
         )
         try:
             models = prov.list_models()

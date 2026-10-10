@@ -1,0 +1,4 @@
+﻿# cora
+
+- Employee skills profile
+

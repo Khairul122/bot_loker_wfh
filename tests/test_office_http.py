@@ -40,6 +40,16 @@ class OfficeHttpTest(unittest.TestCase):
         except Exception as error:  # HTTPError carries the status
             return error.code, json.loads(error.read())
 
+    def test_employee_skills_routes(self):
+        status, data = self.call("employee-skills.json")
+        self.assertEqual(status, 200)
+        self.assertIn("reno", data["employees"])
+        status, data = self.call("employee-skills?id=reno")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["id"], "reno")
+        self.assertIn("#", data["markdown"])
+        self.assertEqual(self.call("employee-skills?id=../reno")[0], 404)
+
     def test_desk_routes_answer_exactly_once(self):
         status, data = self.call("reports/request/reno", {})
         self.assertEqual(status, 200)

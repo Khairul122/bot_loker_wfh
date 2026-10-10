@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import queue
 import shlex
 import sqlite3
 import subprocess
@@ -13,8 +14,11 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from . import office_desk as desk
+from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import load_portfolio, sync_portfolio
 from .office_work import open_db
+from .office_state import load_state, save_state
+from .office_events import bus as office_events
 from .settings_store import DEFAULTS, get_setting, set_setting
 from .config import save_dotenv
 from .status_transitions import InvalidTransitionError
@@ -275,6 +279,29 @@ class _Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/events":
+            subscription = office_events.subscribe()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            try:
+                while True:
+                    try:
+                        event = subscription.get(timeout=15)
+                        self.wfile.write(f"data: {json.dumps(event)}\\n\\n".encode())
+                    except queue.Empty:
+                        self.wfile.write(b": keep-alive\\n\\n")
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
+            finally:
+                subscription.close()
+            return
+        if path == "/office/state.json":
+            with self._connect() as connection:
+                return self._json(200, load_state(connection))
         if path == "/stats.json":
             with self._connect() as connection:
                 return self._json(200, {**collect_stats(connection), "work": self.work.status(),
@@ -286,6 +313,19 @@ class _Handler(SimpleHTTPRequestHandler):
                     return self._json(200, desk.profile(connection, employee))
                 except KeyError:
                     return self._json(404, {"error": "not_found"})
+        if path == "/employee-skills.json":
+            try:
+                return self._json(200, {"employees": all_employee_skills()})
+            except (KeyError, ValueError):
+                return self._json(500, {"error": "employee_skills_unavailable"})
+        if path == "/employee-skills":
+            employee = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+            try:
+                return self._json(200, {"id": employee, "markdown": load_employee_skills(employee)})
+            except KeyError:
+                return self._json(404, {"error": "not_found"})
+            except ValueError:
+                return self._json(413, {"error": "employee_skills_invalid"})
         if path == "/reports.json":
             employee = parse_qs(urlsplit(self.path).query).get("employee", [None])[0]
             with self._connect() as connection:
@@ -320,8 +360,6 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/ats/list":
             with self._connect() as connection:
                 return self._json(200, {"ats": self._list_ats(connection)})
-        if path == "/skills.json":
-            return self._json(200, self._get_skills())
         if path == "/form/test":
             engine = parse_qs(urlsplit(self.path).query).get("engine", ["playwright"])[0]
             return self._json(200, self._test_form_engine(engine))
@@ -345,6 +383,12 @@ class _Handler(SimpleHTTPRequestHandler):
             if _norm_host(origin_host) != _norm_host(req_host):
                 return self._json(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
+        if parts == ["office", "character-state"]:
+            try:
+                with self._connect() as connection:
+                    return self._json(200, save_state(connection, self._body()))
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "invalid"})
         handled = self._desk_post(parts)
         if handled is not None:
             return handled
@@ -388,13 +432,6 @@ class _Handler(SimpleHTTPRequestHandler):
                 pass
 
             return self._json(200, _all_settings_payload())
-        if parts == ["skills", "reload"]:
-            return self._json(200, self._reload_skills())
-        if parts == ["skills", "toggle"]:
-            body = self._body()
-            skill_id = body.get("id")
-            enabled = body.get("enabled", True)
-            return self._json(200, self._toggle_skill(skill_id, enabled))
         if len(parts) == 3 and parts[0] == "leads":
             length = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(length) or b"{}")
@@ -571,42 +608,6 @@ class _Handler(SimpleHTTPRequestHandler):
             ]
         except Exception:
             return []
-
-    def _get_skills(self):
-        """Get skills from OpenCode."""
-        try:
-            result = subprocess.run(
-                ["opencode", "skill", "list", "--json"],
-                capture_output=True, text=True, timeout=30
-            )
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                skills = data.get("skills", [])
-                return {"skills": skills}
-            else:
-                return {"skills": [], "error": "opencode skill list failed"}
-        except Exception as err:
-            return {"skills": [], "error": str(err)}
-
-    def _reload_skills(self):
-        """Reload skills from OpenCode."""
-        try:
-            result = subprocess.run(
-                ["opencode", "skill", "reload"],
-                capture_output=True, text=True, timeout=30
-            )
-            return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr if result.returncode != 0 else None}
-        except Exception as err:
-            return {"ok": False, "error": str(err)}
-
-    def _toggle_skill(self, skill_id, enabled):
-        """Toggle skill enabled/disabled."""
-        try:
-            cmd = ["opencode", "skill", "enable" if enabled else "disable", skill_id]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            return {"ok": result.returncode == 0, "output": result.stdout, "error": result.stderr if result.returncode != 0 else None}
-        except Exception as err:
-            return {"ok": False, "error": str(err)}
 
     def _test_form_engine(self, engine):
         """Test form engine."""

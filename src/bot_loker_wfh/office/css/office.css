@@ -51,6 +51,11 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .emotes button{width:40px;height:40px;border-radius:12px;font-size:20px;background:var(--paper-2)}
 .emotes button:hover{background:var(--line)}
 #score{font-weight:900;font-size:14px;color:var(--ink-soft)}
+#logDrawer{position:fixed;right:14px;top:76px;width:340px;max-height:calc(100vh - 100px);padding:16px;display:none;z-index:5}
+#logDrawer.show{display:block;animation:pop .2s}
+#logDrawer h2{margin:0 0 8px;font-size:18px}
+#logList{margin:0;padding-left:22px;max-height:calc(100vh - 160px);overflow:auto;font:12px ui-monospace,monospace}
+#logList li{padding:4px 0;border-bottom:1px solid var(--line)}
 #card{position:fixed;right:14px;bottom:14px;width:300px;padding:16px;display:none}
 #card.show{display:block;animation:pop .25s ease-out}
 @keyframes pop{from{transform:translateY(12px);opacity:0}}

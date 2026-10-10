@@ -68,6 +68,12 @@ class TestNineRouterLLM(unittest.TestCase):
         self.assertEqual(args["status"], "success")
         self.assertEqual(args["run_id"], "r-123")
 
+    def test_legacy_provider_is_ignored(self):
+        settings = Settings.from_environment({"LLM_PROVIDER": "anthropic"})
+        self.assertEqual(settings.llm_provider, "9router")
+        router = create_llm_from_settings(settings)
+        self.assertIsInstance(router, LLMRouter)
+
     def test_create_llm_from_settings_9router(self):
         settings = Settings(
             environment="test",

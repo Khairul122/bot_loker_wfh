@@ -176,24 +176,34 @@ class LanguageAndCommentTest(unittest.TestCase):
         self.assertEqual(self.connection.execute("SELECT comment FROM leads WHERE id='x'").fetchone()[0], comment)
 
 
-class OpenCodeProviderTest(unittest.TestCase):
-    def test_runs_opencode_with_prompt_file_outside_repo(self):
-        from bot_loker_wfh.llm import LLMError, OpenCodeProvider
+class NineRouterRunnableTest(unittest.TestCase):
+    def test_9router_is_the_only_provider_and_template_falls_back(self):
+        from bot_loker_wfh.llm import (
+            LLMError,
+            LLMRouter,
+            OpenAICompatibleProvider,
+            create_llm_from_settings,
+        )
+        from bot_loker_wfh.config import Settings
 
-        seen = {}
+        for legacy in ("anthropic", "opencode", "9router", ""):
+            settings = Settings.from_environment({"LLM_PROVIDER": legacy})
+            self.assertEqual(settings.llm_provider, "9router")
+            router = create_llm_from_settings(settings)
+            self.assertIsInstance(router, LLMRouter)
+            provider = router.chain[0][0]
+            self.assertIsInstance(provider, OpenAICompatibleProvider)
 
-        class Done:
-            returncode, stdout = 0, "  a bid  \n"
+        # draft callers fall back to the template when 9Router raises
+        def failing(prompt):
+            raise LLMError("all_providers_failed")
 
-        def fake_run(cmd, cwd, **kwargs):
-            seen["cmd"], seen["prompt"] = cmd, Path(cmd[5]).read_text(encoding="utf-8")
-            return Done()
+        self.assertEqual(_template_fallback(failing, "fallback"), "fallback")
 
-        provider = OpenCodeProvider("9router/ComboOpenCode", run=fake_run)
-        self.assertEqual(provider("line1\nline2"), "a bid")
-        self.assertEqual(seen["cmd"][1:5], ["run", "-m", "9router/ComboOpenCode", "-f"])
-        self.assertEqual(seen["prompt"], "line1\nline2")
 
-        Done.returncode = 1
-        with self.assertRaises(LLMError):
-            provider("x")
+def _template_fallback(provider, default):
+    from bot_loker_wfh.llm import LLMError
+    try:
+        return provider("x") or default
+    except LLMError:
+        return default

@@ -1,16 +1,10 @@
-"""LLM providers and routing for multi-model AI (Anthropic & 9Router OpenAI-compatible)."""
+"""9Router LLM provider and routing."""
 
 from __future__ import annotations
 
 import json
-import os
-import shlex
-import shutil
-import subprocess
-import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -33,104 +27,6 @@ class LLMError(RuntimeError):
         super().__init__(message or code)
         self.code = code
         self.retryable = retryable
-
-
-ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-ANTHROPIC_API_VERSION = "2023-06-01"
-
-
-class AnthropicProvider:
-    """Anthropic Messages API provider."""
-
-    def __init__(
-        self,
-        api_key: str,
-        model: str,
-        *,
-        max_tokens: int = 800,
-        timeout: float = 60.0,
-        name: str = "anthropic",
-    ) -> None:
-        if not api_key:
-            raise ValueError("api_key is required")
-        self.api_key = api_key
-        self.model = model
-        self.max_tokens = max_tokens
-        self.timeout = timeout
-        self.name = name
-
-    def complete(
-        self,
-        messages: list[dict[str, Any]],
-        *,
-        json_mode: bool = False,
-        model: str | None = None,
-        system_prompt: str | None = None,
-    ) -> LLMResult:
-        target_model = model or self.model
-        start_time = time.monotonic()
-
-        # Separate system message if present
-        payload_messages = []
-        sys_content = system_prompt or ""
-        for m in messages:
-            if m.get("role") == "system":
-                sys_content += ("\n" if sys_content else "") + str(m.get("content", ""))
-            else:
-                payload_messages.append(m)
-
-        body_dict: dict[str, Any] = {
-            "model": target_model,
-            "max_tokens": self.max_tokens,
-            "messages": payload_messages,
-        }
-        if sys_content:
-            body_dict["system"] = sys_content
-
-        body = json.dumps(body_dict).encode("utf-8")
-        request = Request(
-            ANTHROPIC_API_URL,
-            data=body,
-            headers={
-                "content-type": "application/json",
-                "x-api-key": self.api_key,
-                "anthropic-version": ANTHROPIC_API_VERSION,
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=self.timeout) as response:
-                payload = json.load(response)
-        except HTTPError as err:
-            code = _map_http_status_to_code(err.code)
-            raise LLMError(code, f"HTTP {err.code}", retryable=(err.code == 429)) from err
-        except (URLError, TimeoutError, OSError) as err:
-            code = "timeout" if isinstance(err, TimeoutError) else "network_error"
-            raise LLMError(code, str(err), retryable=False) from err
-
-        latency_ms = int((time.monotonic() - start_time) * 1000)
-        text = "".join(
-            block.get("text", "")
-            for block in payload.get("content", [])
-            if block.get("type") == "text"
-        ).strip()
-
-        usage = payload.get("usage", {})
-        prompt_tokens = usage.get("input_tokens")
-        completion_tokens = usage.get("output_tokens")
-
-        return LLMResult(
-            text=text,
-            provider=self.name,
-            model=target_model,
-            latency_ms=latency_ms,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-        )
-
-    def __call__(self, prompt: str) -> str:
-        res = self.complete([{"role": "user", "content": prompt}])
-        return res.text
 
 
 class OpenAICompatibleProvider:
@@ -273,69 +169,6 @@ def _parse_chat_body(body: str) -> dict[str, Any]:
     if not last:
         raise LLMError("bad_response", "unreadable response body")
     return {**last, "choices": [{"message": {"content": "".join(text)}}]}
-
-
-class OpenCodeProvider:
-    """`opencode run` as a provider; opencode itself is configured to route through 9Router."""
-
-    def __init__(
-        self,
-        model: str,
-        *,
-        command: str = "opencode",
-        timeout: float = 120.0,
-        name: str = "opencode",
-        run: Callable[..., Any] | None = None,
-    ) -> None:
-        self.model = model
-        self.command = command
-        self.timeout = timeout
-        self.name = name
-        self.run = run or subprocess.run
-
-    def complete(
-        self,
-        messages: list[dict[str, Any]],
-        *,
-        json_mode: bool = False,
-        model: str | None = None,
-    ) -> LLMResult:
-        target_model = model or self.model
-        prompt = "\n\n".join(str(m.get("content", "")) for m in messages)
-        if json_mode:
-            prompt += "\n\nRespond with JSON only."
-        start_time = time.monotonic()
-        try:
-            # empty temp cwd: the opencode agent must not see or edit this repo.
-            # The prompt goes in a file: on Windows `opencode.cmd` runs via cmd.exe,
-            # which mangles multi-line arguments.
-            with tempfile.TemporaryDirectory() as cwd:
-                prompt_file = Path(cwd) / "prompt.md"  # absolute: opencode ignores our cwd for -f
-                prompt_file.write_text(prompt, encoding="utf-8")
-                argv = shlex.split(self.command, posix=os.name != "nt")
-                exe = shutil.which(argv[0]) or argv[0]
-                cmd = [exe, *argv[1:], "run", "-m", target_model, "-f", str(prompt_file),
-                       "Follow the instructions in the attached file. Reply with the answer only."]
-                proc = self.run(
-                    cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8",
-                    timeout=self.timeout,
-                )
-        except subprocess.TimeoutExpired as err:
-            raise LLMError("timeout", "opencode timed out") from err
-        except OSError as err:
-            raise LLMError("network_error", f"opencode not runnable: {err}") from err
-        text = (proc.stdout or "").strip()
-        if proc.returncode != 0 or not text:
-            raise LLMError("upstream_error", f"opencode exit {proc.returncode}")
-        return LLMResult(
-            text=text,
-            provider=self.name,
-            model=target_model,
-            latency_ms=int((time.monotonic() - start_time) * 1000),
-        )
-
-    def __call__(self, prompt: str) -> str:
-        return self.complete([{"role": "user", "content": prompt}]).text
 
 
 def fetch_9router_models_categorized(
@@ -548,11 +381,7 @@ def create_chat_llm(settings: Any, db_path: str | None = None) -> Callable[[str]
 
 def create_llm_from_settings(settings: Any, db_path: str | None = None) -> LLMRouter | None:
     recorder = LLMCallRecorder(db_path) if db_path else None
-    prov = getattr(settings, "llm_provider", "9router").lower()
-
-    if prov == "template":
-        return None
-
+    # Legacy provider environment values are ignored; 9Router is sole selectable provider.
     base_url = getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1")
     api_key = getattr(settings, "ninerouter_api_key", None) or "sk-dummy"
     primary_model = getattr(settings, "ninerouter_model", "") or getattr(settings, "llm_model_draft", "") or "LokerHouse"

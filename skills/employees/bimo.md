@@ -1,0 +1,4 @@
+﻿# bimo
+
+- Employee skills profile
+

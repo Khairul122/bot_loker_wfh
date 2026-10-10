@@ -16,8 +16,6 @@ class Settings:
     telegram_bot_token: str | None
     telegram_allowed_chat_ids: frozenset[int]
     profile_path: str = "data/profile.json"
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-5"
     fetch_interval_hours: float = 4.0
     form_assist_enabled: bool = False
     applicant_path: str = "data/applicant.json"
@@ -35,9 +33,6 @@ class Settings:
     llm_timeout_seconds: float = 60.0
     llm_task_budget_seconds: float = 90.0
     llm_temperature_draft: float = 0.4
-    opencode_command: str = "opencode"
-    opencode_model: str = "9router/ComboOpenCode"
-
     form_engine: str = "playwright"
     browser_mcp_command: str = "npx -y @browsermcp/mcp@0.1.3"
     github_username: str = ""
@@ -60,8 +55,6 @@ class Settings:
         source = environ if values is None else values
         enabled = source.get("EXTERNAL_JOBS_ENABLED", "false").lower()
 
-        llm_prov = source.get("LLM_PROVIDER") or "9router"
-
         fallback_raw = source.get("NINEROUTER_FALLBACK_MODELS", "")
         fallback_models = tuple(
             item.strip() for item in fallback_raw.split(",") if item.strip()
@@ -76,8 +69,6 @@ class Settings:
                 source.get("TELEGRAM_ALLOWED_CHAT_IDS", "")
             ),
             profile_path=source.get("PROFILE_PATH") or "data/profile.json",
-            anthropic_api_key=anthropic_key,
-            anthropic_model=source.get("ANTHROPIC_MODEL") or "claude-sonnet-5",
             fetch_interval_hours=float(source.get("FETCH_INTERVAL_HOURS") or 4),
             form_assist_enabled=source.get("FORM_ASSIST_ENABLED", "false").lower()
             in {"1", "true", "yes", "on"},
@@ -88,7 +79,7 @@ class Settings:
                 for item in source.get("LEAD_TELEGRAM_CHANNELS", "").split(",")
                 if item.strip()
             ),
-            llm_provider=llm_prov,
+            llm_provider="9router",
             ninerouter_base_url=source.get(
                 "NINEROUTER_BASE_URL", "http://localhost:20128/v1"
             ),
@@ -105,8 +96,6 @@ class Settings:
             llm_temperature_draft=float(
                 source.get("LLM_TEMPERATURE_DRAFT") or 0.4
             ),
-            opencode_command=source.get("OPENCODE_COMMAND") or "opencode",
-            opencode_model=source.get("OPENCODE_MODEL") or "9router/ComboOpenCode",
             form_engine=source.get("FORM_ENGINE", "playwright"),
             browser_mcp_command=source.get(
                 "BROWSER_MCP_COMMAND", "npx -y @browsermcp/mcp@0.1.3"

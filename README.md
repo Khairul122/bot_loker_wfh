@@ -1,4 +1,4 @@
-﻿# Bot Loker WFH
+# Bot Loker WFH
 
 Bot personal untuk membantu sourcing, filtering, review, dan tracking lowongan kerja remote internasional.
 
@@ -70,7 +70,7 @@ Scheduler logs contain source names and inserted counts only; job descriptions, 
 
 Structured events use JSON with an event name, generated `run_id`, source, status, duration, inserted count, and sanitized error code where applicable. The logger uses an allowlist and never serializes exception messages, request bodies, tokens, CVs, or cover letters.
 
-While the 3D office runs, every employee action is printed as one `employee_work` line: `employee` (reno, cora, tegar, …), `task` (`hunt`, `draft`, `proposal`, `screen`, `decision`, `lead`, `report`, `digest`, `fill`), plus counts, ids, `duration_ms`, and a sanitized `error_code` on failures. Sources without an owner show `"employee": "-"`. Polling the dashboard is never logged.
+While the 3D office runs, every employee action is printed as one `employee_work` line: `employee` (reno, cora, tegar, �), `task` (`hunt`, `draft`, `proposal`, `screen`, `decision`, `lead`, `report`, `digest`, `fill`), plus counts, ids, `duration_ms`, and a sanitized `error_code` on failures. Sources without an owner show `"employee": "-"`. Polling the dashboard is never logged.
 
 ### Kantor 3D
 
@@ -82,12 +82,12 @@ python -m bot_loker_wfh office --port 8765
 
 Each floor is one division of the pipeline; employees' moods and the "Kinerja" panel come from `/stats.json` (counts only). Press `V` for the owner's first-person view.
 
-- 🤖 **Auto**: every `FETCH_INTERVAL_HOURS` (minimum 4) each scout searches its source, jobs are scored, and Cora drafts letters for the 3 best new matches. Nothing is sent.
-- 📥 **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
-- 📂 **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
+- ?? **Auto**: every `FETCH_INTERVAL_HOURS` (minimum 4) each scout searches its source, jobs are scored, and Cora drafts letters for the 3 best new matches. Nothing is sent.
+- ?? **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
+- ?? **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
 - Every scout and Lido can also run one real search on demand from their card.
-- 💼 **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or your own Chrome through Playwright MCP (`--extension` mode: install the "Playwright MCP Bridge" extension in your logged-in Chrome profile). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
-- **Proposals from your data**: Cora writes each bid from `data/profile.json` plus your most relevant public GitHub repos (`GITHUB_USERNAME`, refreshed with `python -m bot_loker_wfh sync-github` or the 🔄 button). With 🤖 Auto on, she pre-drafts bids for the 3 best new projects each cycle. Set `LLM_PROVIDER=9router` to write them with your 9Router combo; otherwise a structured template is used.
+- ?? **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or your own Chrome through Playwright MCP (`--extension` mode: install the "Playwright MCP Bridge" extension in your logged-in Chrome profile). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
+- **Proposals from your data**: Cora writes each bid from `data/profile.json` plus your most relevant public GitHub repos (`GITHUB_USERNAME`, refreshed with `python -m bot_loker_wfh sync-github` or the ?? button). With ?? Auto on, she pre-drafts bids for the 3 best new projects each cycle. 9Router writes them when available; structured template fallback handles failures.
 
 ## Operational Documentation for MVP
 
@@ -199,7 +199,7 @@ Also available: `/lowongan` (candidates and pending drafts), `/fetch` (run a cyc
 
 ### Deployment (VPS + Docker)
 
-The bot is a single process that keeps a local SQLite file, so one small VPS (1 vCPU / 512 MB–1 GB RAM) is enough.
+The bot is a single process that keeps a local SQLite file, so one small VPS (1 vCPU / 512 MB�1 GB RAM) is enough.
 
 1. On the server, install Docker (with the Compose plugin) and clone the repository.
 2. Copy the files that are not in git from your machine (`.env`, `data/profile.json`, and optionally `data/app.db` to keep your history):
@@ -352,7 +352,7 @@ python -m pytest
 
 ### Freelance bid & comment drafts (opencode / 9Router)
 
-Set `LLM_PROVIDER=opencode` to write drafts through `opencode run` (model `OPENCODE_MODEL`, default `9router/ComboOpenCode`, configured in `~/.config/opencode/opencode.json`). If opencode fails and `NINEROUTER_MODEL` is set, 9Router is called directly. The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
+The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
 
 ```powershell
 python -m bot_loker_wfh draft-lead --lead-id <id>

@@ -6,7 +6,7 @@ import { FH, clamp, pick } from '../core/util.js';
 import { derive } from '../data/stats.js';
 import { say } from '../fx/bubbles.js';
 import { burst } from '../fx/particles.js';
-import { $ } from '../ui/dom.js';
+import { $, post } from '../ui/dom.js';
 import { Char } from './char.js';
 import { MOODS } from './body.js';
 import { staff } from './team.js';
@@ -31,7 +31,8 @@ export function savePosition() {
   clearTimeout(positionSaveT);
   positionSaveT = setTimeout(() => {
     try { localStorage.setItem(POSITION_KEY, JSON.stringify({ level: me.level, x: me.pos.x, z: me.pos.z })); } catch {}
-  }, 100);
+    post('office/character-state', { owner: { level: me.level, x: me.pos.x, z: me.pos.z } }).catch(() => {});
+  }, 150);
 }
 export const ring = add(new THREE.TorusGeometry(0.55, 0.05, 6, 24), 0xffb26b, 0, 0.05, 0, me.p.root, { cast: false }); ring.rotation.x = Math.PI / 2;
 

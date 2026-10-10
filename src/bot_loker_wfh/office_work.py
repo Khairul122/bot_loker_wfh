@@ -20,6 +20,7 @@ from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, 
 from .lead_desk import lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads
 from .logging_utils import StructuredLogger, sanitize_error
 from . import office_desk as desk
+from .office_events import bus as office_events
 from .status_transitions import (
     InvalidTransitionError,
     TransitionActor,
@@ -92,18 +93,23 @@ class OfficeWork:
 
     def log_work(self, employee: str | None, task: str, *, status: str = "success", **fields: Any) -> None:
         """One JSON line per employee action; counts and names only, never letters or CVs."""
-        self.logger.event(
-            "employee_work", task=task, status=status, employee=employee or "-",
+        payload = {
+            "type": "employee_work", "task": task, "status": status,
+            "employee": employee or "-",
             **{key: value for key, value in fields.items() if value is not None},
-        )
+        }
+        self.logger.event("employee_work", **{key: value for key, value in payload.items() if key != "type"})
+        office_events.publish(payload)
 
     def log_failure(self, employee: str | None, task: str, error: BaseException, **fields: Any) -> None:
         """A failed action still reaches the terminal, with a sanitized error code."""
-        self.logger.error(
-            "employee_work", task=task, status="error", employee=employee or "-",
-            error_code=sanitize_error(error),
+        payload = {
+            "type": "employee_work", "task": task, "status": "error",
+            "employee": employee or "-", "error_code": sanitize_error(error),
             **{key: value for key, value in fields.items() if value is not None},
-        )
+        }
+        self.logger.error("employee_work", **{key: value for key, value in payload.items() if key != "type"})
+        office_events.publish(payload)
 
     def _watch(self, process: Any, employee: str, task: str, **fields: Any) -> None:
         """Follow a spawned fill process so its exit lands in the terminal log too."""
