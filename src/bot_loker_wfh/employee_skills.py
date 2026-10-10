@@ -43,13 +43,18 @@ def load_employee_skills(employee_id: str) -> str:
         
         parts = []
         for p in sources:
-            content = p.read_text(encoding="utf-8-sig").strip()
-            if content:
-                parts.append(f"### Skill Source: {p.stem}\n{content}")
+            if p.stat().st_size > MAX_MARKDOWN_BYTES:
+                raise ValueError("employee skills file is invalid")
+            content = p.read_text(encoding="utf-8-sig")
+            if len(sources) == 1:
+                parts.append(content)
+            else:
+                parts.append(f"### Skill Source: {p.stem}\n{content.strip()}")
         
         full_content = "\n\n---\n\n".join(parts)
-        if len(full_content.encode("utf-8")) > MAX_MARKDOWN_BYTES:
-            full_content = full_content[:MAX_MARKDOWN_BYTES]
+        full_bytes = full_content.encode("utf-8")
+        if len(full_bytes) > MAX_MARKDOWN_BYTES:
+            full_content = full_bytes[:MAX_MARKDOWN_BYTES].decode("utf-8", errors="ignore")
         _CACHE[employee_id] = (*combined_sig, full_content)
         return full_content
 
