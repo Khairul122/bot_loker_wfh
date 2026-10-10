@@ -1,6 +1,6 @@
 // ---------- Settings Panel: Model, Provider, Skills, BrowserMCP, 9Router ----------
 import { store } from '../core/store.js';
-import { $, el, post, toast } from './dom.js';
+import { $, el, get, post, toast } from './dom.js';
 
 const SETTINGS_TABS = [
   { id: 'llm', label: '🤖 Model & Provider' },
@@ -65,6 +65,26 @@ function switchTab(tabId) {
   });
 }
 
+function createSection(children, id = '', visible = true) {
+  const section = el('div', 'settings-section');
+  if (id) section.id = id;
+  section.style.display = visible ? 'block' : 'none';
+  section.append(...children);
+  return section;
+}
+
+function createBox(id, className, text) {
+  const box = el('div', className, text);
+  box.id = id;
+  return box;
+}
+
+function createList(items) {
+  const list = el('ul', '');
+  list.append(...items.map(item => el('li', '', item)));
+  return list;
+}
+
 function renderPanelContent(tabId) {
   switch (tabId) {
     case 'llm': return renderLLMPanel();
@@ -92,54 +112,54 @@ function renderLLMPanel() {
     el('hr', '', ''),
     
     // Anthropic settings
-    el('div', 'settings-section', [
+    createSection([
       el('h4', '', '🧠 Anthropic (Claude)'),
       createInput('anthropic_api_key', 'API Key', 'password', s.anthropic_api_key || '', 'Masukkan API key Anthropic'),
       createInput('anthropic_model', 'Model', 'text', s.anthropic_model || 'claude-sonnet-5', 'Contoh: claude-sonnet-5, claude-opus-4'),
-    ].map(e => typeof e === 'string' ? el('div', '', e) : e).filter(Boolean)),
+    ]),
     
     el('hr', '', ''),
     
     // 9Router settings (shown when 9router selected)
-    el('div', 'settings-section', { id: 'section-9router', style: 'display:' + ((s.llm_provider === '9router') ? 'block' : 'none') }, [
+    createSection([
       el('h4', '', '🔀 9Router Configuration'),
       createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router'),
       createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', 'Key dari dashboard 9Router'),
       createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || '', 'Contoh: loker-draft, cc/claude-sonnet-4-5'),
       createTextarea('ninerouter_fallback_models', 'Model Cadangan (comma-separated)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5'),
-    ].map(e => typeof e === 'string' ? el('div', '', e) : e).filter(Boolean)),
+    ], 'section-9router', s.llm_provider === '9router'),
     
     el('hr', '', ''),
     
     // Per-task model routing
-    el('div', 'settings-section', { id: 'section-task-models', style: 'display:' + ((s.llm_provider === '9router') ? 'block' : 'none') }, [
+    createSection([
       el('h4', '', '🎯 Routing Model per Tugas'),
       createInput('llm_model_draft', 'Cover Letter Draft', 'text', s.llm_model_draft || '', 'Model untuk menulis cover letter'),
       createInput('llm_model_form', 'Form Mapping (JSON)', 'text', s.llm_model_form || '', 'Model stabil untuk output JSON'),
       createInput('llm_model_answer', 'Open Questions', 'text', s.llm_model_answer || '', 'Model untuk jawaban pertanyaan terbuka'),
-    ].map(e => typeof e === 'string' ? el('div', '', e) : e).filter(Boolean)),
+    ], 'section-task-models', s.llm_provider === '9router'),
     
     el('hr', '', ''),
     
     // Global LLM params
-    el('div', 'settings-section', [
+    createSection([
       el('h4', '', '⚙️ Parameter Global'),
       createNumberInput('llm_timeout_seconds', 'Timeout per Request (detik)', s.llm_timeout_seconds || 60, 5, 300),
       createNumberInput('llm_task_budget_seconds', 'Budget Total per Tugas (detik)', s.llm_task_budget_seconds || 90, 10, 600),
       createNumberInput('llm_temperature_draft', 'Temperature Draft', s.llm_temperature_draft || 0.4, 0, 2, 0.1),
-    ].map(e => typeof e === 'string' ? el('div', '', e) : e).filter(Boolean)),
+    ]),
     
     el('hr', '', ''),
     
     // Actions
     el('div', 'settings-actions', [
       createButton('🔍 Test Koneksi LLM', 'btn ok', async () => {
-        const res = await post('llm/test', {});
-        if (res.ok) toast('✅ ' + res.data.message);
+        const res = await get('llm/test');
+        if (res.ok && res.data.ok !== false) toast('✅ ' + res.data.message);
         else toast('❌ ' + (res.data.error || 'Gagal'));
       }),
       createButton('📋 Lihat Model 9Router', 'btn', async () => {
-        const res = await post('llm/list-models', {});
+        const res = await get('llm/list-models');
         if (res.ok) showModelsModal(res.data);
         else toast('❌ Gagal memuat model');
       }),
@@ -174,13 +194,13 @@ function renderNineRouterPanel() {
     
     el('div', 'settings-actions', [
       createButton('🔄 Refresh Model List', 'btn ok', async () => {
-        const res = await post('llm/list-models', {});
+        const res = await get('llm/list-models');
         if (res.ok) showModelsModal(res.data);
         else toast('❌ Gagal memuat model');
       }),
       createButton('🧪 Test 9Router Health', 'btn', async () => {
-        const res = await post('llm/test', { provider: '9router' });
-        if (res.ok) toast('✅ 9Router sehat: ' + res.data.model);
+        const res = await get('llm/test');
+        if (res.ok && res.data.ok !== false) toast('✅ 9Router sehat: ' + res.data.model);
         else toast('❌ ' + (res.data.error || 'Gagal'));
       }),
     ])
@@ -222,12 +242,12 @@ function renderBrowserPanel() {
     
     el('div', 'settings-actions', [
       createButton('🔍 Test BrowserMCP', 'btn ok', async () => {
-        const res = await post('browser/test', {});
-        if (res.ok) toast('✅ BrowserMCP terhubung');
+        const res = await get('browser/test');
+        if (res.ok && res.data.ok !== false) toast('✅ BrowserMCP terhubung');
         else toast('❌ ' + (res.data.error || 'Gagal - pastikan ekstensi Connect'));
       }),
       createButton('📋 List ATS Registry', 'btn', async () => {
-        const res = await post('ats/list', {});
+        const res = await get('ats/list');
         if (res.ok) showATSModal(res.data);
         else toast('❌ Gagal memuat ATS');
       }),
@@ -248,7 +268,7 @@ function renderSkillsPanel() {
     el('hr', '', ''),
     
     el('h4', '', '📋 Skill Tersedia (dari OpenCode)'),
-    el('div', { id: 'skills-list', class: 'skills-grid' }, '⏳ Memuat...'),
+    createBox('skills-list', 'skills-grid', '⏳ Memuat...'),
     
     el('hr', '', ''),
     
@@ -315,21 +335,26 @@ function renderSkillsGrid(container, skills) {
   container.replaceChildren(...skills.map(skill => {
     const card = el('div', 'skill-card');
     const enabled = skill.enabled !== false;
-    card.innerHTML = `
-      <div class="skill-header">
-        <span class="skill-name">${skill.name}</span>
-        <label class="toggle">
-          <input type="checkbox" ${enabled ? 'checked' : ''} data-skill="${skill.id}">
-          <span class="slider"></span>
-        </label>
-      </div>
-      <div class="skill-desc">${skill.description || 'Tidak ada deskripsi'}</div>
-      <div class="skill-tags">${(skill.tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>
-    `;
-    card.querySelector('input').onchange = async (e) => {
+
+    const header = el('div', 'skill-header');
+    header.append(el('span', 'skill-name', skill.name ?? ''));
+
+    const label = el('label', 'toggle');
+    const checkbox = el('input', '');
+    checkbox.type = 'checkbox';
+    checkbox.checked = enabled;
+    checkbox.dataset.skill = skill.id ?? '';
+    checkbox.onchange = async (e) => {
       await post('skills/toggle', { id: skill.id, enabled: e.target.checked });
       toast(e.target.checked ? `✅ ${skill.name} diaktifkan` : `⏸️ ${skill.name} dinonaktifkan`);
     };
+    label.append(checkbox, el('span', 'slider'));
+    header.append(label);
+
+    const tags = el('div', 'skill-tags');
+    tags.append(...(skill.tags || []).map(t => el('span', 'tag', t)));
+
+    card.append(header, el('div', 'skill-desc', skill.description || 'Tidak ada deskripsi'), tags);
     return card;
   }));
 }
@@ -359,14 +384,14 @@ function renderFormPanel() {
     
     el('h4', '', '🛡️ Policy Guard'),
     el('p', '', 'Aturan keamanan yang tidak bisa dilanggar AI:'),
-    el('ul', '', [
+    createList([
       '❌ Tidak pernah klik Submit/Apply/Kirim',
       '❌ Tidak isi field sensitif (gender, ras, veteran, disabilitas)',
       '❌ Tidak isi field legal (persetujuan, privacy, terms)',
       '❌ Tidak kirim data pribadi (email, phone, nama) ke AI',
       '❌ Placeholder wajib untuk field identitas',
       '❌ Opsi dropdown harus cocok persis',
-    ].map(item => `<li>${item}</li>`).join('')),
+    ]),
     
     el('hr', '', ''),
     
@@ -378,12 +403,13 @@ function renderFormPanel() {
     
     el('div', 'settings-actions', [
       createButton('🧪 Test Form Engine', 'btn ok', async () => {
-        const res = await post('form/test', { engine: s.form_engine });
-        if (res.ok) toast('✅ Engine siap: ' + res.data.engine);
+        const engine = $('#form_engine')?.value || s.form_engine || 'playwright';
+        const res = await get('form/test?engine=' + encodeURIComponent(engine));
+        if (res.ok && res.data.ok !== false) toast('✅ Engine siap: ' + res.data.engine);
         else toast('❌ ' + (res.data.error || 'Gagal'));
       }),
       createButton('📋 List ATS Registry', 'btn', async () => {
-        const res = await post('ats/list', {});
+        const res = await get('ats/list');
         if (res.ok) showATSModal(res.data);
         else toast('❌ Gagal memuat ATS');
       }),
@@ -396,9 +422,12 @@ function renderFormPanel() {
 // Helper functions for UI components
 function createSelect(id, label, options, value, onChange) {
   const wrapper = el('div', 'setting-row');
-  const select = el('select', '', options.map(o => 
-    `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`
-  ).join(''));
+  const select = el('select', '');
+  select.append(...options.map(o => {
+    const option = el('option', '', o.label);
+    option.value = o.value;
+    return option;
+  }));
   select.id = id;
   select.value = value;
   if (onChange) select.onchange = onChange;
@@ -496,72 +525,88 @@ function onProviderChange(e) {
   saveSetting('llm_provider', provider);
 }
 
-function showModelsModal(data) {
-  // Create modal for model list
+function openModal(title, buildBody) {
+  const trigger = document.activeElement;
   const modal = el('div', 'modal-overlay');
   const content = el('div', 'modal-content');
-  
-  content.innerHTML = `
-    <div class="modal-header">
-      <h3>📋 Model 9Router Tersedia</h3>
-      <button class="modal-close">✕</button>
-    </div>
-    <div class="modal-body">
-      ${data.combo?.length ? `
-        <h4>🔀 Combo Models</h4>
-        <ul>${data.combo.map(m => `<li>${m}</li>`).join('')}</ul>
-      ` : ''}
-      ${data.vision?.length ? `
-        <h4>👁️ Vision Models</h4>
-        <ul>${data.vision.map(m => `<li>${m}</li>`).join('')}</ul>
-      ` : ''}
-      ${data.all?.length ? `
-        <h4>📦 Semua Model</h4>
-        <ul>${data.all.map(m => `<li>${m.id} (${m.owned_by || 'unknown'})</li>`).join('')}</ul>
-      ` : ''}
-      ${data.error ? `<p class="error">Error: ${data.error}</p>` : ''}
-    </div>
-  `;
-  
+  content.setAttribute('role', 'dialog');
+  content.setAttribute('aria-modal', 'true');
+  content.setAttribute('aria-label', title);
+
+  const header = el('div', 'modal-header');
+  header.append(el('h3', '', title));
+  const close = el('button', 'modal-close', '✕');
+  close.setAttribute('aria-label', 'Tutup');
+  close.type = 'button';
+  header.append(close);
+
+  const body = el('div', 'modal-body');
+  buildBody(body);
+
+  content.append(header, body);
   modal.append(content);
   document.body.append(modal);
-  
-  content.querySelector('.modal-close').onclick = () => modal.remove();
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  const dismiss = () => {
+    modal.remove();
+    document.removeEventListener('keydown', onKey);
+    if (trigger && typeof trigger.focus === 'function') trigger.focus();
+  };
+  const onKey = e => { if (e.key === 'Escape') dismiss(); };
+  document.addEventListener('keydown', onKey);
+  close.onclick = dismiss;
+  modal.onclick = e => { if (e.target === modal) dismiss(); };
+  close.focus();
+}
+
+function appendList(parent, heading, items, format) {
+  if (!items?.length) return;
+  parent.append(el('h4', '', heading));
+  const list = el('ul', '');
+  list.append(...items.map(item => el('li', '', format(item))));
+  parent.append(list);
+}
+
+function showModelsModal(data) {
+  openModal('📋 Model 9Router Tersedia', body => {
+    appendList(body, '🔀 Combo Models', data.combo, m => String(m));
+    appendList(body, '👁️ Vision Models', data.vision, m => String(m));
+    appendList(body, '📦 Semua Model', data.all, m => `${m.id} (${m.owned_by || 'unknown'})`);
+    if (data.error) body.append(el('p', 'error', 'Error: ' + data.error));
+  });
 }
 
 function showATSModal(data) {
-  const modal = el('div', 'modal-overlay');
-  const content = el('div', 'modal-content');
-  
-  content.innerHTML = `
-    <div class="modal-header">
-      <h3>📋 ATS Registry</h3>
-      <button class="modal-close">✕</button>
-    </div>
-    <div class="modal-body">
-      <table class="ats-table">
-        <thead><tr><th>ATS</th><th>Host</th><th>Mode</th><th>Open Button</th><th>Status</th></tr></thead>
-        <tbody>
-          ${data.ats?.map(a => `
-            <tr>
-              <td>${a.ats_name}</td>
-              <td>${a.host}</td>
-              <td><span class="tag ${a.mode === 'auto_fill' ? 'good' : 'mid'}">${a.mode}</span></td>
-              <td>${a.open_button_label || '-'}</td>
-              <td>${a.active ? '🟢 Active' : '🔴 Inactive'}</td>
-            </tr>
-          `).join('') || '<tr><td colspan="5">Tidak ada ATS terdaftar</td></tr>'}
-        </tbody>
-      </table>
-    </div>
-  `;
-  
-  modal.append(content);
-  document.body.append(modal);
-  
-  content.querySelector('.modal-close').onclick = () => modal.remove();
-  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  openModal('📋 ATS Registry', body => {
+    const table = el('table', 'ats-table');
+    const head = el('tr', '');
+    ['ATS', 'Host', 'Mode', 'Open Button', 'Status'].forEach(h => head.append(el('th', '', h)));
+    const thead = el('thead', '');
+    thead.append(head);
+    const tbody = el('tbody', '');
+    const rows = data.ats || [];
+    if (!rows.length) {
+      const cell = el('td', '', 'Tidak ada ATS terdaftar');
+      cell.colSpan = 5;
+      const tr = el('tr', '');
+      tr.append(cell);
+      tbody.append(tr);
+    } else {
+      rows.forEach(a => {
+        const tr = el('tr', '');
+        tr.append(el('td', '', a.ats_name ?? ''));
+        tr.append(el('td', '', a.host ?? ''));
+        const mode = el('td', '');
+        mode.append(el('span', 'tag ' + (a.mode === 'auto_fill' ? 'good' : 'mid'), a.mode ?? ''));
+        tr.append(mode);
+        tr.append(el('td', '', a.open_button_label || '-'));
+        tr.append(el('td', '', a.active ? '🟢 Active' : '🔴 Inactive'));
+        tbody.append(tr);
+      });
+    }
+    table.append(thead, tbody);
+    body.append(table);
+  });
 }
 
 function toggleSettings(show) {

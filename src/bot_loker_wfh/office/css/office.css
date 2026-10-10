@@ -192,6 +192,7 @@ body.night .bub{color:#4a3426}
   #custom{left:8px;right:8px;width:auto}
   #lift{right:8px;padding:8px}
   #hint{display:none}
+  #settings{left:8px;right:8px;top:64px;width:auto;max-height:calc(100vh - 150px)}
 }
 
 /* ========== Settings Panel ========== */
@@ -199,7 +200,7 @@ body.night .bub{color:#4a3426}
   position:fixed;
   right:14px;
   top:74px;
-  width:420px;
+  width:min(420px, calc(100vw - 28px));
   max-height:calc(100vh - 100px);
   overflow:auto;
   padding:16px;
@@ -225,6 +226,8 @@ body.night .bub{color:#4a3426}
   display:none;
 }
 .settings-panel.show{display:block}
+.modal-overlay{position:fixed;inset:0;background:rgba(35,27,16,.38);display:grid;place-items:center;z-index:160}
+.modal-content{width:min(640px, calc(100vw - 24px));max-height:min(72vh, 640px);overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:14px}
 
 .settings-section{
   margin-bottom:16px;

@@ -4,6 +4,13 @@ export const el = (tag, cls, text) => { const e = document.createElement(tag); i
 let toastT;
 export function toast(t) { const box = $('toast'); box.textContent = t; box.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => box.classList.remove('show'), 3200); }
 
+export async function get(path) {
+  try {
+    const r = await fetch(path, { cache: 'no-store' });
+    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+  } catch { return { ok: false, status: 0, data: {} }; }
+}
+
 export async function post(path, body) {
   try {
     const r = await fetch(path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });

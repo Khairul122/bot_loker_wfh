@@ -22,6 +22,54 @@ from .status_transitions import InvalidTransitionError
 OFFICE_DIR = Path(__file__).with_name("office")
 HUNT_RESULT_LIMIT = 5
 
+# Settings the office panel may persist. Anything else is rejected.
+SECRET_KEYS = frozenset({"anthropic_api_key", "ninerouter_api_key"})
+ALLOWED_SETTINGS = frozenset({
+    "llm_provider", "anthropic_api_key", "anthropic_model",
+    "ninerouter_base_url", "ninerouter_api_key", "ninerouter_model",
+    "ninerouter_fallback_models", "llm_model_draft", "llm_model_form",
+    "llm_model_answer", "llm_timeout_seconds", "llm_task_budget_seconds",
+    "llm_temperature_draft", "opencode_command", "opencode_model",
+    "form_engine", "browser_mcp_command", "playwright_mcp_command",
+    "form_min_confidence", "form_max_actions", "form_max_tool_calls",
+    "form_timeout_seconds", "form_connect_timeout_seconds", "form_ai_answers",
+    "applicant_path", "answers_path", "scrape_interval_hours",
+})
+_NUMERIC_SETTINGS = {
+    "llm_timeout_seconds": (1, 3600), "llm_task_budget_seconds": (1, 7200),
+    "llm_temperature_draft": (0, 2), "form_min_confidence": (0, 1),
+    "form_max_actions": (1, 1000), "form_max_tool_calls": (1, 1000),
+    "form_timeout_seconds": (1, 7200), "form_connect_timeout_seconds": (1, 600),
+    "scrape_interval_hours": (0.08, 720),
+}
+_ENUM_SETTINGS = {
+    "llm_provider": {"template", "anthropic", "9router", "opencode"},
+    "form_engine": {"playwright", "browsermcp"},
+    "form_ai_answers": {"review", "off"},
+}
+
+
+def _mask(secret: str | None) -> dict:
+    """Never hand the raw secret to the browser; show only a set flag and last 4."""
+    if not secret:
+        return {"value": "", "set": False}
+    tail = secret[-4:] if len(secret) > 4 else ""
+    return {"value": "", "set": True, "hint": f"••••{tail}" if tail else "••••"}
+
+
+def _validate_setting(key: str, value: str) -> str | None:
+    """Return an error message for a bad value, or None when acceptable."""
+    if key in _ENUM_SETTINGS:
+        return None if value in _ENUM_SETTINGS[key] else f"{key} tidak valid"
+    if key in _NUMERIC_SETTINGS:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return f"{key} harus berupa angka"
+        low, high = _NUMERIC_SETTINGS[key]
+        return None if low <= number <= high else f"{key} di luar rentang {low}-{high}"
+    return None
+
 
 def _grouped(connection: sqlite3.Connection, sql: str) -> dict:
     try:
@@ -109,7 +157,10 @@ def _all_settings_payload() -> dict:
         "answers_path": settings.answers_path,
     }
     
-    return {k: {"value": v} for k, v in all_settings.items()}
+    return {
+        k: (_mask(v) if k in SECRET_KEYS else {"value": v})
+        for k, v in all_settings.items()
+    }
 
 
 def hunt_leads(connection: sqlite3.Connection, lead_service, source: str) -> dict:
@@ -284,8 +335,7 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/skills.json":
             return self._json(200, self._get_skills())
         if path == "/form/test":
-            body = self._body()
-            engine = body.get("engine", "playwright")
+            engine = parse_qs(urlsplit(self.path).query).get("engine", ["playwright"])[0]
             return self._json(200, self._test_form_engine(engine))
         return super().do_GET()
 
@@ -319,25 +369,29 @@ class _Handler(SimpleHTTPRequestHandler):
             self.work.set_auto(bool(body.get("on")))
             return self._json(200, self.work.status())
         if parts == ["settings"]:
-            length = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(length) or b"{}")
+            body = self._body()
             key = str(body.get("key") or "")
             value = str(body.get("value") or "")
-            
-            # Save to database (for scrape_interval and other DB settings)
-            try:
+
+            if key not in ALLOWED_SETTINGS:
+                return self._json(400, {"error": "unknown_setting"})
+            if key in SECRET_KEYS and value == "":
+                # Blank secret means "keep the stored one", never wipe it.
+                return self._json(200, _all_settings_payload())
+            error = _validate_setting(key, value)
+            if error:
+                return self._json(400, {"error": error})
+
+            if key in DEFAULTS:
                 with self._connect() as connection:
                     set_setting(connection, key, value)
-            except ValueError:
-                pass  # Not a DB setting, continue
-            
-            # Save to .env file for persistence across restarts
+
+            # Persist to .env so it survives a restart (best effort).
             try:
-                from bot_loker_wfh.config import save_dotenv
                 save_dotenv({key: value})
             except Exception:
-                pass  # Best effort
-            
+                pass
+
             return self._json(200, _all_settings_payload())
         if parts == ["skills", "reload"]:
             return self._json(200, self._reload_skills())
