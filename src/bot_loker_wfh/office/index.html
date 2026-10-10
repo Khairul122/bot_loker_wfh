@@ -1411,10 +1411,27 @@ if (wantSound) {
 
 // ---------- the player ----------
 const LOOK_KEY = 'kantor-loker-look';
+const POSITION_KEY = 'kantor-loker-position';
 let myLook = { name: 'Owner', skin: '#f1c9a5', hair: '#3b2a20', shirt: '#ffb26b', pants: '#4a5a7a' };
 try { myLook = { ...myLook, ...JSON.parse(localStorage.getItem(LOOK_KEY) || '{}') }; } catch {}
-const me = new Char(myLook.name, { skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants }, 0, 2, 9);
+let savedPosition = null;
+try { savedPosition = JSON.parse(localStorage.getItem(POSITION_KEY) || 'null'); } catch {}
+const me = new Char(
+  myLook.name,
+  { skin: myLook.skin, hair: myLook.hair, shirt: myLook.shirt, pants: myLook.pants },
+  Number.isInteger(savedPosition?.level) ? savedPosition.level : 0,
+  Number.isFinite(savedPosition?.x) ? savedPosition.x : 2,
+  Number.isFinite(savedPosition?.z) ? savedPosition.z : 9,
+);
+if (savedPosition?.level > 0) me.y = me.level * FH;
 me.speed = 3.6; me.energy = 80; me.joy = 60; me.isMe = true; me.idle = 0; me.hoopScore = 0;
+let positionSaveT;
+function savePosition() {
+  clearTimeout(positionSaveT);
+  positionSaveT = setTimeout(() => {
+    try { localStorage.setItem(POSITION_KEY, JSON.stringify({ level: me.level, x: me.pos.x, z: me.pos.z })); } catch {}
+  }, 100);
+}
 const ring = add(new THREE.TorusGeometry(0.55, 0.05, 6, 24), 0xffb26b, 0, 0.05, 0, me.p.root, { cast: false }); ring.rotation.x = Math.PI / 2;
 
 // ---------- housing estate: one house per character, behind the office ----------
@@ -1527,7 +1544,7 @@ function keyMove(dt) {
   const mv = fwd.multiplyScalar(-z).add(right.multiplyScalar(x)).normalize();
   const step = me.speed * dt * (me.energy < 15 ? 0.7 : 1);
   const nx = me.pos.x + mv.x * step, nz = me.pos.z + mv.z * step;
-  if (!blocked(me.level, me.pos, nx, nz)) { me.pos.x = nx; me.pos.z = nz; }
+  if (!blocked(me.level, me.pos, nx, nz)) { me.pos.x = nx; me.pos.z = nz; savePosition(); }
   me.targetRy = Math.atan2(mv.x, mv.z); me.kbWalk = true;
 }
 const WALLS = [
@@ -2875,6 +2892,7 @@ function frame() {
   for (const f of [...animated]) f(t, dt);
   for (const c of staff) updateStaff(c, dt, t);
   updateMe(dt, t);
+  if (me.path.length === 0 && !me.ride) savePosition();
   for (const c of chars) c.update(dt, t);
   updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
   updateLightPool(dt, fp ? camera.position : controls.target);
