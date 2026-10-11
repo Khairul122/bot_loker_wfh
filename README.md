@@ -4,9 +4,9 @@
 
 A personal job-hunting bot that runs as a cozy 3D office. Virtual employees find remote jobs and freelance projects, score them against your CV, write cover letters and bids, and report to you on Telegram. Nothing important goes out without your approval.
 
-[![Owner POV tour of the 3D office](docs/media/cover.png)](docs/media/office-pov.mp4)
+![Owner POV tour of the 3D office](docs/media/office-pov.gif)
 
-▶️ [Watch the 15-second POV tour](docs/media/office-pov.mp4)
+▶️ Full-quality video (1080p, 20 s, with music): [download `office-pov.mp4`](https://github.com/Khairul122/bot_loker_wfh/raw/main/docs/media/office-pov.mp4)
 
 **[English](#english)** · **[Bahasa Indonesia](#bahasa-indonesia)**
 
