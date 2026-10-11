@@ -9,6 +9,7 @@ import { staffMood } from '../characters/team.js';
 import { say } from '../fx/bubbles.js';
 import { night } from '../systems/night.js';
 import { goEat } from './dining.js';
+import { triggerLLMInstinct } from './llm_instinct.js';
 
 // house furniture belongs to its occupant; the owner's room is not a lounge for staff
 export function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && s.level !== OWNER && filter(s)); return list.length ? pick(list) : null; }
@@ -43,6 +44,10 @@ export function updateStaff(c, dt, now) {
     if (Math.random() < p) {
       const tired = c.mood === 'lelah' || c.mood === 'ngantuk';
       if (tired && c.ateDay !== today() && Math.random() < 0.4) { c.ateDay = today(); if (goEat(c)) return; }
+      if (Math.random() < 0.65) {
+        triggerLLMInstinct(c);
+        return;
+      }
       const spot = freeSpot(s => s !== me.spot && (tired ? (s.energy || 0) >= 6 : (s.joy || 0) >= 3 || s.kind === 'kafe'));
       if (spot) { c.state = 'break'; c.timer = rand(18, 32); sendTo(c, spot); say(c, tired ? pick(['Istirahat bentar ya 😮‍💨', 'Butuh kopi…', 'Rebahan dulu ah']) : pick(['Main dulu yuk! 🎮', 'Cari angin sebentar 🌳', 'Refreshing ~'])); return; }
     }

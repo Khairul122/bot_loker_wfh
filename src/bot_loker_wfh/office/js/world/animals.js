@@ -1,13 +1,16 @@
-// ---------- Procedural Low-Poly Three.js Animals (Populated Wildlife, Custom Ducks in Pond & Interactive Logic) ----------
+// ---------- Procedural Low-Poly Three.js Animals (Wildlife, Pond Water Wading Physics & Duck Fleeing Bugfix) ----------
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { box, cyl, sph, group } from '../core/factory.js';
 import { rand } from '../core/util.js';
 import { me } from '../characters/player.js';
 import { say } from '../fx/bubbles.js';
+import { burst } from '../fx/particles.js';
 import { Snd } from '../core/sound.js';
 
 const animalInstances = [];
+let wasInWater = false;
+let waterRippleTimer = 0;
 
 // Territory bounds
 const TERRITORIES = {
@@ -156,52 +159,44 @@ function createDuck(x, z, variant = 'mallard') {
 
   if (variant === 'mallard') {
     bodyColor = 0x78350f;
-    headColor = 0x065f46; // Emerald green head
+    headColor = 0x065f46;
     beakColor = 0xf59e0b;
   } else if (variant === 'duckling') {
-    bodyColor = headColor = 0xfde047; // Fluffy yellow
+    bodyColor = headColor = 0xfde047;
     beakColor = 0xf97316;
   }
 
-  // Teardrop Body & Wings
   const body = sph(0.24, bodyColor, 0, 0.14, 0, g); body.scale.set(0.85, 0.75, 1.25);
-  box(0.26, 0.12, 0.28, 0xffffff, 0, 0.1, 0.02, g); // White chest
+  box(0.26, 0.12, 0.28, 0xffffff, 0, 0.1, 0.02, g);
   if (variant === 'mallard') {
-    box(0.04, 0.1, 0.22, 0x0284c7, -0.21, 0.16, 0, g); // Blue speculum wing accent
+    box(0.04, 0.1, 0.22, 0x0284c7, -0.21, 0.16, 0, g);
     box(0.04, 0.1, 0.22, 0x0284c7, 0.21, 0.16, 0, g);
   }
 
-  // Head & Beak
   const headGroup = group(0, 0.26, 0.16, g);
   const head = sph(0.13, headColor, 0, 0, 0, headGroup);
-  if (variant === 'mallard') box(0.24, 0.03, 0.24, 0xffffff, 0, -0.09, 0, headGroup); // White neck ring
+  if (variant === 'mallard') box(0.24, 0.03, 0.24, 0xffffff, 0, -0.09, 0, headGroup);
   const beak = box(0.12, 0.05, 0.16, beakColor, 0, -0.02, 0.15, headGroup); beak.rotation.x = 0.15;
-  sph(0.025, 0x000000, -0.07, 0.03, 0.08, headGroup); // Eyes
+  sph(0.025, 0x000000, -0.07, 0.03, 0.08, headGroup);
   sph(0.025, 0x000000, 0.07, 0.03, 0.08, headGroup);
 
-  // Tail
   const tail = box(0.08, 0.08, 0.14, bodyColor, 0, 0.22, -0.28, g); tail.rotation.x = 0.4;
 
   return { root: g, head: headGroup, tail, swimSpeed: 1.2 };
 }
 
-// ---------- Initialize All Wildlife (14 Animals Total) ----------
+// ---------- Initialize Wildlife ----------
 export async function initAnimals() {
   const population = [
-    // Rusa (2 ekor)
     { id: 'deer', inst: createDeer(14, -24, 'male'), area: 'taman', pos: [14, 0, -24], sound: 'Snort~ 🌿' },
     { id: 'deer', inst: createDeer(-18, -26, 'female'), area: 'taman', pos: [-18, 0, -26], sound: 'Squeak~ 🌿' },
-    // Kelinci (3 ekor)
     { id: 'rabbit', inst: createRabbit(-12, -22, 'white'), area: 'taman', pos: [-12, 0, -22], sound: 'Wiggle~ 🥕' },
     { id: 'rabbit', inst: createRabbit(8, -25, 'brown'), area: 'taman', pos: [8, 0, -25], sound: 'Hop hop! 🥕' },
     { id: 'rabbit', inst: createRabbit(-22, -20, 'gray'), area: 'taman', pos: [-22, 0, -20], sound: 'Sniff~ 🥕' },
-    // Burung (2 ekor)
     { id: 'bird', inst: createBird(0, 16, -18, 'cyan'), area: 'sky', pos: [0, 16, -18], sound: 'Chirp! 🎵' },
     { id: 'bird', inst: createBird(-10, 15, -10, 'scarlet'), area: 'sky', pos: [-10, 15, -10], sound: 'Tweet! 🎶' },
-    // Kucing (2 ekor)
     { id: 'cat', inst: createCat(-6, -14, 'orange'), area: 'rumah', pos: [-6, 0, -14], sound: 'Meow~ 🐱' },
     { id: 'cat', inst: createCat(10, -12, 'tuxedo'), area: 'rumah', pos: [10, 0, -12], sound: 'Purr~ 🐾' },
-    // Anjing (2 ekor)
     { id: 'dog', inst: createDog(6, -14, 'beagle'), area: 'rumah', pos: [6, 0, -14], sound: 'Guk guk! 🐕' },
     { id: 'dog', inst: createDog(-14, -12, 'golden'), area: 'rumah', pos: [-14, 0, -12], sound: 'Woof woof! 🐾' },
     // Bebek Kolam (3 ekor: Mallard, Pekin White, & Duckling)
@@ -233,19 +228,56 @@ export async function initAnimals() {
   });
 }
 
-// ---------- Update Frame Loop & Owner Proximity Interaction ----------
+// ---------- Update Frame Loop ----------
 export function updateAnimals(dt, t) {
+  const humanInPond = updateWaterWading(dt);
+
   animalInstances.forEach(item => {
     checkOwnerInteraction(item, dt);
 
     if (item.id === 'bird') {
       updateBird(item, dt, t);
     } else if (item.id === 'duck') {
-      updateDuck(item, dt, t);
+      updateDuck(item, dt, t, humanInPond);
     } else {
       updateGround(item, dt, t);
     }
   });
+}
+
+// ---------- Pond Water Wading Mechanics for Player ----------
+function updateWaterWading(dt) {
+  const distToPond = Math.hypot(me.pos.x - (-30), me.pos.z - (-6));
+  const inPond = distToPond < 5.8;
+
+  if (inPond) {
+    if (!wasInWater) {
+      wasInWater = true;
+      me.speed = 2.0; // Slow movement inside water
+      burst(new THREE.Vector3(me.pos.x, 0.1, me.pos.z), ['💦', '💧', '🌊', '✨'], 10);
+      say(me, 'Byur! Airnya segar 💦', 2.5);
+      try { Snd.play('pop'); } catch {}
+    }
+
+    // Legs sink into pond water
+    me.p.root.position.y = -0.22;
+
+    if (me.walking) {
+      waterRippleTimer += dt;
+      if (waterRippleTimer > 0.22) {
+        waterRippleTimer = 0;
+        burst(new THREE.Vector3(me.pos.x, 0.05, me.pos.z), ['💦', '💧'], 3);
+      }
+    }
+  } else if (wasInWater) {
+    wasInWater = false;
+    me.speed = 3.6; // Restore normal speed
+    me.p.root.position.y = 0; // Restore ground height
+    burst(new THREE.Vector3(me.pos.x, 0.1, me.pos.z), ['💧', '✨'], 4);
+    say(me, 'Naik ke darat 🌿', 2.0);
+  }
+
+  return inPond;
 }
 
 function checkOwnerInteraction(item, dt) {
@@ -269,12 +301,41 @@ function checkOwnerInteraction(item, dt) {
   }
 }
 
-// ---------- Duck Swimming Dynamics ----------
-function updateDuck(item, dt, t) {
+// ---------- Duck Swimming & Startled Panic Dynamics (With Fan Spread Bugfix) ----------
+function updateDuck(item, dt, t, humanInPond) {
   const { data } = item;
   const root = data.root;
 
-  // Swimming circular / figure-8 path around pond (-30, -6)
+  if (humanInPond) {
+    // Calculate vector away from human player
+    const dx = -30 - me.pos.x;
+    const dz = -6 - me.pos.z;
+    const baseAngle = Math.atan2(dx, dz);
+
+    // Spread each duck out in a wide fan arc along pond shore using item.offset
+    const spreadAngle = baseAngle + (item.offset - 2.2) * 0.45;
+    const radius = 4.2 + (item.offset % 0.6);
+
+    const duckX = -30 + Math.sin(spreadAngle) * radius;
+    const duckZ = -6 + Math.cos(spreadAngle) * radius;
+
+    item.x = duckX;
+    item.z = duckZ;
+
+    root.position.set(duckX, 0.1 + Math.abs(Math.sin(t * 10 + item.offset)) * 0.04, duckZ);
+    root.rotation.y = spreadAngle;
+    root.rotation.x = -0.15; // Startled tilt
+
+    if (data.head) data.head.rotation.y = Math.sin(t * 12 + item.offset) * 0.3;
+    if (item.interactCooldown <= 0) {
+      item.interactCooldown = 5.0;
+      say(item.wrapper, 'Byur! Ada yang nyemplung! 🦆💦', 2.5);
+      try { Snd.play('pop'); } catch {}
+    }
+    return;
+  }
+
+  // Normal peaceful swimming loop
   const angle = t * 0.35 + item.offset;
   const radiusX = 3.2;
   const radiusZ = 2.6;
@@ -290,11 +351,10 @@ function updateDuck(item, dt, t) {
   item.x = x;
   item.z = z;
 
-  // Water floating bobbing & heading orientation
   root.position.set(x, 0.08 + Math.sin(t * 3 + item.offset) * 0.025, z);
   root.rotation.y = Math.atan2(dx, dz);
+  root.rotation.x = 0;
 
-  // Wiggling tail & dipping head periodically
   if (data.tail) data.tail.rotation.y = Math.sin(t * 8) * 0.25;
   if (data.head) data.head.rotation.x = Math.sin(t * 1.8 + item.offset) * 0.18;
 }

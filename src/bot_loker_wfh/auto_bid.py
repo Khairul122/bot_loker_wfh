@@ -19,7 +19,7 @@ from typing import Any
 from .database import Connection
 from .form_agent.bid_terms import parse_budget
 from .freelancer_api import FreelancerError
-from .lead_desk import WHEN, approve_lead
+from .lead_desk import WHEN, approve_lead, get_bid_terms
 from .settings_store import get_setting, set_setting
 
 # only account-wide trouble switches auto-bid off; a refusal about one project (needs verification,
@@ -40,6 +40,29 @@ def config(connection: Connection) -> dict[str, float]:
         "max_competitors": int(float(get_setting(connection, "auto_bid_max_competitors"))),
         "max_age_hours": float(get_setting(connection, "auto_bid_max_age_hours")),
     }
+
+
+def bid_detail(connection: Connection, lead_id: str) -> str:
+    """Project facts for a Telegram bid report. Never includes the proposal text or the token."""
+    row = connection.execute("SELECT title, budget, url, score FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if row is None:
+        return ""
+    title, budget, url, score = row
+    terms = get_bid_terms(connection, lead_id)
+    lines = [f"Proyek: {title}", f"Budget: {budget or '-'}"]
+    if terms and (terms.amount or terms.hourly_rate):
+        lines.append(f"Bid: {terms.amount or terms.hourly_rate} dalam {terms.duration_days or '-'} hari")
+    lines.append(f"Skor: {score}")
+    lines.append(f"Link: {url}")
+    return "\n".join(lines)
+
+
+def bid_success_text(connection: Connection, lead_id: str, *, auto: bool) -> str:
+    return f"✅ Bid {'otomatis ' if auto else ''}BERHASIL terkirim\n{bid_detail(connection, lead_id)}"
+
+
+def bid_failure_text(connection: Connection, lead_id: str, reason: str, tail: str = "") -> str:
+    return f"❌ Bid GAGAL\n{bid_detail(connection, lead_id)}\nAlasan: {reason}" + (f"\n{tail}" if tail else "")
 
 
 def sent_last_24h(connection: Connection) -> int:
@@ -110,7 +133,7 @@ def run_auto_bids(
                 set_setting(connection, "auto_bid_enabled", "0")
             if notify:
                 tail = "Auto-bid dimatikan; periksa lalu aktifkan lagi." if fatal else "Proyek ini dilewati; auto-bid tetap jalan."
-                notify(f"⚠️ Auto-bid gagal untuk \"{title}\": {reason}\n{tail}")
+                notify(bid_failure_text(connection, lead_id, reason, tail))
             if fatal:
                 break
             failures += 1
@@ -126,5 +149,5 @@ def run_auto_bids(
         connection.commit()
         summary["sent"] += 1
         if notify:
-            notify(f"🤖 Bid otomatis terkirim: \"{title}\"")
+            notify(bid_success_text(connection, lead_id, auto=True))
     return summary

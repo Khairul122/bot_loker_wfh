@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from .auto_bid import run_auto_bids
+from .auto_bid import bid_failure_text, bid_success_text, run_auto_bids
 from .freelancer_api import FreelancerError
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
@@ -332,9 +332,10 @@ class OfficeWork:
                 except Exception as error:
                     connection.execute("UPDATE leads SET status = 'INTERESTED' WHERE id = ? AND status = 'APPROVED'", (lead_id,))
                     connection.commit()
-                    if isinstance(error, FreelancerError):
-                        raise ValueError(str(error)) from None
-                    raise ValueError("bid gagal dikirim ke Freelancer; coba lagi") from None
+                    reason = str(error) if isinstance(error, FreelancerError) else "bid gagal dikirim ke Freelancer; coba lagi"
+                    self._tell(bid_failure_text(connection, lead_id, reason))
+                    raise ValueError(reason) from None
+                self._tell(bid_success_text(connection, lead_id, auto=False))
                 return "faris", {"mode": "api", "status": "SUBMITTED", "url": row[0]}
             if not self.form_assist_enabled:
                 return "faris", {"mode": "manual", "url": row[0]}
