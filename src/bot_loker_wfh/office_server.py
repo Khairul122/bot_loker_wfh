@@ -581,6 +581,8 @@ class _Handler(SimpleHTTPRequestHandler):
                 save_dotenv(values)
             except Exception:
                 pass
+            if values.get("auto_bid_enabled") == "1" and self.work.auto:
+                self.work.run_soon()  # switching auto-bid on starts a round right away, not hours later
             return self._json(200, payload)
         if parts == ["office", "prefs"]:
             body = self._body()

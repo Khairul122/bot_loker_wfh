@@ -440,6 +440,11 @@ class OfficeWork:
         self.log_work(None, "auto", mode="on" if on else "off")
         self._wake.set()
 
+    def run_soon(self) -> None:
+        """Start the next work round now instead of waiting for the interval (no-op while Auto is off)."""
+        self.next_at = None
+        self._wake.set()
+
     def _loop(self) -> None:
         while True:
             if not self.auto:

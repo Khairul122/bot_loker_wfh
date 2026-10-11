@@ -148,3 +148,14 @@ class FreelanceManagerReportTest(unittest.TestCase):
         self.assertEqual(saved["employee"], "mira")
         self.assertTrue(saved["lines"])
         self.assertEqual(desk.profile(self.connection, "mira")["periods"].keys(), desk.profile(self.connection, "lido")["periods"].keys())
+
+
+class RunSoonTest(unittest.TestCase):
+    def test_switching_auto_bid_on_wakes_the_work_loop(self):
+        import threading
+        from bot_loker_wfh.office_work import OfficeWork
+        work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=False, interval_seconds=3600, lock=threading.Lock())
+        work.next_at = 10**9
+        work.run_soon()
+        self.assertIsNone(work.next_at)
+        self.assertTrue(work._wake.is_set())
