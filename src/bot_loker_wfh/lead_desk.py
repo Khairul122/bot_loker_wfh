@@ -93,7 +93,8 @@ def list_leads(connection: Connection, source: str | None = None, view: str = "a
     rows = connection.execute(sql, (*params, LEAD_LIST_LIMIT)).fetchall()
     items = [{**dict(zip(keys, row)), "description": (row[4] or "")[:600]} for row in rows]
     for item in items:
-        item["bid_terms"] = _terms_json(item["bid_terms"])
+        terms = terms_from_json(item["bid_terms"], item["budget"])
+        item["bid_terms"] = terms.as_dict() if terms else None
     return items
 
 
@@ -307,14 +308,19 @@ def edit_bid_terms(connection: Connection, lead_id: str, values: dict) -> BidTer
 
 def get_bid_terms(connection: Connection, lead_id: str) -> BidTerms | None:
     row = connection.execute("SELECT bid_terms, budget FROM leads WHERE id = ?", (lead_id,)).fetchone()
-    if not row or not row[0]:
+    return terms_from_json(row[0], row[1]) if row else None
+
+
+def terms_from_json(raw: str | None, budget_text: str | None) -> BidTerms | None:
+    """Stored terms as the owner sees them and as they are sent (one function, so the two never differ)."""
+    if not raw:
         return None
     try:
-        terms = parse_bid_terms(row[0])
+        terms = parse_bid_terms(raw)
     except ValueError:
         return None
     if not terms.amount:  # an early draft stored only a model-guessed hourly rate: price it from the market instead
-        budget = parse_budget(row[1])
+        budget = parse_budget(budget_text)
         amount = suggest_amount(budget)
         if amount:
             terms = BidTerms(amount, amount if budget.hourly else "", terms.weekly_limit, terms.duration_days, terms.milestones)

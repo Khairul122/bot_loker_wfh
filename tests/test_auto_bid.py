@@ -26,7 +26,7 @@ class AutoBidTest(unittest.TestCase):
 
     def place(self, connection, lead_id):
         self.sent.append(lead_id)
-        connection.execute("UPDATE leads SET status = 'SUBMITTED' WHERE id = ?", (lead_id,))
+        connection.execute("UPDATE leads SET status = 'SUBMITTED', bid_submitted_at = utc_now_iso() WHERE id = ?", (lead_id,))
 
     def enable(self, **extra):
         set_setting(self.connection, "auto_bid_enabled", "1")

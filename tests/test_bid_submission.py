@@ -246,9 +246,9 @@ class SafetyTest(unittest.TestCase):
         self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "SUBMITTED")
 
     def test_hourly_projects_and_absurd_prices_are_refused(self):
-        lead(self.connection, "hourly")
+        lead(self.connection, "hourly", external_id="901")
         self.connection.execute("UPDATE leads SET budget = 'USD 2-8/hour | 3 bid' WHERE id = 'hourly'")
-        lead(self.connection, "typo")
+        lead(self.connection, "typo", external_id="902")
         self.connection.execute("UPDATE leads SET bid_terms = ? WHERE id = 'typo'",
                                 (json.dumps({"amount": "5", "weekly_limit": "20", "duration_days": "7", "milestones": "x"}),))
         for lead_id in ("hourly", "typo"):
