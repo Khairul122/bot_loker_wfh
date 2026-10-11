@@ -7,6 +7,7 @@ name = "bot-loker-wfh"
 version = "0.1.0"
 description = "Bot personal untuk sourcing dan review lowongan kerja remote."
 requires-python = ">=3.11"
+license = {text = "MIT"}
 dependencies = ["psycopg[binary]>=3.2"]
 
 [project.optional-dependencies]

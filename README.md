@@ -1,335 +1,209 @@
+<p align="center"><img src="docs/media/logo.png" width="420" alt="LOKER WFH"></p>
+
 # Bot Loker WFH
 
-Bot personal untuk membantu sourcing, filtering, review, dan tracking lowongan kerja remote internasional.
+A personal job-hunting bot that runs as a cozy 3D office. Virtual employees find remote jobs and freelance projects, score them against your CV, write cover letters and bids, and report to you on Telegram. Nothing important goes out without your approval.
 
-## Setup
+[![Owner POV tour of the 3D office](docs/media/cover.png)](docs/media/office-pov.mp4)
 
-Requires Python 3.11 or newer.
+▶️ [Watch the 15-second POV tour](docs/media/office-pov.mp4)
+
+**[English](#english)** · **[Bahasa Indonesia](#bahasa-indonesia)**
+
+---
+
+## English
+
+### What it does
+
+- **Job hunting.** Scouts fetch remote jobs from RemoteOK, Remotive, Kalibrr, Dealls, and the Greenhouse/Lever boards you register. Jobs are then scored against your skills and filtered for eligibility.
+- **Freelance projects.** Projects come from Freelancer.com, Projects.co.id, and public Telegram channels. Cora drafts the proposal and suggests a price based on the project's budget. She cites only GitHub repos that match the project by at least 70%.
+- **Approval first.** Job applications are prepared and form-filled, but the bot always stops before Submit. A freelance bid is sent only after you press **Setujui & kirim bid** (or under the auto-bid rules you set). Each bid is sent at most once, and Telegram tells you whether it succeeded or failed, with the full draft and price.
+- **Employees that learn.** Your ratings and notes on their reports become lessons stored in Supabase, and those lessons reach their next prompts, meetings and break-time decisions.
+- **3D office.** Walk around the office, chat with employees, give them standing instructions, read their reports, or switch to first-person view.
+
+### Requirements
+
+- Python 3.11 or newer
+- A Supabase project (Postgres). Tables live in the `loker` schema.
+- Optional: a Telegram bot token, an OpenAI-compatible LLM endpoint (9Router), Node.js 18+ for BrowserMCP form filling, and a Freelancer.com API token
+
+### Quick start
 
 ```powershell
+git clone <repository-url>
+cd bot_loker_wfh
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
 python -m pip install -e ".[dev]"
-```
 
-Dependency manager: `pip` using `pyproject.toml`. Runtime dependencies are intentionally empty in the scaffold. Development tests use `pytest` when installed; the smoke test also runs with Python's standard-library `unittest`.
+Copy-Item .env.example .env            # then fill in the values below
+Copy-Item resume/profile.example.json data/profile.json   # your skills, experience, projects
 
-Copy `.env.example` to `.env` and adjust values only when needed. External jobs are disabled by default so starting the application never calls a jobs API.
-
-Telegram control is restricted by allowlisted chat IDs. Set `TELEGRAM_BOT_TOKEN` and comma-separated `TELEGRAM_ALLOWED_CHAT_IDS` in the environment before enabling Telegram handlers.
-
-`TelegramNotificationService` builds review payloads without sending network requests. Candidate messages include the job summary and `Siapkan draft`; pending application messages include the draft materials plus `Setujui`/`Tolak` callbacks containing the application ID and expected `PENDING_APPROVAL` status.
-
-`TelegramApprovalHandler` authenticates the callback chat before reading application data, verifies the expected status, and delegates the change to the centralized transition service. Replayed or stale callbacks return a safe message and do not create another history record.
-
-`TelegramCommandHandler` supports `/lowongan`, `/status [application_id] [status]`, and `/laporan`. Commands require the same allowlisted chat ID and `/status` always uses the centralized transition service.
-
-## Commands
-
-Print the startup configuration (does not run the bot; use `run-bot` for that):
-
-```powershell
-python -m bot_loker_wfh
-```
-
-Create or upgrade the Supabase Postgres schema (needs `SUPABASE_DB_URL` in `.env`):
-
-```powershell
-python -m bot_loker_wfh init-db
-```
-
-Run a RemoteOK fetch manually. This is an explicit command and is never run by the normal application startup:
-
-```powershell
-python -m bot_loker_wfh fetch-remoteok
-```
-
-The fetcher stores `source=remoteok`, retries transient network failures with a bounded retry count, and relies on the source and canonical uniqueness constraints to make repeated fetches idempotent.
-
-Run a Remotive fetch manually:
-
-```powershell
-python -m bot_loker_wfh fetch-remotive
-```
-
-The Remotive adapter reads its `jobs` payload, normalizes salary, tags, location, publication date, and apply URL, then uses the same deduplication constraints as the other sources.
-
-Run all MVP fetchers once for development or manual operation:
-
-```powershell
-python -m bot_loker_wfh fetch-once
-```
-
-Run the periodic scheduler. The default interval is four hours and lower intervals are rejected by the scheduler:
-
-```powershell
-python -m bot_loker_wfh run-scheduler
-```
-
-Scheduler logs contain source names and inserted counts only; job descriptions, CV data, and cover letters must not be logged.
-
-Structured events use JSON with an event name, generated `run_id`, source, status, duration, inserted count, and sanitized error code where applicable. The logger uses an allowlist and never serializes exception messages, request bodies, tokens, CVs, or cover letters.
-
-While the 3D office runs, every employee action is printed as one `employee_work` line: `employee` (reno, cora, tegar, �), `task` (`hunt`, `draft`, `proposal`, `screen`, `decision`, `lead`, `report`, `digest`, `fill`), plus counts, ids, `duration_ms`, and a sanitized `error_code` on failures. Sources without an owner show `"employee": "-"`. Polling the dashboard is never logged.
-
-### Kantor 3D
-
-Open the bot as a cozy 3D office (Three.js from a CDN, served by the standard library, localhost only):
-
-```powershell
+python -m bot_loker_wfh init-db        # create/upgrade the database schema
 python -m bot_loker_wfh office --port 8765
 ```
 
-Each floor is one division of the pipeline; employees' moods and the "Kinerja" panel come from `/stats.json` (counts only). Press `V` for the owner's first-person view.
+Open <http://127.0.0.1:8765> in your browser.
 
-- ?? **Auto**: every `FETCH_INTERVAL_HOURS` (minimum 4) each scout searches its source, jobs are scored, and Cora drafts letters for the 3 best new matches. Nothing is sent.
-- ?? **Persetujuan**: approve or reject each drafted application. Approving opens the form filler when `FORM_ASSIST_ENABLED=true` (it stops before submit), otherwise the posting link. Mark it **Sudah dilamar** after you submit.
-- ?? **Hasil**: each employee's recent output (jobs found, filter reasons, letters, status changes).
-- Every scout and Lido can also run one real search on demand from their card.
-- ?? **Proyek**: freelance projects from Freelancer.com, Projects.co.id and Telegram channels. Cora drafts a proposal you can edit; share to WhatsApp/Telegram/LinkedIn; and fill the bid form in your own Chrome (BrowserMCP) or your own Chrome through Playwright MCP (`--extension` mode: install the "Playwright MCP Bridge" extension in your logged-in Chrome profile). Filling needs `FORM_ASSIST_ENABLED=true` and never presses submit. Same from the CLI: `python -m bot_loker_wfh fill-lead --lead-id <id> --engine playwright`.
-- **Proposals from your data**: Cora writes each bid from `data/profile.json` plus your most relevant public GitHub repos (`GITHUB_USERNAME`, refreshed with `python -m bot_loker_wfh sync-github` or the ?? button). With ?? Auto on, she pre-drafts bids for the 3 best new projects each cycle. 9Router writes them when available; structured template fallback handles failures.
+### Configuration (`.env`)
 
-## Operational Documentation for MVP
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_DB_URL` | **Required.** Session-pooler URI from Supabase → Connect. The direct host is IPv6-only. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | Telegram control and notifications. Only allowlisted chat IDs are accepted. |
+| `EXTERNAL_JOBS_ENABLED` | `false` by default. Set it to `true` to let scouts call the job APIs. |
+| `FETCH_INTERVAL_HOURS` | Fetch cycle interval, minimum 4. |
+| `LLM_PROVIDER`, `NINEROUTER_BASE_URL`, `NINEROUTER_API_KEY`, `NINEROUTER_MODEL` | The model that writes drafts. Use `template` for offline templates. |
+| `GITHUB_USERNAME` | Your public repos, used as proof in bids. They re-sync every 6 hours. |
+| `FREELANCER_ACCESS_TOKEN` | Sends approved Freelancer.com bids through the official API. |
+| `FORM_ASSIST_ENABLED`, `BROWSER_MCP_COMMAND` | Form filling in your own Chrome. It always stops before Submit. |
+| `LEAD_TELEGRAM_CHANNELS` | Public channels to read freelance leads from, comma-separated. |
 
-### Setup from Scratch
+Most of these can also be changed live from **⚙️ Setting** in the office.
 
-1. Clone the repository: `git clone <repository-url> && cd bot-loker-wfh`
-2. Create a virtual environment: `python -m venv .venv`
-3. Activate the virtual environment:
-   - Windows: `.\.venv\Scripts\Activate.ps1`
-   - Unix/macOS: `source .venv/bin/activate`
-4. Install dependencies: `python -m pip install -e ".[dev]"`
-5. Copy environment template: `Copy Item .env.example .env`
-6. Edit `.env` to set:
-   - `TELEGRAM_BOT_TOKEN` (obtain from @BotFather on Telegram)
-   - `TELEGRAM_ALLOWED_CHAT_IDS` (comma-separated list of your Telegram chat IDs)
-   - `EXTERNAL_JOBS_ENABLED=true` to let the bot call the job APIs (leave `false` for safe local testing)
-   - Optional: `ANTHROPIC_API_KEY` to draft cover letters with Claude (a template draft is used otherwise)
-   - The `.env` file is loaded automatically; real environment variables take precedence
-7. Create your safe CV profile: `Copy-Item resume/profile.example.json data/profile.json`, then edit skills, experience, and projects. Only these fields are ever used for drafts, and contact details are redacted.
-8. Initialize the database: `python -m bot_loker_wfh init-db`
-9. Register the company boards to watch (optional, adds Greenhouse/Lever jobs):
-   ```powershell
-   python -m bot_loker_wfh add-company --ats greenhouse --slug gitlab --name GitLab
-   python -m bot_loker_wfh add-company --ats lever --slug binance --name Binance
-   ```
+### Running
 
-### Form Agent & BrowserMCP Setup
+| Command | What it does |
+|---|---|
+| `python -m bot_loker_wfh office --port 8765` | The 3D office: dashboard, employees, approvals, auto mode |
+| `python -m bot_loker_wfh run-bot` | Long-running Telegram bot with scheduled fetch cycles |
+| `python -m bot_loker_wfh fetch-once` | Fetch every source once |
+| `python -m bot_loker_wfh fetch-leads` | Fetch freelance projects once |
+| `python -m bot_loker_wfh sync-github` | Refresh your GitHub portfolio now |
+| `python -m bot_loker_wfh draft-lead --lead-id <id>` | Draft a bid for one project |
+| `python -m bot_loker_wfh check-llm` / `check-browser` | Check that the LLM and the browser are ready |
 
-Untuk mengaktifkan pengisian form semi-otomatis lewat BrowserMCP:
+Run only one process that polls the same Telegram token at a time.
 
-1. Di `.env`:
-   ```env
-   FORM_ASSIST_ENABLED=true
-   FORM_ENGINE=browsermcp
-   BROWSER_MCP_COMMAND=npx -y @browsermcp/mcp@0.1.3
-   ```
-2. Pastikan Node.js 18+ terpasang di komputer.
-3. Jalankan `py -3.14 -m bot_loker_wfh check-browser` untuk memverifikasi kesiapan.
-4. Pasang dan buka ekstensi Chrome BrowserMCP.
-5. Saat menerima notifikasi lowongan yang disetujui di Telegram, kirim perintah `/isi <id>` untuk membuka dan mengisi form di Chrome lokal.
+**Office controls:** `WASD` walk · click an employee to chat · `V` first-person view (drag to look around) · `E`/`Q` ride the lift · `Esc` close panels.
 
-### Running the Bot
+**Projects.co.id bids** use the bot's own browser window. Install it with `python -m pip install -e ".[form]"` and `python -m playwright install chromium`, then log in once in that window.
 
-```powershell
-python -m bot_loker_wfh run-bot
+### Deploy with Docker
+
+```bash
+scp .env user@server:~/bot_loker_wfh/.env
+scp -r data user@server:~/bot_loker_wfh/data
+docker compose up -d --build        # runs `run-bot`
+docker compose logs -f bot
 ```
 
-`run-bot` is the single long-running process. It polls Telegram for commands and buttons and, when `EXTERNAL_JOBS_ENABLED=true`, runs a fetch cycle at start-up and every `FETCH_INTERVAL_HOURS` (minimum 4). Each cycle:
-
-1. fetches RemoteOK, Remotive, the Indonesian boards Kalibrr and Dealls, and every registered Greenhouse/Lever board (one failing source does not stop the others),
-2. scores each new job by how many of your profile skills it mentions and applies the eligibility filters,
-3. sends up to 10 new `CANDIDATE` jobs to Telegram (best score first; the rest follow every 30 minutes).
-
-The first cycle downloads every job description from Greenhouse boards and can take several minutes for large boards; later cycles skip jobs that are already stored.
-
-Other one-off commands:
+### Tests
 
 ```powershell
-python -m bot_loker_wfh fetch-once      # fetch all sources once
-python -m bot_loker_wfh process-jobs    # score + filter DISCOVERED jobs
-python -m bot_loker_wfh run-scheduler   # fetch only, no Telegram (needs EXTERNAL_JOBS_ENABLED=true)
-python -m bot_loker_wfh fetch-remoteok  # also fetch-remotive / fetch-greenhouse / fetch-lever
-python -m bot_loker_wfh fetch-kalibrr   # Indonesian remote jobs; also fetch-dealls
-python -m bot_loker_wfh fetch-leads     # freelance leads (see below)
+python -m pytest -q -n 4
 ```
 
-### Telegram Interaction
+Tests need `SUPABASE_DB_URL` and run against a throwaway `t_*` schema, never your real tables. They never call real job APIs, Telegram, LLMs or browsers.
 
-Applications are submitted **manually**: the bot prepares a draft and, after you approve it, gives you the apply link.
+### Safety
 
-1. A candidate arrives with a **Siapkan draft** button (or `/siapkan <job_id>`).
-2. The bot replies with the cover letter draft and **Setujui / Tolak** buttons (or `/setuju <id>` / `/tolak <id>`).
-3. After approval, open the apply link, send the application yourself, then run `/dilamar <application_id>`.
-4. Track the outcome with `/status <application_id> <INTERVIEW|OFFER|REJECTED_BY_COMPANY|NO_RESPONSE>`.
+- External job APIs stay off until `EXTERNAL_JOBS_ENABLED=true`.
+- Telegram commands and buttons require an allowlisted chat ID. Stale or replayed callbacks do nothing.
+- Logs contain no CV data, cover letters, tokens or provider error text.
+- The bot never solves a CAPTCHA.
 
-### Indonesian jobs
+More detail is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 
-Kalibrr and Dealls are read through the public JSON their own websites use (no login, sequential requests with a delay, `robots.txt` respected). Only postings the board itself marks as remote/WFH are stored, so hybrid and on-site jobs never enter the bot. They then go through the same filters as every other source, including the 14-day posting age limit in the `filters` table. Indonesian remote developer jobs are scarce (Kalibrr had about 30 WFH postings and Dealls 13, mostly non-technical), so also register Indonesian companies' Greenhouse/Lever boards with `add-company`. LinkedIn is not used because its terms forbid automated access; JobStreet, Indeed, and Glints are skipped because they block detail pages or rely on unstable internal APIs.
+---
 
-### Freelance leads (`/lead`)
+## Bahasa Indonesia
 
-Besides jobs, the bot looks for **freelance projects that need a fullstack developer** and **chances to sell your source code**. Sources: Freelancer.com (public projects API), projects.co.id (Indonesian marketplace), and optionally public Telegram channels you list in `LEAD_TELEGRAM_CHANNELS` (comma-separated usernames, read through the public `t.me/s/<channel>` preview; private groups are not reachable).
+### Apa yang dikerjakan
 
-- A lead is kept when it mentions your stack (Laravel, React, Flutter, NestJS, PHP, Python, ... plus the skills in `data/profile.json`) and is at most 3 days old.
-- It is labelled **Proyek dicari developer**, or **Peluang jual source code** when someone wants to buy existing code (phrases such as "looking for source code", "ready made", "WTB", "cari source code"). A project that merely requires the source code as a deliverable is a normal project. The classification is keyword based, so expect some noise.
-- Each lead arrives in Telegram (up to 5 per batch) with **Minat** and **Abaikan** buttons. `/lead` lists the ones you marked and the new ones. There is no application workflow: open the link and contact the client on the platform yourself.
+- **Mencari lowongan.** Para pemburu mengambil lowongan remote dari RemoteOK, Remotive, Kalibrr, Dealls, serta board Greenhouse/Lever yang kamu daftarkan. Setelah itu lowongan dinilai terhadap skill-mu dan disaring kelayakannya.
+- **Proyek freelance.** Proyek diambil dari Freelancer.com, Projects.co.id, dan channel Telegram publik. Cora menulis proposal dan menyarankan harga berdasarkan budget proyek. Dia hanya mengutip repo GitHub yang cocok minimal 70% dengan proyek.
+- **Persetujuanmu dulu.** Lamaran kerja disiapkan dan formnya diisi, tapi bot selalu berhenti sebelum Submit. Bid freelance hanya terkirim setelah kamu menekan **Setujui & kirim bid**, atau lewat aturan auto-bid yang kamu atur. Setiap bid terkirim paling banyak sekali, dan Telegram memberi kabar berhasil atau gagal lengkap dengan draf dan harganya.
+- **Karyawan yang belajar.** Nilai dan catatanmu pada laporan mereka disimpan di Supabase sebagai pelajaran, lalu dipakai di prompt, rapat, dan keputusan mereka berikutnya.
+- **Kantor 3D.** Jalan-jalan di kantor, ngobrol dengan karyawan, beri instruksi tetap, baca laporan, atau pindah ke mode POV.
 
-### Semi-automatic form filling (`/isi`)
+### Kebutuhan
 
-After you approve an application, tap **Buka & isi form** (or `/isi <application_id>`). The bot opens the real application form in a visible browser on your computer, fills what it can, and **stops**. You review, solve any CAPTCHA, click Submit yourself, then send `/dilamar <application_id>`. The bot never clicks Submit and never solves CAPTCHA.
+- Python 3.11 ke atas
+- Proyek Supabase (Postgres). Tabel ada di schema `loker`.
+- Opsional: token bot Telegram, endpoint LLM yang kompatibel OpenAI (9Router), Node.js 18+ untuk pengisian form BrowserMCP, dan token API Freelancer.com
 
-Setup (once, on the computer that runs `run-bot`):
+### Cara menjalankan
 
 ```powershell
-Copy-Item resume/applicant.example.json data/applicant.json   # then edit: name, email, phone, resume_path, links
+git clone <repository-url>
+cd bot_loker_wfh
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
+python -m pip install -e ".[dev]"
+
+Copy-Item .env.example .env            # lalu isi nilai-nilai di bawah
+Copy-Item resume/profile.example.json data/profile.json   # skill, pengalaman, proyekmu
+
+python -m bot_loker_wfh init-db        # buat/perbarui schema database
+python -m bot_loker_wfh office --port 8765
 ```
 
-and set `FORM_ASSIST_ENABLED=true` in `.env`. Supported forms: Greenhouse (`job-boards.greenhouse.io`) and Lever (`jobs.lever.co`), i.e. jobs that came from your registered `add-company` boards. RemoteOK/Remotive links point to other sites and are not filled.
+Buka <http://127.0.0.1:8765> di browser.
 
-What gets filled: first/last/full name, email, phone, resume upload, cover letter (uploaded as a text file on Greenhouse, "Additional information" on Lever), and LinkedIn/GitHub/website when set. Everything else is listed in Telegram as **Perlu Anda isi/pilih** (dropdowns, work authorization, salary, etc.).
+### Pengaturan (`.env`)
 
-To pre-answer recurring text questions, create `data/answers.json` (see `resume/answers.example.json`): each key is part of the question label, and it is filled only when exactly one text field matches. Dropdowns and yes/no choices are never guessed.
+| Variabel | Fungsi |
+|---|---|
+| `SUPABASE_DB_URL` | **Wajib.** URI session pooler dari Supabase → Connect. Host langsung hanya IPv6. |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | Kontrol dan notifikasi Telegram. Hanya chat ID yang di-allowlist yang diterima. |
+| `EXTERNAL_JOBS_ENABLED` | Bawaannya `false`. Ubah ke `true` agar pemburu boleh memanggil API lowongan. |
+| `FETCH_INTERVAL_HOURS` | Jeda siklus pencarian, minimal 4 jam. |
+| `LLM_PROVIDER`, `NINEROUTER_BASE_URL`, `NINEROUTER_API_KEY`, `NINEROUTER_MODEL` | Model penulis draf. Pakai `template` untuk template offline. |
+| `GITHUB_USERNAME` | Repo publikmu sebagai bukti di bid. Disinkronkan ulang tiap 6 jam. |
+| `FREELANCER_ACCESS_TOKEN` | Mengirim bid Freelancer.com yang disetujui lewat API resmi. |
+| `FORM_ASSIST_ENABLED`, `BROWSER_MCP_COMMAND` | Pengisian form di Chrome milikmu. Selalu berhenti sebelum Submit. |
+| `LEAD_TELEGRAM_CHANNELS` | Channel publik sumber lead freelance, dipisah koma. |
 
-Because it needs a screen, this feature does not work when the bot runs on a headless VPS; there it replies that the feature is off. Keep `FORM_ASSIST_ENABLED=false` in the server's `.env`.
+Sebagian besar juga bisa diubah langsung dari menu **⚙️ Setting** di kantor.
 
-Also available: `/lowongan` (candidates and pending drafts), `/fetch` (run a cycle now), `/laporan` (statistics), `/help`. IDs can be shortened to their first 8 characters.
+### Perintah
 
-### Deployment (VPS + Docker)
+| Perintah | Fungsi |
+|---|---|
+| `python -m bot_loker_wfh office --port 8765` | Kantor 3D: dashboard, karyawan, persetujuan, mode auto |
+| `python -m bot_loker_wfh run-bot` | Bot Telegram yang terus berjalan dengan siklus pencarian terjadwal |
+| `python -m bot_loker_wfh fetch-once` | Ambil semua sumber sekali |
+| `python -m bot_loker_wfh fetch-leads` | Ambil proyek freelance sekali |
+| `python -m bot_loker_wfh sync-github` | Perbarui portofolio GitHub sekarang |
+| `python -m bot_loker_wfh draft-lead --lead-id <id>` | Buat draf bid untuk satu proyek |
+| `python -m bot_loker_wfh check-llm` / `check-browser` | Cek kesiapan LLM dan browser |
 
-The bot is a single process whose data lives in Supabase, so one small VPS (1 vCPU / 512 MB-1 GB RAM) is enough.
+Pastikan hanya satu proses yang membaca token Telegram yang sama dalam satu waktu.
 
-1. On the server, install Docker (with the Compose plugin) and clone the repository.
-2. Copy the files that are not in git from your machine (`.env` and `data/profile.json`):
-   ```bash
-   scp .env user@server:~/bot-loker-wfh/.env
-   scp -r data user@server:~/bot-loker-wfh/data
-   ```
-3. Start it: `docker compose up -d --build`
-4. Watch the logs: `docker compose logs -f bot`. Expect `bot running ...`, then a Telegram message "Bot aktif".
-5. Update later: `git pull && docker compose up -d --build`.
+**Kontrol kantor:** `WASD` jalan · klik karyawan untuk ngobrol · `V` mode POV (drag untuk menoleh) · `E`/`Q` naik-turun lift · `Esc` tutup panel.
 
-Stop any locally running bot first: a Telegram token can be polled by only one process at a time.
+**Bid Projects.co.id** memakai jendela browser milik bot. Pasang dengan `python -m pip install -e ".[form]"` dan `python -m playwright install chromium`, lalu login sekali di jendela itu.
 
-The database is Supabase Postgres: use the dashboard's backups (Database > Backups) instead of file copies.
+### Deploy dengan Docker
 
-### Maintenance Operations
-
-#### Run Retention Cleanup
-```powershell
-python -m bot_loker_wfh cleanup-retention
+```bash
+scp .env user@server:~/bot_loker_wfh/.env
+scp -r data user@server:~/bot_loker_wfh/data
+docker compose up -d --build        # menjalankan `run-bot`
+docker compose logs -f bot
 ```
-This deletes `FILTERED_OUT` jobs older than 90 days that have no associated application.
 
-### Troubleshooting
-
-#### "SUPABASE_DB_URL is not set" or connection errors
-Put the Supabase session-pooler URI (Dashboard > Connect) in `SUPABASE_DB_URL`. The direct `db.<ref>.supabase.co` host is IPv6-only; use the pooler host if your network has no IPv6.
-
-#### Telegram bot not responding
-Verify:
-1. `TELEGRAM_BOT_TOKEN` is correct in `.env`
-2. Your chat ID is in `TELEGRAM_ALLOWED_CHAT_IDS` (comma-separated)
-3. The bot is running (`python -m bot_loker_wfh run-bot`). Only one instance may poll a token at a time
-4. You're sending commands to the bot, not to a group or channel (unless added there)
-
-#### No jobs appearing in `/lowongan`
-Check:
-1. The fetcher ran successfully (look for `fetch complete` logs)
-2. Jobs passed eligibility filters (check `status=CANDIDATE` in database)
-3. You haven't already applied to all available jobs
-
-#### Logs contain unexpected information
-All logs are structured JSON. Look for:
-- `event`: indicates what happened (fetch_complete, transition_application, etc.)
-- `status`: current status after the event
-- `error_code`: standardized error code if applicable (never raw exception messages)
-- No CV, cover letter, token, or personal data should ever appear in logs
-
-### Viewing Logs Safely
-
-All application logs are structured JSON containing only allowlisted metadata fields. To inspect logs without risking exposure of sensitive data:
+### Tes
 
 ```powershell
-# View all log events for a specific run:
-python -m bot_loker_wfh fetch-once 2>&1 | python -c "import sys, json; [print(json.dumps(json.loads(l), indent=2)) for l in sys.stdin if l.strip()]"
-
-# Filter for errors only:
-python -m bot_loker_wfh fetch-once 2>&1 | python -c "import sys, json; [print(l.strip()) for l in sys.stdin if l.strip() and json.loads(l).get('status') == 'error']"
-
-# Watch what the office employees are doing (while `office --port 8765` runs):
-python -m bot_loker_wfh office --port 8765 2>&1 | python -c "import sys, json; [print(l.strip()) for l in sys.stdin if l.strip() and json.loads(l).get('event') == 'employee_work']"
+python -m pytest -q -n 4
 ```
 
-Fields that will **never** appear in logs:
-- `cover_letter`, `cv_summary`, `description` (job or application content)
-- `token`, `password`, `secret` (credentials)
-- Phone numbers, home addresses, dates of birth
+Tes butuh `SUPABASE_DB_URL` dan berjalan di schema sementara `t_*`, tidak pernah di tabel aslimu. Tes tidak pernah memanggil API lowongan, Telegram, LLM, atau browser sungguhan.
 
-If any of the above appear in a log line, it is a bug. Report and do not share the log file.
+### Keamanan
 
-### Safety Features
+- API lowongan eksternal mati sampai `EXTERNAL_JOBS_ENABLED=true`.
+- Perintah dan tombol Telegram hanya untuk chat ID yang di-allowlist. Callback basi atau diulang tidak berefek.
+- Log tidak pernah berisi data CV, surat lamaran, token, atau teks error provider.
+- Bot tidak pernah menyelesaikan CAPTCHA.
 
-- External job fetching is disabled by default (`EXTERNAL_JOBS_ENABLED=false`)
-- Telegram commands are restricted to allowlisted chat IDs
-- All status changes go through centralized transition service with validation
-- Duplicate prevention at database level with unique constraints
-- Structured logging never exposes sensitive data
-- Backup command copies only the database file, never `.env` or credentials
+Detail lengkap ada di [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 
-### Next Steps for Production
+---
 
-To enable full automation:
+## License
 
-1. Keep the `run-bot` process alive (Windows Task Scheduler, a VPS with systemd, or Docker) so it can poll 24/7
-2. Auto-submit of job applications is intentionally not enabled; see `docs/auto-submit-risk-assessment.md`
-3. Set up monitoring for the structured logs (e.g., via ELK stack or cloud logging)
-
-## Support
-
-For issues, check the logs first. The structured format makes it easy to search for specific events and error codes.
-
-
-Run filtered-job retention cleanup manually or from a scheduled process:
-
-```powershell
-python -m bot_loker_wfh cleanup-retention
-```
-
-The cleanup deletes only `FILTERED_OUT` jobs older than 90 days that have no application. Active jobs and jobs referenced by applications are preserved.
-
-Back up the database from the Supabase dashboard (Database > Backups).
-
-Eligibility filters are stored in the `filters` table as JSON keyword lists and numeric thresholds. The default role list covers Laravel, Flutter, NestJS, React, Python, backend, full-stack, and mobile development; changing the row changes the next eligibility evaluation without a code change.
-
-Status changes must go through the centralized transition service. It validates the job/application transition table and appends application changes to `application_status_history`; direct status updates are not part of the normal application flow.
-
-Run the smoke tests without installing pytest:
-
-```powershell
-$env:PYTHONPATH = "src"
-python -m unittest discover -s tests -v
-```
-
-Run the test suite after installing development dependencies:
-
-```powershell
-python -m pytest
-```
-
-
-### Sending approved freelance bids
-
-After you press **Setujui & kirim bid** on the Papan Proyek: Freelancer.com bids are sent through the official API (set `FREELANCER_ACCESS_TOKEN` in `.env`); Projects.co.id bids are filled and submitted in the bot's own browser window (`python -m pip install -e ".[form]"` and `python -m playwright install chromium`; log in once in that window). Without a token, Freelancer falls back to BrowserMCP.
-
-### Freelance bid & comment drafts (9Router)
-
-The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
-
-```powershell
-python -m bot_loker_wfh draft-lead --lead-id <id>
-python -m bot_loker_wfh fill-lead --lead-id <id> --text proposal
-python -m bot_loker_wfh fill-lead --lead-id <id> --text comment
-```
-
-`fill-lead` types the draft into the page and never presses submit.
+[MIT](LICENSE) © 2026 Khairul122
