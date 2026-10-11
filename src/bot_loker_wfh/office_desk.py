@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from .database import Connection
+from .employee_memory import lessons_text, remember
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -294,7 +295,25 @@ def review_report(connection: Connection, report_id: str, rating, note: str = ""
     connection.execute("UPDATE office_reports SET rating = ?, note = ? WHERE id = ?",
                        (rating, (note or "").strip()[:NOTE_LIMIT] or None, report_id))
     connection.commit()
-    return get_report(connection, report_id)
+    report = get_report(connection, report_id)
+    _learn_from_review(connection, report)
+    return report
+
+
+def _learn_from_review(connection: Connection, report: dict) -> None:
+    """The owner's grade becomes a lesson the employee carries into later prompts."""
+    rating, note = report["rating"], report.get("note") or ""
+    if rating <= 2:
+        kind, importance = "correction", 0.9 if note else 0.7
+        content = f"Laporan dinilai rendah ({rating}/5)." + (f" Catatan owner: {note}" if note else "")
+    elif rating >= 4:
+        kind, importance = "outcome", 0.8 if note else 0.6
+        content = f"Laporan dinilai bagus ({rating}/5), pertahankan." + (f" Catatan owner: {note}" if note else "")
+    else:
+        kind, importance = "observation", 0.4
+        content = f"Laporan dinilai cukup ({rating}/5)." + (f" Catatan owner: {note}" if note else "")
+    remember(connection, report["employee"], content, kind=kind, source=f"report:{report['id']}",
+             importance=importance, replace_source=True)
 
 
 def ratings(connection: Connection) -> dict:
@@ -385,16 +404,20 @@ def instructed(llm: Callable[[str], str] | None, connection: Connection, employe
     """Wrap an LLM so every prompt carries the owner's standing instruction for `employee`."""
     if llm is None:
         return None
-    text = get_instruction(connection, employee)
-    return _Instructed(llm, text) if text else llm
+    text, lessons = get_instruction(connection, employee), lessons_text(connection, employee)
+    return _Instructed(llm, text, lessons) if text or lessons else llm
 
 
 class _Instructed:
-    def __init__(self, llm: Callable[[str], str], text: str) -> None:
-        self.llm, self.text = llm, text
+    def __init__(self, llm: Callable[[str], str], text: str, lessons: str = "") -> None:
+        self.llm, self.text, self.lessons = llm, text, lessons
 
     def __call__(self, prompt: str) -> str:
-        return self.llm(f"{prompt}\n\nOWNER INSTRUCTION (follow it unless it asks you to invent facts):\n{self.text}")
+        if self.text:
+            prompt += f"\n\nOWNER INSTRUCTION (follow it unless it asks you to invent facts):\n{self.text}"
+        if self.lessons:
+            prompt += f"\n\nYOUR PAST LESSONS (from owner feedback; apply them, do not repeat past mistakes):\n{self.lessons}"
+        return self.llm(prompt)
 
     @property
     def last_result(self):  # DraftService reads provider/model from here
@@ -416,6 +439,7 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
          f"7 hari: " + ", ".join(f"{label} {value}" for _, label, value in week["metrics"]),
          *day["lines"]])
     order = get_instruction(connection, employee)
+    lessons = lessons_text(connection, employee)
     if llm is not None:
         prompt = (
             f"Kamu adalah karyawan virtual bernama {employee.title()}, {ROLES[employee]}, di bot pencari kerja milik owner.\n"
@@ -423,6 +447,7 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
             "Gunakan HANYA fakta di bawah; jika tidak ada datanya, katakan terus terang.\n\n"
             f"FAKTA:\n{facts}\n"
             + (f"INSTRUKSI OWNER UNTUKMU: {order}\n" if order else "")
+            + (f"PELAJARAN DARI FEEDBACK OWNER SEBELUMNYA:\n{lessons}\n" if lessons else "")
             + f"\nPERTANYAAN OWNER: {question}"
         )
         try:
@@ -432,6 +457,34 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
         except Exception:  # the plain facts are always a safe answer
             pass
     return {"answer": " ".join(day["lines"]) + " (AI belum aktif, ini data mentahnya.)", "ai": False}
+
+
+INSTINCT_ZONES = ("pond", "roof", "cafe", "arena", "picnic", "sofa", "swing", "stay")
+
+
+def instinct(connection: Connection, llm: Callable[[str], str] | None, employee: str, ctx: dict) -> dict | None:
+    """One employee decides what to do in a work break, using their own lessons. None = no AI answer."""
+    if employee not in ROLES or llm is None:
+        return None
+    clean = lambda v, n: " ".join(str(v or "").split())[:n]  # noqa: E731
+    mates = ", ".join(clean(m, 30) for m in list(ctx.get("nearbyColleagues") or [])[:5]) or "tidak ada"
+    prompt = (
+        f"Kamu {employee.title()}, {ROLES[employee]}, karyawan virtual di kantor owner. Kamu sedang punya waktu luang.\n"
+        f"Suasana hati: {clean(ctx.get('mood'), 20)}. Waktu: {clean(ctx.get('timeOfDay'), 10)}. "
+        f"Posisi: {clean(ctx.get('currentZone'), 40)}. Rekan di dekatmu: {mates}.\n"
+        f"Pilih SATU tempat dari: {', '.join(INSTINCT_ZONES)} (stay = tetap bekerja di mejamu). "
+        "Pertimbangkan pelajaran dan feedback owner: kalau laporanmu sering dinilai rendah, pilih stay untuk memperbaikinya.\n"
+        'Balas HANYA JSON: {"zone": "<pilihan>", "thought": "<isi hati, maks 12 kata, Bahasa Indonesia santai>"}'
+    )
+    try:
+        raw = str(instructed(llm, connection, employee)(prompt) or "")
+        data = json.loads(raw[raw.index("{"):raw.rindex("}") + 1])
+    except Exception:
+        return None
+    zone = data.get("zone") if isinstance(data, dict) else None
+    if zone not in INSTINCT_ZONES:
+        return None
+    return {"zone": zone, "thought": clean(data.get("thought"), 120)}
 
 
 def report_text(report: dict) -> str:

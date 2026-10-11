@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <defs>
+    <!-- Harvest Moon Warm Gold Text Gradient -->
+    <linearGradient id="hmGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="20%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#facc15"/>
+      <stop offset="80%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+
+    <!-- Wood Texture Gradient for Text Outline / Banner -->
+    <linearGradient id="hmWood" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#92400e"/>
+      <stop offset="50%" stop-color="#78350f"/>
+      <stop offset="100%" stop-color="#451a03"/>
+    </linearGradient>
+
+    <!-- Fresh Green Leaf Gradient -->
+    <linearGradient id="hmLeaf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#86efac"/>
+      <stop offset="50%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+
+    <!-- Sun Burst Gradient -->
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fef08a" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#fde047" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#facc15" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Soft Drop Shadow Filter for Transparent Background -->
+    <filter id="hmShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#1e293b" flood-opacity="0.4"/>
+    </filter>
+
+    <filter id="textGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#451a03" flood-opacity="0.8"/>
+    </filter>
+  </defs>
+
+  <!-- Transparent Background (No Rect Background) -->
+
+  <!-- Harvest Moon Sunshine Sunburst behind Logo -->
+  <g transform="translate(400, 200)" opacity="0.85">
+    <circle cx="0" cy="0" r="160" fill="url(#sunGlow)"/>
+    <!-- Sun Rays -->
+    <g stroke="#fef08a" stroke-width="4" stroke-linecap="round" opacity="0.6">
+      <line x1="0" y1="-140" x2="0" y2="-170"/>
+      <line x1="100" y1="-100" x2="120" y2="-120"/>
+      <line x1="140" y1="0" x2="170" y2="0"/>
+      <line x1="100" y1="100" x2="120" y2="120"/>
+      <line x1="-100" y1="-100" x2="-120" y2="-120"/>
+      <line x1="-140" y1="0" x2="-170" y2="0"/>
+      <line x1="-100" y1="100" x2="-120" y2="120"/>
+    </g>
+  </g>
+
+  <!-- Rolling Green Grass Hill Base -->
+  <g filter="url(#hmShadow)">
+    <path d="M 150 360 Q 400 300 650 360 C 680 375 720 380 750 390 L 50 390 Z" fill="url(#hmLeaf)"/>
+    <path d="M 220 350 Q 400 315 580 350 C 600 360 620 370 650 380 L 150 380 Z" fill="#4ade80" opacity="0.4"/>
+  </g>
+
+  <!-- Harvest Moon Sprout Leaves Decorating Title -->
+  <g transform="translate(210, 125)" filter="url(#hmShadow)">
+    <!-- Leaf Sprout on 'L' -->
+    <path d="M 0 0 C -20 -30 10 -40 20 -20 C 30 -40 60 -30 40 0 C 25 10 10 5 0 0 Z" fill="url(#hmLeaf)" stroke="#15803d" stroke-width="2"/>
+    <path d="M 0 0 C 10 -15 25 -10 20 -20" fill="none" stroke="#bbf7d0" stroke-width="2"/>
+  </g>
+
+  <g transform="translate(560, 130)" filter="url(#hmShadow)">
+    <!-- Leaf Sprout on 'H' -->
+    <path d="M 0 0 C -15 -35 15 -45 25 -20 C 35 -45 65 -30 45 5 C 30 15 15 8 0 0 Z" fill="url(#hmLeaf)" stroke="#15803d" stroke-width="2"/>
+  </g>
+
+  <!-- Main Harvest Moon 3D Curved Text: LOKER WFH -->
+  <g transform="translate(400, 220)" text-anchor="middle" filter="url(#hmShadow)">
+    <!-- 3D Wood Backing / Outer Stroke Layer -->
+    <text x="0" y="8" font-family="'Nunito', 'Arial Black', sans-serif" font-weight="900" font-size="102" letter-spacing="6" fill="#451a03" stroke="#451a03" stroke-width="22" stroke-linejoin="round">
+      LOKER WFH
+    </text>
+    <text x="0" y="4" font-family="'Nunito', 'Arial Black', sans-serif" font-weight="900" font-size="102" letter-spacing="6" fill="#78350f" stroke="#78350f" stroke-width="14" stroke-linejoin="round">
+      LOKER WFH
+    </text>
+
+    <!-- Red/Orange Inner Accent Border -->
+    <text x="0" y="1" font-family="'Nunito', 'Arial Black', sans-serif" font-weight="900" font-size="102" letter-spacing="6" fill="#b45309" stroke="#b45309" stroke-width="6" stroke-linejoin="round">
+      LOKER WFH
+    </text>
+
+    <!-- Bright Gold Front Fill Layer -->
+    <text x="0" y="-3" font-family="'Nunito', 'Arial Black', sans-serif" font-weight="900" font-size="102" letter-spacing="6" fill="url(#hmGold)" filter="url(#textGlow)">
+      LOKER WFH
+    </text>
+
+    <!-- Top Highlight Inner Specular -->
+    <text x="0" y="-7" font-family="'Nunito', 'Arial Black', sans-serif" font-weight="900" font-size="102" letter-spacing="6" fill="#ffffff" opacity="0.35">
+      LOKER WFH
+    </text>
+  </g>
+
+  <!-- Harvest Moon Rustic Wooden Sign Board (Subtitle) -->
+  <g transform="translate(400, 330)" filter="url(#hmShadow)">
+    <!-- Wooden Plank -->
+    <rect x="-170" y="-24" width="340" height="48" rx="12" fill="url(#hmWood)" stroke="#fef08a" stroke-width="2.5"/>
+    <rect x="-162" y="-18" width="324" height="36" rx="8" fill="none" stroke="#92400e" stroke-width="2" stroke-dasharray="8 4"/>
+    
+    <!-- Wooden Nails -->
+    <circle cx="-150" cy="0" r="4" fill="#fef08a"/>
+    <circle cx="150" cy="0" r="4" fill="#fef08a"/>
+
+    <!-- Subtitle Text -->
+    <text x="0" y="7" font-family="'Nunito', 'Segoe UI', system-ui, sans-serif" font-weight="900" font-size="20" letter-spacing="3" text-anchor="middle" fill="#fef08a" filter="url(#textGlow)">
+      🌾 3D FARM &amp; OFFICE 🌾
+    </text>
+  </g>
+
+  <!-- Cute Chibi Harvest Moon Animal Elements -->
+  <!-- Cute Duck on Left -->
+  <g transform="translate(140, 270)" filter="url(#hmShadow)">
+    <ellipse cx="0" cy="10" rx="22" ry="16" fill="#78350f"/>
+    <ellipse cx="0" cy="8" rx="20" ry="14" fill="#ffffff"/>
+    <circle cx="-8" cy="-8" r="12" fill="#065f46"/>
+    <polygon points="-20,-8 -10,-12 -10,-4" fill="#f97316"/>
+    <circle cx="-12" cy="-10" r="2.5" fill="#000000"/>
+    <circle cx="-13" cy="-11" r="1" fill="#ffffff"/>
+  </g>
+
+  <!-- Cute Little Sprout Flower on Right -->
+  <g transform="translate(650, 265)" filter="url(#hmShadow)">
+    <circle cx="0" cy="-10" r="10" fill="#f472b6"/>
+    <circle cx="-10" cy="0" r="10" fill="#f472b6"/>
+    <circle cx="10" cy="0" r="10" fill="#f472b6"/>
+    <circle cx="0" cy="10" r="10" fill="#f472b6"/>
+    <circle cx="0" cy="0" r="8" fill="#fef08a"/>
+    <path d="M 0 10 Q 5 25 0 35" stroke="#15803d" stroke-width="4" fill="none"/>
+    <path d="M 3 20 C 15 15 20 25 10 25 Z" fill="#22c55e"/>
+  </g>
+</svg>

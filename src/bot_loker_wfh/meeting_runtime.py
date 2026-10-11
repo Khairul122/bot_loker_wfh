@@ -112,6 +112,7 @@ def list_events(connection: Connection, meeting_id: str) -> list[dict[str, Any]]
 def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) -> dict[str, Any]:
     """Run dynamic multi-agent discussion using 9Router models and employee skills."""
     from .config import Settings
+    from .employee_memory import lessons_text, remember
     from .employee_skills import load_employee_skills
     from .llm import OpenAICompatibleProvider
 
@@ -140,11 +141,14 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         except Exception:
             pass
 
+        lessons = lessons_text(connection, emp)
         prompt = (
             f"Konteks: Rapat tim kantor Loker House.\n"
             f"Topik rapat: '{topic}'.\n"
             f"Identitas Anda: Karyawan '{emp}'.\n"
             f"Skill & peran Anda:\n{skill_text}\n\n"
+            + (f"Pelajaran dari pengalaman & feedback owner sebelumnya:\n{lessons}\n\n" if lessons else "")
+            +
             f"Beri tanggapan padat (1-2 kalimat) sesuai keahlian Anda mengenai topik tersebut. "
             f"Sampaikan solusi konkret, bukan basa-basi."
         )
@@ -173,6 +177,12 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         decision = f"Tim sepakat mengeksekusi prioritas terkait {topic}."
 
     add_event(connection, meeting_id, participants[0] if participants else "cora", "decision", decision)
+    for emp in participants:  # everyone in the room carries the decision into later work
+        try:
+            remember(connection, emp, f"Keputusan rapat '{topic[:200]}': {decision[:1500]}",
+                     kind="observation", source=f"meeting:{meeting_id}", importance=0.6)
+        except ValueError:  # unknown/invalid employee id from the request body
+            pass
     set_status(connection, meeting_id, "completed")
     _bus.publish({"type": "meeting", "status": "completed", "meeting_id": meeting_id,
                   "task": topic, "employee": "owner", "content": decision,

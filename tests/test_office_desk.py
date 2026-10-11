@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bot_loker_wfh import office_desk as desk
 from bot_loker_wfh.database import apply_schema
+from bot_loker_wfh.employee_memory import list_memories
 from bot_loker_wfh.office_work import OfficeWork
 
 
@@ -79,6 +80,32 @@ class DeskTest(unittest.TestCase):
         ranked = desk.prioritize(items, desk.keywords("fokus python, django"))
         self.assertEqual(ranked[0]["title"], "Python Django dev")
         self.assertEqual(desk.prioritize(items, []), items)
+
+    def test_review_becomes_a_lesson_that_reaches_later_prompts(self):
+        r = desk.create_report(self.connection, "cora")
+        desk.review_report(self.connection, r["id"], 1, "Surat terlalu panjang")
+        desk.review_report(self.connection, r["id"], 2, "Surat terlalu panjang")  # re-review updates, not duplicates
+        rows = list_memories(self.connection, "cora")
+        self.assertEqual([(m["kind"], m["importance"]) for m in rows], [("correction", 0.9)])
+        self.assertIn("2/5", rows[0]["content"])
+
+        seen = []
+        desk.instructed(lambda p: seen.append(p) or "ok", self.connection, "cora")("Write a letter")
+        self.assertIn("Surat terlalu panjang", seen[0])
+        self.assertEqual(list_memories(self.connection, "sari"), [])  # lessons stay per employee
+
+    def test_instinct_uses_the_employee_llm_and_rejects_bad_answers(self):
+        r = desk.create_report(self.connection, "cora")
+        desk.review_report(self.connection, r["id"], 1, "Perbaiki dulu")
+        seen = []
+        llm = lambda p: seen.append(p) or 'ok {"zone": "stay", "thought": "Perbaiki laporan dulu"}'  # noqa: E731
+        got = desk.instinct(self.connection, llm, "cora", {"mood": "sedih", "nearbyColleagues": ["Reno"]})
+        self.assertEqual(got, {"zone": "stay", "thought": "Perbaiki laporan dulu"})
+        self.assertIn("Perbaiki dulu", seen[0])  # the past lesson is in the decision prompt
+        self.assertIsNone(desk.instinct(self.connection, lambda p: '{"zone": "moon"}', "cora", {}))
+        self.assertIsNone(desk.instinct(self.connection, lambda p: "bukan json", "cora", {}))
+        self.assertIsNone(desk.instinct(self.connection, llm, "nobody", {}))
+        self.assertIsNone(desk.instinct(self.connection, None, "cora", {}))
 
     def test_profile_has_three_periods_and_trend(self):
         insert_job(self.connection, "a")

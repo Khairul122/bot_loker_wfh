@@ -28,13 +28,19 @@ export const EXPLORE_ZONES = [
  * Memicu insting otonom karyawan untuk eksplorasi lintas lantai / outdoor / sosial
  */
 export async function triggerLLMInstinct(character) {
-  if (!character || character.state === 'chat' || character.talking) return false;
+  if (!character || character.state === 'chat' || character.talking || character.thinking) return false;
+  character.thinking = true;  // routine re-checks every frame; one decision in flight per employee
+  try { return await decideInstinct(character); } finally { character.thinking = false; }
+}
+
+async function decideInstinct(character) {
 
   const currentZone = getLocationLabel(character.pos.x, character.pos.z, character.level);
   const nearbyStaff = staff.filter(s => s !== character && s.level === character.level && s.pos.distanceTo(character.pos) < 6);
 
   // Construct prompt payload for Autonomous LLM
   const contextPayload = {
+    id: character.def?.id,
     name: character.name,
     role: character.def?.title || 'Staff',
     division: DIVS[character.def?.div]?.name || 'Kantor',
@@ -51,7 +57,7 @@ export async function triggerLLMInstinct(character) {
     if (LLM_CONFIG.active && window.fetch) {
       // Call LLM Decision Service (with fallback timeout)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       try {
         const res = await fetch(LLM_CONFIG.endpoint, {
@@ -61,7 +67,7 @@ export async function triggerLLMInstinct(character) {
           signal: controller.signal,
         });
         clearTimeout(timeoutId);
-        if (res.ok) decision = await res.json();
+        if (res.ok) decision = zoneDecision(await res.json());
       } catch {
         // Fallback to Autonomous Rule Engine if LLM server offline
       }
@@ -77,6 +83,24 @@ export async function triggerLLMInstinct(character) {
     console.warn('Instinct engine error:', err);
     return false;
   }
+}
+
+// Server answers {zone, thought}; filters are functions so they live here, keyed by zone.
+const ZONE_FILTERS = {
+  pond: s => s.kind === 'pond' || s.kind === 'bench',
+  roof: s => s.level === ROOF,
+  cafe: s => s.kind === 'kafe' || s.kind === 'kopi',
+  arena: s => s.kind === 'hoop' || s.kind === 'ping',
+  picnic: s => s.kind === 'picnic' || s.kind === 'bench',
+  sofa: s => s.kind === 'sofa',
+  swing: s => s.kind === 'swing' || s.kind === 'slide',
+};
+
+function zoneDecision(d) {
+  if (!d || typeof d.zone !== 'string') return null;
+  if (d.zone === 'stay') return { action: 'stay', thought: d.thought, targetFilter: () => false, stay: true };
+  const targetFilter = ZONE_FILTERS[d.zone];
+  return targetFilter ? { action: 'explore_' + d.zone, thought: d.thought, targetFilter } : null;
 }
 
 /**
@@ -131,6 +155,11 @@ function generateLocalInstinct(character, ctx, nearbyStaff) {
  * Execute movement & speech based on LLM/Instinct Decision
  */
 function executeInstinctDecision(c, decision) {
+  if (decision.stay) {  // the employee chose to keep working (e.g. to fix low-rated work)
+    if (decision.thought) say(c, decision.thought, 3.2);
+    c.timer = rand(20, 45);
+    return;
+  }
   const availableSpots = spots.filter(s => !s.by && !s.house && s.level !== 9 && decision.targetFilter(s));
   const chosenSpot = availableSpots.length ? pick(availableSpots) : null;
 

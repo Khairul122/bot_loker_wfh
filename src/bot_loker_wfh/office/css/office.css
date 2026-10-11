@@ -13,7 +13,8 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;font-weight:800}
 #top{position:fixed;top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;pointer-events:none}
 #top>*{pointer-events:auto}
-#brand{font-size:15px}
+#brand{font-size:15px;display:flex;align-items:center;gap:6px}
+.logo-icon{width:22px;height:22px;object-fit:contain}
 #brand .dot{width:10px;height:10px;border-radius:50%;background:var(--idle)}
 #brand .dot.live{background:var(--good);box-shadow:0 0 0 4px rgba(92,184,122,.25)}
 /* toolbar container & buttons */

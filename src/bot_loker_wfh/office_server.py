@@ -30,6 +30,8 @@ from .status_transitions import InvalidTransitionError
 
 OFFICE_DIR = Path(__file__).with_name("office")
 HUNT_RESULT_LIMIT = 5
+_INSTINCT_COOLDOWN = 90.0  # seconds between LLM instinct calls per employee (cost cap)
+_INSTINCT_LAST: dict[str, float] = {}
 
 # Settings the office panel may persist. Anything else is rejected.
 SECRET_KEYS = frozenset({"ninerouter_api_key"})
@@ -442,6 +444,13 @@ class _Handler(SimpleHTTPRequestHandler):
                     return self._json(200, desk.profile(connection, employee))
                 except KeyError:
                     return self._json(404, {"error": "not_found"})
+        if path == "/employee-memory.json":
+            employee = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+            if employee not in desk.ROLES:
+                return self._json(404, {"error": "not_found"})
+            with self._connect() as connection:
+                from .employee_memory import list_memories
+                return self._json(200, {"id": employee, "items": list_memories(connection, employee, limit=10)})
         if path == "/employee-skills.json":
             try:
                 return self._json(200, {"employees": all_employee_skills()})
@@ -532,6 +541,18 @@ class _Handler(SimpleHTTPRequestHandler):
                 office_events.publish({"employee": line.get("employee"), "task": topic, "status": "rapat"})
             office_events.publish({"employee": "owner", "task": topic, "status": "keputusan"})
             return self._json(200, result)
+        if parts == ["api", "staff-instinct"]:
+            body = self._body()
+            employee = str(body.get("id") or "")
+            if employee not in desk.ROLES:
+                return self._json(400, {"error": "invalid"})
+            now = time.monotonic()
+            if now -_INSTINCT_LAST.get(employee, -_INSTINCT_COOLDOWN) < _INSTINCT_COOLDOWN:
+                return self._json(429, {"error": "cooldown"})  # the page falls back to its local instinct
+            _INSTINCT_LAST[employee] = now
+            with self._connect() as connection:
+                decision = desk.instinct(connection, self.work.llm, employee, body)
+            return self._json(200, decision) if decision else self._json(503, {"error": "unavailable"})
         handled = self._desk_post(parts)
         if handled is not None:
             return handled
