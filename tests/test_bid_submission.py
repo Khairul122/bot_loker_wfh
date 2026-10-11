@@ -121,6 +121,36 @@ class FieldMatchingTest(unittest.TestCase):
         self.assertEqual(playwright_bid.match_fields(items)["amount"], 0)
 
 
+class ChromeProfileImportTest(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = Path(self.tmp.name)
+        self.source, self.dest = base / "User Data", base / "bot-profile"
+        (self.source / "Default" / "Network").mkdir(parents=True)
+        (self.source / "Default" / "Cache").mkdir()
+        (self.source / "Default" / "Network" / "Cookies").write_bytes(b"cookies")
+        (self.source / "Default" / "Cache" / "big").write_bytes(b"x" * 10)
+        (self.source / "Local State").write_text("{}")
+
+    def test_copies_logins_but_not_caches(self):
+        message = playwright_bid.import_chrome_profile("Default", source=self.source, dest=self.dest, running=lambda: False)
+        self.assertIn("disalin", message)
+        self.assertTrue((self.dest / "Local State").is_file())
+        self.assertEqual((self.dest / "Default" / "Network" / "Cookies").read_bytes(), b"cookies")
+        self.assertFalse((self.dest / "Default" / "Cache").exists())
+        self.assertTrue(playwright_bid.profile_ready(self.dest, "Default"))
+
+    def test_refuses_while_chrome_is_running_and_for_unknown_profiles(self):
+        with self.assertRaises(playwright_bid.ProfileImportError):
+            playwright_bid.import_chrome_profile("Default", source=self.source, dest=self.dest, running=lambda: True)
+        with self.assertRaises(playwright_bid.ProfileImportError):
+            playwright_bid.import_chrome_profile("Profile 9", source=self.source, dest=self.dest, running=lambda: False)
+        self.assertFalse(self.dest.exists())
+
+
 FORM = """
 <form onsubmit="event.preventDefault(); document.body.insertAdjacentHTML('beforeend','<p>Penawaran berhasil diajukan</p>');">
   <label for="p">Harga penawaran (Rp)</label><input id="p" type="text">

@@ -9,13 +9,66 @@ run stops with the form filled for the owner.
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
+import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 PROFILE_DIR = Path("data/browser-profile")
+# Chrome 136+ refuses automation on its default data folder, so the bot works on a copy of the
+# owner's profile (cookies/logins) kept in PROFILE_DIR. Re-import after logging in elsewhere.
+SKIP_IN_COPY = shutil.ignore_patterns(
+    "Cache", "Code Cache", "GPUCache", "DawnCache", "GrShaderCache", "ShaderCache", "Media Cache", "CacheStorage",
+    "Service Worker", "Extensions", "Extension State", "File System", "optimization_guide*", "*.tmp", "LOCK", "Crashpad",
+    "BrowserMetrics*", "Safe Browsing*", "component_crx_cache", "SingletonLock", "SingletonCookie", "SingletonSocket",
+)
+
+
+class ProfileImportError(RuntimeError):
+    """User-safe reason the Chrome profile could not be copied."""
+
+
+def chrome_user_data_dir() -> Path:
+    override = os.getenv("CHROME_USER_DATA_DIR")
+    return Path(override) if override else Path(os.getenv("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
+
+
+def chrome_profile_name() -> str:
+    return os.getenv("CHROME_PROFILE", "Default")
+
+
+def chrome_running() -> bool:
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True, timeout=15).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "chrome.exe" in out.lower()
+
+
+def profile_ready(dest: Path = PROFILE_DIR, name: str | None = None) -> bool:
+    return (dest / "Local State").is_file() and (dest / (name or chrome_profile_name())).is_dir()
+
+
+def import_chrome_profile(name: str | None = None, *, source: Path | None = None, dest: Path = PROFILE_DIR,
+                          running=chrome_running) -> str:
+    """Copy the owner's logged-in Chrome profile (and its key file) for the bot's own window."""
+    name = name or chrome_profile_name()
+    source = source or chrome_user_data_dir()
+    if not (source / name).is_dir() or not (source / "Local State").is_file():
+        raise ProfileImportError(f"Profil Chrome '{name}' tidak ditemukan di {source}")
+    if running():
+        raise ProfileImportError("Tutup semua jendela Chrome dulu (cookie terkunci selama Chrome jalan), lalu ulangi.")
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source / "Local State", dest / "Local State")
+    shutil.copytree(source / name, dest / name, ignore=SKIP_IN_COPY, dirs_exist_ok=True)
+    return f"Profil Chrome '{name}' disalin ke {dest}. Buka Chrome lagi seperti biasa."
 LOGIN_WAIT_SECONDS = 300
 KEEP_OPEN_SECONDS = 20 * 60
 SUBMIT_NAME = re.compile(r"(ajukan|kirim|submit|place|send)\s*(penawaran|bid|proposal)|^\s*(ajukan|kirim)\s*$", re.I)
@@ -141,16 +194,19 @@ def submit_bid(url: str, *, amount: str, days: str, proposal: str, profile_dir: 
             from playwright.sync_api import sync_playwright as playwright_factory
         except ImportError:
             return BidResult("missing_fields", "Playwright belum terpasang: pip install playwright && python -m playwright install chromium")
-    profile_dir.mkdir(parents=True, exist_ok=True)
+    name = chrome_profile_name()
+    if not profile_ready(profile_dir, name):
+        try:  # first run: bring over the owner's logged-in Chrome profile
+            import_chrome_profile(name, dest=profile_dir)
+        except ProfileImportError as error:
+            return BidResult("missing_fields", f"{error} (atau jalankan: python -m bot_loker_wfh import-chrome-profile)")
     with playwright_factory() as playwright:
         try:
             context = playwright.chromium.launch_persistent_context(
-                str(profile_dir), channel="chrome", headless=headless, viewport={"width": 1280, "height": 900})
+                str(profile_dir), channel="chrome", headless=headless, viewport={"width": 1280, "height": 900},
+                args=[f"--profile-directory={name}"], ignore_default_args=["--enable-automation"])
         except Exception:
-            try:
-                context = playwright.chromium.launch_persistent_context(str(profile_dir), headless=headless)
-            except Exception:
-                return BidResult("missing_fields", "Browser tidak bisa dibuka (tutup Chrome yang memakai profil data/browser-profile).")
+            return BidResult("missing_fields", "Chrome bot tidak bisa dibuka: tutup jendela Chrome bot yang masih terbuka lalu setujui lagi.")
         try:
             page = context.new_page()  # its own tab in the bot's own window
             page.goto(url, wait_until="domcontentloaded", timeout=60000)

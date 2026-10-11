@@ -66,11 +66,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="The owner already approved this bid in the web UI: submit without the CLI prompt",
     )
+    parser.add_argument("--profile", help="Chrome profile folder for import-chrome-profile (default: CHROME_PROFILE or Default)")
     parser.add_argument("--port", type=int, default=8765, help="Port for the office command")
     parser.add_argument(
         "command",
         choices=(
             "start",
+            "import-chrome-profile",
             "init-db",
             "fetch-remoteok",
             "fetch-remotive",
@@ -216,6 +218,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         with database.session() as connection:
             data = sync_portfolio(username, connection)
         print(f"github portfolio saved repos={len(data['repos'])} path=data/github_portfolio.json")
+        return 0
+
+    if args.command == "import-chrome-profile":
+        from .playwright_bid import ProfileImportError, import_chrome_profile
+
+        try:
+            print(import_chrome_profile(args.profile))
+        except ProfileImportError as error:
+            print(error)
+            return 1
         return 0
 
     if args.command == "fill-lead":
