@@ -8,6 +8,10 @@ A personal job-hunting bot that runs as a cozy 3D office. Virtual employees find
 
 ▶️ Full-quality video (1080p, 20 s, with music): [download `office-pov.mp4`](https://github.com/Khairul122/bot_loker_wfh/raw/main/docs/media/office-pov.mp4)
 
+
+https://github.com/user-attachments/assets/b2e24839-4e14-4d4f-8fc6-beb60e016436
+
+
 **[English](#english)** · **[Bahasa Indonesia](#bahasa-indonesia)**
 
 ---
