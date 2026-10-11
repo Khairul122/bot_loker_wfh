@@ -17,6 +17,7 @@ MAX_RECORDS_PER_EMPLOYEE = 100
 MAX_CONTENT_LENGTH = 2000
 MAX_SOURCE_LENGTH = 100
 MAX_KIND_LENGTH = 40
+DRAFT_SOURCE = "draft:"  # source prefix of the "which repos did this draft cite" log
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _KINDS = frozenset({"observation", "preference", "correction", "outcome"})
 
@@ -104,23 +105,36 @@ def remember(
     return _row(row)
 
 
-def list_memories(connection: Connection, employee_id: str, *, limit: int = 20) -> list[dict[str, Any]]:
-    """Return highest-value recent records, with a hard retrieval cap."""
+def list_memories(
+    connection: Connection, employee_id: str, *, limit: int = 20, source_prefix: str | None = None,
+    exclude_prefix: str | None = None,
+) -> list[dict[str, Any]]:
+    """Return highest-value recent records, with a hard retrieval cap.
+
+    source_prefix keeps only records from one kind of source ("draft:"); exclude_prefix drops them.
+    """
     employee_id = _employee_id(employee_id)
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= MAX_RECORDS_PER_EMPLOYEE:
         raise ValueError(f"limit must be between 1 and {MAX_RECORDS_PER_EMPLOYEE}")
+    where, params = "employee_id = ?", [employee_id]
+    if source_prefix:
+        where += " AND source LIKE ?"
+        params.append(source_prefix + "%")
+    if exclude_prefix:
+        where += " AND source NOT LIKE ?"
+        params.append(exclude_prefix + "%")
     rows = connection.execute(
         "SELECT id, employee_id, kind, content, source, importance, metadata, created_at "
-        "FROM employee_memory WHERE employee_id = ? ORDER BY importance DESC, created_at DESC LIMIT ?",
-        (employee_id, limit),
+        f"FROM employee_memory WHERE {where} ORDER BY importance DESC, created_at DESC LIMIT ?",
+        (*params, limit),
     ).fetchall()
     return [_row(row) for row in rows]
 
 
 def lessons_text(connection: Connection, employee_id: str, *, limit: int = 5) -> str:
     """Top lessons as prompt-ready lines; empty string when none or the lookup fails."""
-    try:
-        records = list_memories(connection, employee_id, limit=limit)
+    try:  # draft logs ("draft:...") are facts for the owner, not lessons for the prompt
+        records = list_memories(connection, employee_id, limit=limit, exclude_prefix=DRAFT_SOURCE)
     except Exception:  # learning is a bonus, it must never break the work it decorates
         return ""
     return "\n".join(f"- ({r['kind']}) {r['content']}" for r in records)

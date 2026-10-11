@@ -15,7 +15,7 @@ from collections.abc import Callable
 
 from .cv_profile import SafeCvProfile
 from .form_agent.bid_terms import BidTerms, choose_bid_terms, parse_bid_terms, parse_budget, suggest_amount
-from .github_portfolio import relevant_repos
+from .github_portfolio import MIN_MATCH, relevant_repos
 
 LEAD_LIST_LIMIT = 100
 # Platforms where an approved bid may be typed in and submitted for the owner.
@@ -221,10 +221,30 @@ def draft_proposal(
         raise RevisionFailed("model tidak menjawab; draf lama dipertahankan")
     text = text or template_proposal(title, description, profile, repos, indonesian=indonesian)
     save_proposal(connection, lead_id, text, mark_interested=mark_interested)
+    _log_draft_repos(connection, lead_id, title, repos, portfolio or {})
     terms = choose_bid_terms(llm, title=title, description=description, budget=budget or "", note=note)
     if terms is not None:
         save_bid_terms(connection, lead_id, terms)
     return text
+
+
+def _log_draft_repos(connection: Connection, lead_id: str, title: str, repos: list[dict], portfolio: dict) -> None:
+    """Remember which repos Cora cited (and why none) so she can explain her drafts to the owner."""
+    from .employee_memory import DRAFT_SOURCE, remember
+
+    if repos:
+        cited = ", ".join(f"{r['name']} ({r['match']}%)" for r in repos)
+        content = f"Draf '{title[:100]}' mengutip repo: {cited}."
+    elif portfolio.get("repos"):
+        content = f"Draf '{title[:100]}' tanpa repo: tidak ada repo yang cocok minimal {MIN_MATCH}% dengan proyek ini."
+    else:
+        content = f"Draf '{title[:100]}' tanpa repo: data GitHub belum disinkronkan."
+    try:
+        remember(connection, "cora", content, kind="observation", source=f"{DRAFT_SOURCE}{lead_id}", importance=0.3,
+                 metadata={"lead_id": lead_id, "repos": [{"name": r["name"], "match": r["match"]} for r in repos]},
+                 replace_source=True)  # a revised draft replaces its earlier log line
+    except ValueError:
+        pass  # the draft is saved; the log line is a bonus
 
 
 def comment_prompt(title: str, description: str, repos: list[dict], *, indonesian: bool) -> str:

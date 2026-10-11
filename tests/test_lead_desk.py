@@ -238,6 +238,55 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class CoraGithubFactsTest(unittest.TestCase):
+    def setUp(self):
+        self.connection = database.connect()
+        apply_schema(self.connection)
+
+    def lead(self, title):
+        self.connection.execute(
+            "INSERT INTO leads (id, source, external_id, kind, title, description, url) VALUES "
+            "('g', 'freelancer', 'g', 'project', ?, 'butuh aplikasi untuk toko', 'u')", (title,))
+        self.connection.commit()
+
+    def test_cora_can_explain_which_repos_her_drafts_cited_and_why_none(self):
+        import json
+
+        from bot_loker_wfh import office_desk as desk
+        from bot_loker_wfh.settings_store import set_setting
+
+        repo = {"name": "aplikasi-kasir", "url": "https://github.com/Khairul122/aplikasi-kasir", "language": "PHP",
+                "description": "kasir toko", "topics": [], "updated_at": datetime.now(timezone.utc).isoformat()}
+        portfolio = {"username": "Khairul122", "synced_at": "2026-10-10T23:18:01+00:00", "repos": [repo]}
+        set_setting(self.connection, "github_portfolio", json.dumps(portfolio))
+
+        self.lead("Aplikasi kasir")
+        draft_proposal(self.connection, "g", PROFILE, None, portfolio)
+        asked = []
+        desk.ask(self.connection, lambda p: asked.append(p) or "ok", "cora", "kenapa pakai repo itu?")
+        self.assertIn("Khairul122", asked[0])
+        self.assertIn("1 repo publik", asked[0])
+        self.assertRegex(asked[0], r"mengutip repo: aplikasi-kasir \(\d+%\)")
+        self.assertIn("70%", asked[0])
+
+        self.connection.execute("UPDATE leads SET title = 'Logo design', description = 'buat logo' WHERE id = 'g'")
+        self.connection.commit()
+        draft_proposal(self.connection, "g", PROFILE, None, portfolio)  # a redraft replaces the old log line
+        asked.clear()
+        desk.ask(self.connection, lambda p: asked.append(p) or "ok", "cora", "kenapa tanpa repo?")
+        self.assertIn("tanpa repo: tidak ada repo yang cocok minimal 70%", asked[0])
+        self.assertNotIn("mengutip repo: aplikasi-kasir", asked[0])
+
+        # the draft log is a fact for the owner, never a "lesson" injected into Cora's writing prompts
+        seen = []
+        desk.instructed(lambda p: seen.append(p) or "x", self.connection, "cora")("tulis")
+        self.assertNotIn("mengutip", seen[0])
+
+        # no synced data at all: she says so instead of "no information"
+        set_setting(self.connection, "github_portfolio", json.dumps({"username": "", "synced_at": None, "repos": []}))
+        self.assertIn("belum ada data repo", " ".join(desk.github_facts(self.connection)))
+
+
 class LanguageAndCommentTest(unittest.TestCase):
     def setUp(self):
         self.connection = database.connect()

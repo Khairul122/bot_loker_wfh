@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import re
 from .database import Connection
-from .employee_memory import lessons_text, remember
+from .employee_memory import DRAFT_SOURCE, lessons_text, list_memories, remember
+from .github_portfolio import MIN_MATCH, load_portfolio
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -426,6 +427,22 @@ class _Instructed:
 
 # ---------------------------------------------------------------- Q&A and digests
 
+def github_facts(connection: Connection) -> list[str]:
+    """What Cora knows about the owner's GitHub: sync state, the repo rule, and her recent repo choices."""
+    portfolio = load_portfolio(connection)
+    if not portfolio.get("repos"):
+        return ["GitHub: belum ada data repo yang disinkronkan, jadi draf tidak mengutip repo."]
+    lines = [
+        f"GitHub: akun {portfolio.get('username') or '-'}, {len(portfolio['repos'])} repo publik, "
+        f"terakhir disinkronkan {portfolio.get('synced_at') or '-'} (otomatis tiap 6 jam).",
+        f"Aturan repo: draf hanya mengutip repo dengan skor kecocokan minimal {MIN_MATCH}% terhadap proyek klien "
+        "(topik 70, kebaruan 10, bahasa 10, kelengkapan deskripsi 10; kata umum seperti web/backend/api tidak dihitung).",
+    ]
+    recent = list_memories(connection, "cora", limit=5, source_prefix=DRAFT_SOURCE)
+    recent.sort(key=lambda m: m["created_at"], reverse=True)
+    return lines + [f"Draf terbaru: {m['content']}" for m in recent]
+
+
 def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str, question: str) -> dict:
     """Answer the owner's question from this employee's real numbers; the LLM only phrases it."""
     if employee not in ROLES:
@@ -437,7 +454,8 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
     facts = "\n".join(
         [f"24 jam: " + ", ".join(f"{label} {value}" for _, label, value in day["metrics"]),
          f"7 hari: " + ", ".join(f"{label} {value}" for _, label, value in week["metrics"]),
-         *day["lines"]])
+         *day["lines"],
+         *(github_facts(connection) if employee == "cora" else [])])
     order = get_instruction(connection, employee)
     lessons = lessons_text(connection, employee)
     if llm is not None:
@@ -456,7 +474,8 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
                 return {"answer": answer[:1200], "ai": True}
         except Exception:  # the plain facts are always a safe answer
             pass
-    return {"answer": " ".join(day["lines"]) + " (AI belum aktif, ini data mentahnya.)", "ai": False}
+    plain = [*day["lines"], *(github_facts(connection) if employee == "cora" else [])]
+    return {"answer": " ".join(plain) + " (AI belum aktif, ini data mentahnya.)", "ai": False}
 
 
 INSTINCT_ZONES = ("pond", "roof", "cafe", "arena", "picnic", "sofa", "swing", "stay")
