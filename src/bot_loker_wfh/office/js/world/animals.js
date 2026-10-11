@@ -1,4 +1,4 @@
-// ---------- Procedural Low-Poly Three.js Animals (Varied Population, Multi-Color Variants & Owner Interaction) ----------
+// ---------- Procedural Low-Poly Three.js Animals (Populated Wildlife, Custom Ducks in Pond & Interactive Logic) ----------
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { box, cyl, sph, group } from '../core/factory.js';
@@ -26,37 +26,30 @@ function createDeer(x, z, variant = 'male') {
   const isMale = variant === 'male';
   const bodyColor = isMale ? 0x9a6238 : 0xb45309;
 
-  // Body & Belly
   box(0.48, 0.55, 0.95, bodyColor, 0, 0.72, 0, g);
   box(0.42, 0.35, 0.7, 0xfef08a, 0, 0.58, 0.05, g);
   if (!isMale) {
-    // White spots on female/doe back
     sph(0.04, 0xffffff, -0.12, 1.02, -0.1, g);
     sph(0.04, 0xffffff, 0.12, 1.02, 0.1, g);
     sph(0.04, 0xffffff, 0.0, 1.02, -0.3, g);
   }
 
-  // Neck
-  const neck = box(0.24, 0.55, 0.26, bodyColor, 0, 1.15, 0.35, g);
-  neck.rotation.x = -0.2;
-  // Head & Snout
+  const neck = box(0.24, 0.55, 0.26, bodyColor, 0, 1.15, 0.35, g); neck.rotation.x = -0.2;
   const head = group(0, 1.45, 0.42, g);
   box(0.22, 0.22, 0.32, bodyColor, 0, 0, 0, head);
   box(0.18, 0.16, 0.2, 0x451a03, 0, -0.03, 0.2, head);
   sph(0.03, 0x000000, 0, 0.04, 0.3, head);
-  // Ears
+
   const earL = box(0.18, 0.06, 0.08, bodyColor, -0.16, 0.08, -0.05, head); earL.rotation.z = -0.3;
   const earR = box(0.18, 0.06, 0.08, bodyColor, 0.16, 0.08, -0.05, head); earR.rotation.z = 0.3;
 
   if (isMale) {
-    // Antlers
     const aL = cyl(0.025, 0.025, 0.45, 0xfef08a, -0.1, 0.26, -0.05, head); aL.rotation.z = -0.35; aL.rotation.x = -0.2;
     const aR = cyl(0.025, 0.025, 0.45, 0xfef08a, 0.1, 0.26, -0.05, head); aR.rotation.z = 0.35; aR.rotation.x = -0.2;
     cyl(0.02, 0.02, 0.2, 0xfef08a, -0.18, 0.32, 0.02, head).rotation.z = 0.4;
     cyl(0.02, 0.02, 0.2, 0xfef08a, 0.18, 0.32, 0.02, head).rotation.z = -0.4;
   }
 
-  // Legs
   const legFL = cyl(0.05, 0.04, 0.55, 0x78350f, -0.18, 0.28, 0.32, g);
   const legFR = cyl(0.05, 0.04, 0.55, 0x78350f, 0.18, 0.28, 0.32, g);
   const legBL = cyl(0.05, 0.04, 0.55, 0x78350f, -0.18, 0.28, -0.32, g);
@@ -73,16 +66,11 @@ function createBird(x, y, z, variant = 'cyan') {
   const subColor = variant === 'scarlet' ? 0xf87171 : 0x38bdf8;
   const wingColor = variant === 'scarlet' ? 0x991b1b : 0x0369a1;
 
-  // Torso, Head, Beak
   const body = sph(0.18, mainColor, 0, 0, 0, g); body.scale.set(0.8, 0.8, 1.4);
   const head = sph(0.12, subColor, 0, 0.1, 0.18, g);
   const beak = box(0.08, 0.08, 0.14, 0xf59e0b, 0, 0.08, 0.28, g); beak.rotation.x = 0.2;
-  // Wings
-  const wingL = group(-0.16, 0.04, 0, g);
-  box(0.32, 0.03, 0.18, wingColor, -0.16, 0, 0, wingL);
-  const wingR = group(0.16, 0.04, 0, g);
-  box(0.32, 0.03, 0.18, wingColor, 0.16, 0, 0, wingR);
-  // Tail Feathers
+  const wingL = group(-0.16, 0.04, 0, g); box(0.32, 0.03, 0.18, wingColor, -0.16, 0, 0, wingL);
+  const wingR = group(0.16, 0.04, 0, g); box(0.32, 0.03, 0.18, wingColor, 0.16, 0, 0, wingR);
   const tail = box(0.12, 0.02, 0.25, wingColor, 0, -0.02, -0.24, g); tail.rotation.x = -0.2;
 
   return { root: g, head, wingL, wingR, flySpeed: 6.0 };
@@ -94,15 +82,12 @@ function createRabbit(x, z, variant = 'white') {
   const colorMap = { white: 0xf8fafc, brown: 0xa16207, gray: 0x64748b };
   const furColor = colorMap[variant] || 0xf8fafc;
 
-  // Body & Head
   sph(0.13, furColor, 0, 0.12, 0, g);
   const head = sph(0.09, furColor, 0, 0.21, 0.08, g);
-  // Ears
   const earL = box(0.035, 0.16, 0.03, furColor, -0.04, 0.3, 0.06, g); earL.rotation.z = -0.15;
   box(0.02, 0.12, 0.015, 0xf472b6, -0.04, 0.3, 0.07, g).rotation.z = -0.15;
   const earR = box(0.035, 0.16, 0.03, furColor, 0.04, 0.3, 0.06, g); earR.rotation.z = 0.15;
   box(0.02, 0.12, 0.015, 0xf472b6, 0.04, 0.3, 0.07, g).rotation.z = 0.15;
-  // Tail & Feet
   sph(0.045, 0xffffff, 0, 0.08, -0.12, g);
   const legL = sph(0.05, furColor, -0.08, 0.04, 0, g);
   const legR = sph(0.05, furColor, 0.08, 0.04, 0, g);
@@ -117,21 +102,16 @@ function createCat(x, z, variant = 'orange') {
   const furColor = isTuxedo ? 0x1e293b : 0xf97316;
   const earColor = isTuxedo ? 0x0f172a : 0xea580c;
 
-  // Body & Belly
   box(0.22, 0.22, 0.42, furColor, 0, 0.18, 0, g);
   box(0.2, 0.14, 0.3, 0xffffff, 0, 0.13, 0, g);
-  // Head & Ears
   const head = sph(0.12, furColor, 0, 0.28, 0.16, g);
   const earL = box(0.05, 0.07, 0.04, earColor, -0.07, 0.38, 0.15, g); earL.rotation.z = -0.2;
   const earR = box(0.05, 0.07, 0.04, earColor, 0.07, 0.38, 0.15, g); earR.rotation.z = 0.2;
-  sph(0.02, 0x15803d, -0.04, 0.3, 0.24, g);
-  sph(0.02, 0x15803d, 0.04, 0.3, 0.24, g);
-  // Legs
+  sph(0.02, 0x15803d, -0.04, 0.3, 0.24, g); sph(0.02, 0x15803d, 0.04, 0.3, 0.24, g);
   const legFL = cyl(0.035, 0.03, 0.15, 0xffffff, -0.08, 0.075, 0.14, g);
   const legFR = cyl(0.035, 0.03, 0.15, 0xffffff, 0.08, 0.075, 0.14, g);
   const legBL = cyl(0.035, 0.03, 0.15, 0xffffff, -0.08, 0.075, -0.14, g);
   const legBR = cyl(0.035, 0.03, 0.15, 0xffffff, 0.08, 0.075, -0.14, g);
-  // Tail
   const tailPivot = group(0, 0.24, -0.2, g);
   const tailMesh = cyl(0.025, 0.015, 0.26, earColor, 0, 0.12, -0.08, tailPivot); tailMesh.rotation.x = -0.6;
 
@@ -145,52 +125,92 @@ function createDog(x, z, variant = 'beagle') {
   const furColor = isGolden ? 0xeab308 : 0xd97706;
   const earColor = isGolden ? 0xca8a04 : 0x451a03;
 
-  // Body & Tummy
   box(0.28, 0.32, 0.54, furColor, 0, 0.28, 0, g);
   box(0.26, 0.22, 0.42, 0xfef08a, 0, 0.21, 0, g);
-  // Head & Snout
   const head = group(0, 0.44, 0.22, g);
   box(0.22, 0.22, 0.24, isGolden ? 0xca8a04 : 0x92400e, 0, 0, 0, head);
   box(0.15, 0.13, 0.16, 0xffffff, 0, -0.03, 0.15, head);
   sph(0.032, 0x000000, 0, 0.02, 0.23, head);
-  // Floppy Ears
   const earL = box(0.05, 0.18, 0.09, earColor, -0.13, -0.02, 0, head); earL.rotation.z = 0.15;
   const earR = box(0.05, 0.18, 0.09, earColor, 0.13, -0.02, 0, head); earR.rotation.z = -0.15;
-  // Legs
   const legFL = cyl(0.045, 0.038, 0.22, 0xffffff, -0.1, 0.11, 0.18, g);
   const legFR = cyl(0.045, 0.038, 0.22, 0xffffff, 0.1, 0.11, 0.18, g);
   const legBL = cyl(0.045, 0.038, 0.22, 0xffffff, -0.1, 0.11, -0.18, g);
   const legBR = cyl(0.045, 0.038, 0.22, 0xffffff, 0.1, 0.11, -0.18, g);
-  // Tail
   const tailPivot = group(0, 0.36, -0.26, g);
   const tailMesh = cyl(0.03, 0.015, 0.24, furColor, 0, 0.1, -0.06, tailPivot); tailMesh.rotation.x = -0.5;
 
   return { root: g, head, legs: [legFL, legFR, legBL, legBR], tailPivot, walkSpeed: 1.5, runSpeed: 3.6 };
 }
 
-// ---------- Initialize All 11 Animals Across Map ----------
+// ---------- 6. Bebek (Pond Duck & Duckling) Builder ----------
+function createDuck(x, z, variant = 'mallard') {
+  const g = group(x, 0.1, z);
+  const isDuckling = variant === 'duckling';
+  const scale = isDuckling ? 0.55 : 0.95;
+  g.scale.setScalar(scale);
+
+  let bodyColor = 0xffffff;
+  let headColor = 0xffffff;
+  let beakColor = 0xf97316;
+
+  if (variant === 'mallard') {
+    bodyColor = 0x78350f;
+    headColor = 0x065f46; // Emerald green head
+    beakColor = 0xf59e0b;
+  } else if (variant === 'duckling') {
+    bodyColor = headColor = 0xfde047; // Fluffy yellow
+    beakColor = 0xf97316;
+  }
+
+  // Teardrop Body & Wings
+  const body = sph(0.24, bodyColor, 0, 0.14, 0, g); body.scale.set(0.85, 0.75, 1.25);
+  box(0.26, 0.12, 0.28, 0xffffff, 0, 0.1, 0.02, g); // White chest
+  if (variant === 'mallard') {
+    box(0.04, 0.1, 0.22, 0x0284c7, -0.21, 0.16, 0, g); // Blue speculum wing accent
+    box(0.04, 0.1, 0.22, 0x0284c7, 0.21, 0.16, 0, g);
+  }
+
+  // Head & Beak
+  const headGroup = group(0, 0.26, 0.16, g);
+  const head = sph(0.13, headColor, 0, 0, 0, headGroup);
+  if (variant === 'mallard') box(0.24, 0.03, 0.24, 0xffffff, 0, -0.09, 0, headGroup); // White neck ring
+  const beak = box(0.12, 0.05, 0.16, beakColor, 0, -0.02, 0.15, headGroup); beak.rotation.x = 0.15;
+  sph(0.025, 0x000000, -0.07, 0.03, 0.08, headGroup); // Eyes
+  sph(0.025, 0x000000, 0.07, 0.03, 0.08, headGroup);
+
+  // Tail
+  const tail = box(0.08, 0.08, 0.14, bodyColor, 0, 0.22, -0.28, g); tail.rotation.x = 0.4;
+
+  return { root: g, head: headGroup, tail, swimSpeed: 1.2 };
+}
+
+// ---------- Initialize All Wildlife (14 Animals Total) ----------
 export async function initAnimals() {
   const population = [
-    // Rusa (2 ekor: Jantan & Betina)
+    // Rusa (2 ekor)
     { id: 'deer', inst: createDeer(14, -24, 'male'), area: 'taman', pos: [14, 0, -24], sound: 'Snort~ 🌿' },
     { id: 'deer', inst: createDeer(-18, -26, 'female'), area: 'taman', pos: [-18, 0, -26], sound: 'Squeak~ 🌿' },
-    // Kelinci (3 ekor: Putih, Cokelat, Abu)
+    // Kelinci (3 ekor)
     { id: 'rabbit', inst: createRabbit(-12, -22, 'white'), area: 'taman', pos: [-12, 0, -22], sound: 'Wiggle~ 🥕' },
     { id: 'rabbit', inst: createRabbit(8, -25, 'brown'), area: 'taman', pos: [8, 0, -25], sound: 'Hop hop! 🥕' },
     { id: 'rabbit', inst: createRabbit(-22, -20, 'gray'), area: 'taman', pos: [-22, 0, -20], sound: 'Sniff~ 🥕' },
-    // Burung (2 ekor: Cyan & Scarlet)
+    // Burung (2 ekor)
     { id: 'bird', inst: createBird(0, 16, -18, 'cyan'), area: 'sky', pos: [0, 16, -18], sound: 'Chirp! 🎵' },
     { id: 'bird', inst: createBird(-10, 15, -10, 'scarlet'), area: 'sky', pos: [-10, 15, -10], sound: 'Tweet! 🎶' },
-    // Kucing (2 ekor: Orange & Tuxedo)
+    // Kucing (2 ekor)
     { id: 'cat', inst: createCat(-6, -14, 'orange'), area: 'rumah', pos: [-6, 0, -14], sound: 'Meow~ 🐱' },
     { id: 'cat', inst: createCat(10, -12, 'tuxedo'), area: 'rumah', pos: [10, 0, -12], sound: 'Purr~ 🐾' },
-    // Anjing (2 ekor: Beagle & Golden)
+    // Anjing (2 ekor)
     { id: 'dog', inst: createDog(6, -14, 'beagle'), area: 'rumah', pos: [6, 0, -14], sound: 'Guk guk! 🐕' },
     { id: 'dog', inst: createDog(-14, -12, 'golden'), area: 'rumah', pos: [-14, 0, -12], sound: 'Woof woof! 🐾' },
+    // Bebek Kolam (3 ekor: Mallard, Pekin White, & Duckling)
+    { id: 'duck', inst: createDuck(-30, -6, 'mallard'), area: 'pond', pos: [-30, 0.1, -6], sound: 'Kwek kwek! 🦆', offset: 0 },
+    { id: 'duck', inst: createDuck(-28, -5, 'white'), area: 'pond', pos: [-28, 0.1, -5], sound: 'Quack~ 🦆', offset: 2.2 },
+    { id: 'duck', inst: createDuck(-31, -7, 'duckling'), area: 'pond', pos: [-31, 0.1, -7], sound: 'Peep peep! ✨', offset: 4.4 },
   ];
 
   population.forEach(c => {
-    // Wrapper object compatible with say(c, text) speech bubbles
     const wrapper = { p: { root: c.inst.root } };
 
     animalInstances.push({
@@ -199,6 +219,7 @@ export async function initAnimals() {
       wrapper,
       sound: c.sound,
       area: c.area,
+      offset: c.offset || 0,
       x: c.pos[0],
       z: c.pos[2],
       targetX: c.pos[0],
@@ -215,11 +236,12 @@ export async function initAnimals() {
 // ---------- Update Frame Loop & Owner Proximity Interaction ----------
 export function updateAnimals(dt, t) {
   animalInstances.forEach(item => {
-    // Proximity check with Owner 'me'
     checkOwnerInteraction(item, dt);
 
     if (item.id === 'bird') {
       updateBird(item, dt, t);
+    } else if (item.id === 'duck') {
+      updateDuck(item, dt, t);
     } else {
       updateGround(item, dt, t);
     }
@@ -232,20 +254,49 @@ function checkOwnerInteraction(item, dt) {
     return;
   }
 
-  // Calculate distance between Owner 'me' and this animal
   const dx = me.p.root.position.x - item.x;
   const dz = me.p.root.position.z - item.z;
   const dist = Math.hypot(dx, dz);
+  const maxDist = item.id === 'duck' ? 3.8 : 2.3;
 
-  if (dist < 2.3) {
-    // Owner is close! Trigger greeting & face owner
-    item.interactCooldown = 6.5; // Cooldown before greeting again
-    item.state = 'follow';
-    item.timer = rand(3, 5); // Follow owner for 3-5s
+  if (dist < maxDist) {
+    item.interactCooldown = 6.0;
+    if (item.id !== 'duck') item.state = 'follow';
+    item.timer = rand(3, 5);
 
     say(item.wrapper, item.sound, 2.5);
     try { Snd.play('pop'); } catch {}
   }
+}
+
+// ---------- Duck Swimming Dynamics ----------
+function updateDuck(item, dt, t) {
+  const { data } = item;
+  const root = data.root;
+
+  // Swimming circular / figure-8 path around pond (-30, -6)
+  const angle = t * 0.35 + item.offset;
+  const radiusX = 3.2;
+  const radiusZ = 2.6;
+  const centerX = -30;
+  const centerZ = -6;
+
+  const x = centerX + Math.cos(angle) * radiusX;
+  const z = centerZ + Math.sin(angle * 2) * radiusZ * 0.5;
+
+  const dx = -Math.sin(angle) * radiusX;
+  const dz = Math.cos(angle * 2) * radiusZ * 1.0;
+
+  item.x = x;
+  item.z = z;
+
+  // Water floating bobbing & heading orientation
+  root.position.set(x, 0.08 + Math.sin(t * 3 + item.offset) * 0.025, z);
+  root.rotation.y = Math.atan2(dx, dz);
+
+  // Wiggling tail & dipping head periodically
+  if (data.tail) data.tail.rotation.y = Math.sin(t * 8) * 0.25;
+  if (data.head) data.head.rotation.x = Math.sin(t * 1.8 + item.offset) * 0.18;
 }
 
 function updateBird(item, dt, t) {
@@ -302,7 +353,6 @@ function updateGround(item, dt, t) {
     }
   }
 
-  // Handle follow owner state
   if (item.state === 'follow') {
     item.targetX = me.p.root.position.x;
     item.targetZ = me.p.root.position.z;

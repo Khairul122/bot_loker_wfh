@@ -22,7 +22,13 @@ from .freelancer_api import FreelancerError
 from .lead_desk import WHEN, approve_lead
 from .settings_store import get_setting, set_setting
 
-FATAL = ("token", "kedaluwarsa", "insufficient", "limit", "quota", "suspend", "not allowed", "verif")
+# only account-wide trouble switches auto-bid off; a refusal about one project (needs verification,
+# already closed, ...) just skips that project
+FATAL = ("token", "kedaluwarsa", "insufficient", "quota", "suspend")
+MAX_FAILURES_PER_PASS = 3
+# Freelancer only lets verified accounts bid on projects of USD 2,500 and over
+UNVERIFIED_BUDGET_CAP = 2500
+DOLLAR_LIKE = {"USD", "EUR", "GBP", "AUD", "CAD", "NZD", "SGD", "CHF"}
 AUTO_BID_KEYS = ("auto_bid_enabled", "auto_bid_max_per_day", "auto_bid_min_score", "auto_bid_max_competitors", "auto_bid_max_age_hours")
 
 
@@ -56,6 +62,8 @@ def candidates(connection: Connection, cfg: dict, limit: int) -> list[tuple[str,
         parsed = parse_budget(budget)
         if parsed is None or parsed.hourly:  # no readable budget = no defensible price; hourly bids are manual
             continue
+        if parsed.currency in DOLLAR_LIKE and max(parsed.low, parsed.high or 0) >= UNVERIFIED_BUDGET_CAP:
+            continue  # the platform refuses unverified accounts on big projects
         if parsed.bids is not None and parsed.bids > cfg["max_competitors"]:
             continue
         picked.append((lead_id, title))
@@ -82,7 +90,10 @@ def run_auto_bids(
     if room <= 0:
         return {"sent": 0, "skipped": "daily_cap"}
     summary["skipped"] = None
-    for lead_id, title in candidates(connection, cfg, room):
+    failures = 0
+    for lead_id, title in candidates(connection, cfg, room + MAX_FAILURES_PER_PASS):
+        if summary["sent"] + summary.get("already", 0) >= room:
+            break
         try:
             approve_lead(connection, lead_id)  # validates and marks APPROVED
             outcome = place(connection, lead_id)  # official API; marks SUBMITTED
@@ -98,8 +109,14 @@ def run_auto_bids(
             if fatal:
                 set_setting(connection, "auto_bid_enabled", "0")
             if notify:
-                notify(f"⚠️ Auto-bid gagal untuk \"{title}\": {reason}" + ("\nAuto-bid dimatikan; periksa lalu aktifkan lagi." if fatal else ""))
-            break  # one refusal per pass: never hammer the platform
+                tail = "Auto-bid dimatikan; periksa lalu aktifkan lagi." if fatal else "Proyek ini dilewati; auto-bid tetap jalan."
+                notify(f"⚠️ Auto-bid gagal untuk \"{title}\": {reason}\n{tail}")
+            if fatal:
+                break
+            failures += 1
+            if failures >= MAX_FAILURES_PER_PASS:
+                break  # never hammer the platform
+            continue
         if outcome == "already":  # the account already had a bid: record it, count it as nothing we sent
             summary["already"] = summary.get("already", 0) + 1
             if notify:

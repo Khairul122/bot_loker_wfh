@@ -72,22 +72,43 @@ class AutoBidTest(unittest.TestCase):
         self.assertEqual(self.bid_pass()["skipped"], "daily_cap")
         self.assertEqual(len(self.sent), 2)
 
-    def test_a_refusal_stops_the_pass_and_the_lead_is_not_retried(self):
+    def test_a_refusal_about_one_project_skips_it_and_keeps_going(self):
         self.enable()
         self.lead("a", score=1.0)
         self.lead("b", score=0.9)
 
-        def refuse(connection, lead_id):
-            raise FreelancerError("Freelancer menolak bid: sudah pernah menawar")
+        def refuse_first(connection, lead_id):
+            if lead_id == "a":
+                raise FreelancerError("Freelancer menolak bid: You must be Verified by Freelancer to bid on projects $2500 USD and over")
+            self.place(connection, lead_id)
 
-        result = self.bid_pass(refuse)
-        self.assertEqual(result["sent"], 0)
-        self.assertIn("sudah pernah menawar", result["error"])
+        result = self.bid_pass(refuse_first)
+        self.assertEqual((result["sent"], self.sent), (1, ["b"]))        # the next project still went out
+        self.assertEqual(get_setting(self.connection, "auto_bid_enabled"), "1")  # verification is per project: stays on
         self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "INTERESTED")
-        self.assertEqual(get_setting(self.connection, "auto_bid_enabled"), "1")  # not fatal: stays on
         self.sent.clear()
-        self.bid_pass()  # next pass skips the errored lead and bids on the other one
-        self.assertEqual(self.sent, ["b"])
+        self.bid_pass()  # the refused project is never retried
+        self.assertEqual(self.sent, [])
+
+    def test_projects_the_account_cannot_bid_on_are_not_even_tried(self):
+        self.enable()
+        self.lead("big", budget="USD 100,000-? | 5 bid")
+        self.lead("edge", budget="USD 2500-5000 | 5 bid")
+        self.lead("inr", budget="INR 12,500-37,500 | 5 bid")
+        self.lead("small", budget="USD 250-750 | 5 bid")
+        self.assertEqual({i for i, _ in candidates(self.connection, config(self.connection), 10)}, {"inr", "small"})
+
+    def test_repeated_refusals_stop_the_pass(self):
+        self.enable()
+        for lead_id in "abcde":
+            self.lead(lead_id)
+
+        def refuse(connection, lead_id):
+            raise FreelancerError("Freelancer menolak bid: project closed")
+
+        self.bid_pass(refuse)
+        refused = self.connection.execute("SELECT COUNT(*) FROM leads WHERE bid_error IS NOT NULL").fetchone()[0]
+        self.assertEqual(refused, 3)
 
     def test_token_or_quota_trouble_switches_auto_bid_off_and_tells_the_owner(self):
         self.enable()
