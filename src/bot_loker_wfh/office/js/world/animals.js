@@ -7,13 +7,16 @@ const loader = new GLTFLoader();
 const mixers = [];
 const animalInstances = [];
 
-// Target physical height relative to 1.8 unit human (chibi proportions)
+// Real-world scale. A character stands about 1.95 units tall for a 1.7 m adult, so 1 m = 1.15 units.
+// `meters` is the real length of the animal's longest dimension (nose to tail, or wingspan for the bird);
+// the model is scaled so that dimension matches, which keeps height and width in true proportion too.
+const UNITS_PER_METER = 1.95 / 1.7;
 const SPECIES = [
-  { id: 'deer', file: 'assets/animals/deer.glb', targetH: 0.75, pos: [14, 0, -24], area: 'taman' },
-  { id: 'rabbit', file: 'assets/animals/rabbit.glb', targetH: 0.14, pos: [-12, 0, -22], area: 'taman' },
-  { id: 'bird', file: 'assets/animals/bird.glb', targetH: 0.16, pos: [0, 16, -18], area: 'sky' },
-  { id: 'cat', file: 'assets/animals/cat.glb', targetH: 0.20, pos: [-6, 0, -14], area: 'rumah' },
-  { id: 'dog', file: 'assets/animals/dog.glb', targetH: 0.28, pos: [6, 0, -14], area: 'rumah' },
+  { id: 'deer', file: 'assets/animals/deer.glb', meters: 1.7, pos: [14, 0, -24], area: 'taman' },
+  { id: 'rabbit', file: 'assets/animals/rabbit.glb', meters: 0.45, pos: [-12, 0, -22], area: 'taman' },
+  { id: 'bird', file: 'assets/animals/bird.glb', meters: 0.65, pos: [0, 16, -18], area: 'sky' },
+  { id: 'cat', file: 'assets/animals/cat.glb', meters: 0.42, pos: [-6, 0, -14], area: 'rumah' },
+  { id: 'dog', file: 'assets/animals/dog.glb', meters: 0.95, pos: [6, 0, -14], area: 'rumah' },
 ];
 
 export async function initAnimals() {
@@ -29,7 +32,7 @@ export async function initAnimals() {
       box.getSize(tempVec);
       const maxDim = Math.max(tempVec.x, tempVec.y, tempVec.z);
       if (maxDim > 0) {
-        const finalScale = cfg.targetH / maxDim;
+        const finalScale = cfg.meters * UNITS_PER_METER / maxDim;
         model.scale.setScalar(finalScale);
       } else {
         model.scale.setScalar(0.05);
@@ -84,7 +87,7 @@ export function updateAnimals(dt, t) {
       model.position.set(x, y, z);
     } else if (cfg.id === 'rabbit') {
       // Gentle hopping animation and slight wander
-      const hop = Math.abs(Math.sin(t * 3.5)) * 0.08;
+      const hop = Math.abs(Math.sin(t * 3.5)) * 0.2; // a real rabbit hops about 0.15-0.3 m
       model.position.y = baseY + hop;
       model.rotation.y = Math.sin(t * 0.5) * 0.6;
     } else {
