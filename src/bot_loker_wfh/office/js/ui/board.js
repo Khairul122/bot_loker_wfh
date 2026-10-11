@@ -9,7 +9,7 @@ const STATUS = {
   NEW: ['good', '🆕 Baru'], INTERESTED: ['mid', '⭐ Diminati'], IGNORED: ['low', '🚫 Diabaikan'],
   APPROVED: ['mid', '⏳ Faris sedang mengisi & mengirim'], SUBMITTED: ['good', '✅ Terkirim'],
 };
-let boardOpen = false, source = '', view = 'all', current = null, browserFill = false;
+let boardOpen = false, source = '', view = 'all', current = null, browserFill = false, tabSources = ['freelancer', 'projects.co.id', 'telegram'];
 
 export function toggleBoard(v = !boardOpen) {
   boardOpen = v; $('board').classList.toggle('show', v);
@@ -44,6 +44,7 @@ async function render() {
     data = await r.json();
   } catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
   browserFill = !!data.browser_fill;
+  if (data.tab_sources) tabSources = data.tab_sources;
   if (!data.items.length) { list.replaceChildren(el('div', 'empty', 'Belum ada proyek')); return; }
   list.replaceChildren(...data.items.map(lead));
 }
@@ -210,13 +211,16 @@ function detail(l) {
         return;
       }
       clearTimeout(armed); armed = null;
-      const tab = window.open('about:blank', '_blank'); // the bid gets its own tab; the office tab is never driven
+      // only the BrowserMCP fallback needs a tab; the API and the bot's own window do not
+      const tab = tabSources.includes(l.source) ? window.open('about:blank', '_blank') : null;
       const d = await act(l, 'approve', {});
       const reset = () => { tab?.close(); go.textContent = '✅ Setujui & kirim bid'; };
       if (!d) { reset(); return; }
       if (d.mode === 'manual') { toast('Isi form otomatis belum aktif (FORM_ASSIST_ENABLED=true). Kirim manual lewat tombol Buka proyek.'); reset(); return; }
       if (d.mode === 'busy') { toast('Faris masih mengerjakan form lain, tunggu sebentar'); reset(); return; }
-      if (tab) tab.location.href = l.url;
+      if (d.mode === 'api') { applyResult(l, 'approve', d); toast('✅ Bid terkirim ke Freelancer lewat API'); refresh(); return; }
+      if (!tab) { applyResult(l, 'approve', d); toast('🚀 Faris membuka jendela browser sendiri, mengisi dan mengirim bid. Login sekali di jendela itu bila diminta'); refresh(); return; }
+      tab.location.href = l.url;
       applyResult(l, 'approve', d); toast('🚀 Tab proyek dibuka. Di tab itu klik ikon BrowserMCP > Connect, lalu Faris mengisi dan mengirim bid'); refresh();
     };
     wrap.append(go, el('p', 'note', '🔐 Pastikan Chrome sudah login di platform dan ekstensi BrowserMCP terhubung. CAPTCHA tidak pernah diselesaikan otomatis; kalau muncul, bid berhenti dan kamu selesaikan sendiri.'));

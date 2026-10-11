@@ -365,6 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 portfolio=load_portfolio(connection), mark_interested=mark_interested, note=note,
             ),
             screener=_office_screener(profile),
+            freelancer_bid=_freelancer_bid(),
             llm=create_chat_llm(settings, record_calls=True),  # Q&A needs seconds, not an agent run
             notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
@@ -530,6 +531,11 @@ def _fill_lead(
     initialize_database()
     connection = database.connect()
     try:
+        if submit and approved:
+            message = _submit_with_playwright(connection, lead_id)
+            if message is not None:
+                print(message, flush=True)
+                return 0
         agent = FormAgent(
             connection,
             router=create_llm_from_settings(settings, record_calls=True),
@@ -570,6 +576,45 @@ def _fill_lead(
     finally:
         connection.close()
     return 0
+
+
+def _freelancer_bid():
+    """Send approved Freelancer bids through the official API when a token is configured."""
+    import os
+
+    from .freelancer_api import place_freelancer_bid
+
+    if not os.getenv("FREELANCER_ACCESS_TOKEN"):
+        return None
+    return lambda connection, lead_id: place_freelancer_bid(
+        connection, lead_id, token=os.environ["FREELANCER_ACCESS_TOKEN"]
+    )
+
+
+def _submit_with_playwright(connection, lead_id: str) -> str | None:
+    """Approved Projects.co.id bid: the bot's own browser window fills and submits it. None = not this path."""
+    from .form_assist import FormAssistError  # noqa: F401  (kept for symmetry with the agent path)
+    from .lead_desk import get_bid_terms, submit_allowed
+    from .playwright_bid import submit_bid
+
+    row = connection.execute("SELECT url, source, proposal, status FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if row is None or row[1] != "projects.co.id":
+        return None
+    url, _source, proposal, status = row
+    if status != "APPROVED" or not submit_allowed(url):
+        return "Bid belum disetujui owner atau situs tidak diizinkan; pengiriman diblokir."
+    terms = get_bid_terms(connection, lead_id)
+    if terms is None or not (terms.amount or terms.hourly_rate) or len((proposal or "").strip()) < 100:
+        connection.execute("UPDATE leads SET status = 'INTERESTED' WHERE id = ? AND status = 'APPROVED'", (lead_id,))
+        connection.commit()
+        return "Harga dan proposal (minimal 100 karakter) harus terisi sebelum dikirim."
+    result = submit_bid(url, amount=terms.amount or terms.hourly_rate, days=terms.duration_days, proposal=proposal.strip())
+    connection.execute(
+        "UPDATE leads SET status = ? WHERE id = ? AND status = 'APPROVED'",
+        ("SUBMITTED" if result.submitted else "INTERESTED", lead_id),
+    )
+    connection.commit()
+    return result.message
 
 
 def _run_bot(settings: Settings) -> int:

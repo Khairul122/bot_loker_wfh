@@ -27,7 +27,7 @@ python -m bot_loker_wfh check-browser
 python -m pytest -q
 ```
 
-Form assist uses BrowserMCP (`npx @browsermcp/mcp`) with your own Chrome; no Playwright.
+Form assist uses BrowserMCP (`npx @browsermcp/mcp`) with your own Chrome. Approved freelance bids go out via the Freelancer.com API (`freelancer_api.py`, token in `FREELANCER_ACCESS_TOKEN`) or, for Projects.co.id, the bot's own Playwright window (`playwright_bid.py`, optional extra `[form]`, profile in `data/browser-profile`).
 
 ## Project structure
 

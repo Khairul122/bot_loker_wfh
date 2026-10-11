@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from .freelancer_api import FreelancerError
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
     approve_lead, edit_bid_terms, get_bid_terms, lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads,
@@ -64,6 +65,7 @@ class OfficeWork:
         form_assist_enabled: bool,
         interval_seconds: float | Callable[[], float],
         lock: threading.Lock,
+        freelancer_bid: Callable[[Connection, str], None] | None = None,
         proposal_writer: Callable[..., str] | None = None,
         screener: Callable[[Connection], dict] | None = None,
         llm: Callable[[str], str] | None = None,
@@ -78,6 +80,7 @@ class OfficeWork:
         self._interval_seconds = interval_seconds
         self.lock = lock  # shared with manual hunts: one search/draft at a time
         self.proposal_writer = proposal_writer
+        self.freelancer_bid = freelancer_bid
         self.screener = screener  # Sari & Eli: score the DISCOVERED queue now
         self.llm = llm  # answers the owner's questions; None = plain facts
         self.notify = notify  # sends text to the owner's Telegram; None = not configured
@@ -268,7 +271,10 @@ class OfficeWork:
 
     def leads(self, connection: Connection, source: str | None, view: str = "all") -> dict:
         return {"items": list_leads(connection, source, view), "counts": lead_counts(connection, source),
-                "browser_fill": self.form_assist_enabled}
+                "browser_fill": self.form_assist_enabled,
+                # sources whose approved bid needs the BrowserMCP tab; the others use the API or the bot's own window
+                "tab_sources": [s for s in ("freelancer", "projects.co.id", "telegram", "peopleperhour")
+                                if not (s == "projects.co.id" or (s == "freelancer" and self.freelancer_bid is not None))]}
 
     def lead_action(self, connection: Connection, lead_id: str, action: str, body: dict) -> dict:
         """interested | ignored | new | proposal | revise | fill | approve. Raises KeyError for unknown leads."""
@@ -312,10 +318,21 @@ class OfficeWork:
             self._watch(self._lead_fill, "faris", "fill", lead_id=lead_id)
             return "faris", {"mode": "form", "url": row[0]}
         if action == "approve":
-            # the owner approved proposal + bid terms: Faris fills the real form and presses submit
-            row = connection.execute("SELECT url FROM leads WHERE id = ?", (lead_id,)).fetchone()
+            # the owner approved proposal + bid terms: the bid goes out for them
+            row = connection.execute("SELECT url, source FROM leads WHERE id = ?", (lead_id,)).fetchone()
             if row is None:
                 raise KeyError(lead_id)
+            if row[1] == "freelancer" and self.freelancer_bid is not None:
+                approve_lead(connection, lead_id)  # validates; ValueError carries a user-safe reason
+                try:
+                    self.freelancer_bid(connection, lead_id)  # official API: no browser, no tab
+                except Exception as error:
+                    connection.execute("UPDATE leads SET status = 'INTERESTED' WHERE id = ? AND status = 'APPROVED'", (lead_id,))
+                    connection.commit()
+                    if isinstance(error, FreelancerError):
+                        raise ValueError(str(error)) from None
+                    raise ValueError("bid gagal dikirim ke Freelancer; coba lagi") from None
+                return "faris", {"mode": "api", "status": "SUBMITTED", "url": row[0]}
             if not self.form_assist_enabled:
                 return "faris", {"mode": "manual", "url": row[0]}
             if self._filler_busy():

@@ -318,6 +318,10 @@ python -m pytest
 ```
 
 
+### Sending approved freelance bids
+
+After you press **Setujui & kirim bid** on the Papan Proyek: Freelancer.com bids are sent through the official API (set `FREELANCER_ACCESS_TOKEN` in `.env`); Projects.co.id bids are filled and submitted in the bot's own browser window (`python -m pip install -e ".[form]"` and `python -m playwright install chromium`; log in once in that window). Without a token, Freelancer falls back to BrowserMCP.
+
 ### Freelance bid & comment drafts (9Router)
 
 The language (English / Bahasa Indonesia) follows the text of the post, and the proof comes from your synced GitHub repos (`sync-github`).
