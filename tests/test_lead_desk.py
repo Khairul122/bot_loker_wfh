@@ -2,6 +2,7 @@ from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 from bot_loker_wfh.cv_profile import SafeCvProfile
@@ -260,7 +261,8 @@ class LanguageAndCommentTest(unittest.TestCase):
             "'Saya butuh pembuatan aplikasi kasir untuk toko dengan laporan harian yang bisa dicetak', 'u')"
         )
         portfolio = {"repos": [{"name": "aplikasi-kasir", "url": "https://github.com/Khairul122/aplikasi-kasir",
-                                "language": "PHP", "description": "", "topics": []}]}
+                                "language": "PHP", "description": "kasir toko", "topics": [],
+                                "updated_at": datetime.now(timezone.utc).isoformat()}]}
         prompts = []
 
         proposal = draft_proposal(self.connection, "x", PROFILE, lambda p: prompts.append(p) or "", portfolio)

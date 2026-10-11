@@ -43,18 +43,47 @@ def config(connection: Connection) -> dict[str, float]:
 
 
 def bid_detail(connection: Connection, lead_id: str) -> str:
-    """Project facts for a Telegram bid report. Never includes the proposal text or the token."""
-    row = connection.execute("SELECT title, budget, url, score FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    """Project, full price terms and Cora's complete draft for a Telegram bid report (owner's chat only).
+
+    Never includes the token. Telegram caps messages, so the sender splits long text (see split_text).
+    """
+    row = connection.execute(
+        "SELECT title, source, budget, url, score, proposal FROM leads WHERE id = ?", (lead_id,)
+    ).fetchone()
     if row is None:
         return ""
-    title, budget, url, score = row
+    title, source, budget, url, score, proposal = row
+    parsed = parse_budget(budget)
+    currency = f"{parsed.currency} " if parsed and parsed.currency else ""
     terms = get_bid_terms(connection, lead_id)
-    lines = [f"Proyek: {title}", f"Budget: {budget or '-'}"]
+    lines = [f"Proyek: {title}", f"Sumber: {source}", f"Budget klien: {budget or '-'}"]
     if terms and (terms.amount or terms.hourly_rate):
-        lines.append(f"Bid: {terms.amount or terms.hourly_rate} dalam {terms.duration_days or '-'} hari")
+        if parsed and parsed.hourly:
+            lines.append(f"Tarif bid: {currency}{terms.hourly_rate or terms.amount}/jam, maks {terms.weekly_limit or '-'} jam/minggu")
+        else:
+            lines.append(f"Harga bid: {currency}{terms.amount or terms.hourly_rate}")
+        lines.append(f"Durasi: {terms.duration_days or '-'} hari")
+        if terms.milestones:
+            lines.append(f"Milestone: {terms.milestones}")
+    else:
+        lines.append("Harga bid: belum diisi")
     lines.append(f"Skor: {score}")
     lines.append(f"Link: {url}")
+    lines.append("")
+    lines.append("📝 Draft Cora:")
+    lines.append((proposal or "").strip() or "(draf kosong)")
     return "\n".join(lines)
+
+
+def split_text(text: str, limit: int = 3900) -> list[str]:
+    """Cut at line breaks (hard cut only for one huge line) so no draft is silently truncated by Telegram."""
+    parts: list[str] = []
+    while len(text) > limit:
+        cut = text.rfind("\n", 0, limit)
+        cut = cut if cut > limit // 2 else limit
+        parts.append(text[:cut].rstrip())
+        text = text[cut:].lstrip("\n")
+    return [*parts, text]
 
 
 def bid_success_text(connection: Connection, lead_id: str, *, auto: bool) -> str:

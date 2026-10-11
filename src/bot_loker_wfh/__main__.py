@@ -29,6 +29,7 @@ from .llm import create_chat_llm, create_llm_from_settings
 from . import office_desk
 from .office_server import hunt_jobs, hunt_leads, serve as serve_office
 from .github_portfolio import load_portfolio, sync_portfolio
+from .auto_bid import split_text
 from .lead_desk import draft_comment, draft_proposal
 from .office_work import OfficeWork
 from .pipeline import JobPipeline
@@ -452,7 +453,8 @@ def _owner_notifier(settings: Settings):
 
     def notify(text: str) -> None:
         for chat_id in sorted(settings.telegram_allowed_chat_ids):
-            client.send_text(chat_id, text)
+            for part in split_text(text):  # a full draft can pass Telegram's per-message limit
+                client.send_text(chat_id, part)
 
     return notify
 

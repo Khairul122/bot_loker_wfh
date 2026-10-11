@@ -139,8 +139,26 @@ class OfficeWork:
                 self.log_work(employee, task, duration_ms=duration, **fields)
             else:
                 self.log_work(employee, task, status="error", duration_ms=duration, **fields)
+            if task == "submit" and fields.get("lead_id"):
+                self._report_submit(fields["lead_id"])
 
         threading.Thread(target=follow, name=f"watch-{task}", daemon=True).start()
+
+    def _report_submit(self, lead_id: str) -> None:
+        """Browser-submitted bids (Projects.co.id) have no API answer: the lead's final status tells the story."""
+        try:
+            with open_db() as connection:
+                row = connection.execute("SELECT status FROM leads WHERE id = ?", (lead_id,)).fetchone()
+                if row is None:
+                    return
+                if row[0] == "SUBMITTED":
+                    self._tell(bid_success_text(connection, lead_id, auto=False))
+                else:
+                    self._tell(bid_failure_text(
+                        connection, lead_id,
+                        f"pengiriman lewat browser tidak selesai (status sekarang: {row[0]}); cek jendela browser atau log"))
+        except Exception as error:  # reporting must never break the watcher
+            self.log_failure("faris", "submit_report", error)
 
     # ------------------------------------------------------------------ inbox
 

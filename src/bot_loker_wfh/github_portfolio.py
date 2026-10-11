@@ -182,14 +182,49 @@ def repo_terms(repo: dict) -> tuple[set[str], set[str]]:
     return _expand(about), _words(LANGUAGE_TERMS.get(repo.get("language", "").lower(), ""))
 
 
-def relevant_repos(portfolio: dict, project_text: str, limit: int = 3) -> list[dict]:
-    """Repos whose name/topics (and, less, language) overlap the project most; ties: most recent."""
-    wanted = _expand(_words(project_text))
-    scored = []
-    for repo in portfolio.get("repos", []):
-        about, language = repo_terms(repo)
-        score = 2 * len(about & wanted) + 0.5 * len(language & wanted) + min(repo.get("stars", 0), 5) * 0.1
-        if score >= 2:  # at least one real topic match, not just a shared language
-            scored.append((score, repo.get("updated_at", ""), repo))
-    scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    return [repo for _, _, repo in scored[:limit]]
+MIN_MATCH = 70  # percent; a repo below this is never cited as proof
+# Words that fit almost every project: they must not decide whether a repo "matches".
+GENERIC = frozenset(
+    "web website frontend backend api app apps mobile admin dashboard panel server system sistem "
+    "aplikasi project proyek software developer development platform site online digital".split()
+)
+RECENT_DAYS = 730  # recency points fade to zero over two years
+
+
+def _recency(updated_at: str, now: datetime) -> float:
+    """1.0 for a repo pushed today, 0.0 for two years or older (or an unreadable date)."""
+    try:
+        age = (now - datetime.fromisoformat(updated_at)).days
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, 1 - age / RECENT_DAYS)
+
+
+def match_percent(repo: dict, wanted: set[str], now: datetime, need: int = 2) -> int:
+    """0-100: topic 70 + recency 10 + language 10 + description/topics 10. No topic hit = 0.
+
+    Topic alone can reach the 70% bar; recency and the rest rank repos that match equally well.
+    `need` is how many topic words fill the topic share: a one-word brief ("kasir") needs one hit.
+    """
+    about, language = repo_terms(repo)
+    hits = len((about - GENERIC) & wanted)
+    if not hits:
+        return 0
+    score = 70 * min(1, hits / need)
+    score += 10 * _recency(repo.get("updated_at", ""), now)
+    score += 10 * min(1, len((language - GENERIC) & wanted) / 2)
+    score += 5 * bool(repo.get("description")) + 5 * bool(repo.get("topics"))
+    return round(score)
+
+
+def relevant_repos(
+    portfolio: dict, project_text: str, limit: int = 3, *, min_match: int = MIN_MATCH, now: datetime | None = None
+) -> list[dict]:
+    """Repos scoring at least `min_match` percent for this project, best first; each gets a "match" key."""
+    brief = _words(project_text) - GENERIC
+    wanted = _expand(brief) - GENERIC
+    need = min(2, max(1, len(brief)))  # scales with how specific this client's brief is
+    now = now or datetime.now(timezone.utc)
+    scored = [(match_percent(repo, wanted, now, need), repo) for repo in portfolio.get("repos", [])]
+    kept = sorted(((m, r) for m, r in scored if m >= min_match), key=lambda x: (x[0], x[1].get("updated_at", "")), reverse=True)
+    return [{**repo, "match": m} for m, repo in kept[:limit]]

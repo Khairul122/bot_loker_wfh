@@ -121,6 +121,44 @@ class AutoBidTest(unittest.TestCase):
         self.assertEqual(get_setting(self.connection, "auto_bid_enabled"), "0")
         self.assertTrue(any("dimatikan" in note for note in self.notes))
 
+    def test_success_and_failure_messages_carry_cora_full_draft_and_price(self):
+        import json
+
+        draft = "Halo, saya Khairul.\n\nPengalaman saya relevan. " + "Detail kerja. " * 40
+        terms = {"amount": "410", "hourly_rate": "", "weekly_limit": "", "duration_days": "10",
+                 "milestones": "1) Analisis; 2) Build; 3) Serah terima"}
+        self.enable()
+        self.lead("ok", proposal=draft)
+        self.connection.execute("UPDATE leads SET bid_terms = ? WHERE id = 'ok'", (json.dumps(terms),))
+        self.connection.commit()
+        self.bid_pass()
+        success = self.notes[0]
+        self.assertIn("BERHASIL", success)
+        for expected in ("USD 410", "10 hari", "1) Analisis", draft.strip(), "Budget klien: USD 250-750"):
+            self.assertIn(expected, success)
+
+        self.notes.clear()
+        self.lead("bad", proposal=draft)
+
+        def refuse(connection, lead_id):
+            raise FreelancerError("Freelancer menolak bid: project closed")
+
+        self.bid_pass(refuse)
+        failure = self.notes[0]
+        self.assertIn("GAGAL", failure)
+        self.assertIn("project closed", failure)
+        self.assertIn(draft.strip(), failure)  # the owner can copy the draft and bid by hand
+
+    def test_long_drafts_are_split_not_truncated(self):
+        from bot_loker_wfh.auto_bid import split_text
+
+        text = "\n".join(f"baris {i} " + "x" * 90 for i in range(120))
+        parts = split_text(text)
+        self.assertGreater(len(parts), 1)
+        self.assertTrue(all(len(p) <= 3900 for p in parts))
+        self.assertEqual("\n".join(parts), text)
+        self.assertEqual(split_text("pendek"), ["pendek"])
+
 
 if __name__ == "__main__":
     unittest.main()
