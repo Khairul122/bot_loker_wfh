@@ -8,6 +8,10 @@ A personal job-hunting bot that runs as a cozy 3D office. Virtual employees find
 
 ▶️ [Watch the 15-second POV tour](docs/media/office-pov.mp4)
 
+
+https://github.com/user-attachments/assets/b2e24839-4e14-4d4f-8fc6-beb60e016436
+
+
 **[English](#english)** · **[Bahasa Indonesia](#bahasa-indonesia)**
 
 ---
