@@ -110,14 +110,14 @@ def list_events(connection: Connection, meeting_id: str) -> list[dict[str, Any]]
 
 
 def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) -> dict[str, Any]:
-    """Run dynamic multi-agent discussion using 9Router models and employee skills."""
+    """Run a team meeting with 9Router or offline fallback text."""
     from .config import Settings
     from .employee_memory import lessons_text, remember
     from .employee_skills import load_employee_skills
     from .llm import OpenAICompatibleProvider
 
     settings = Settings.from_environment()
-    provider = OpenAICompatibleProvider(
+    provider = None if settings.llm_provider == "template" else OpenAICompatibleProvider(
         settings.ninerouter_base_url,
         settings.ninerouter_api_key or "sk-dummy",
         settings.ninerouter_model or "LokerHouse",
@@ -153,10 +153,10 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             f"Sampaikan solusi konkret, bukan basa-basi."
         )
         try:
-            res = provider.complete([{"role": "user", "content": prompt}])
-            speech = res.text.strip()
+            speech = provider.complete([{"role": "user", "content": prompt}]).text.strip() if provider else ""
         except Exception:
-            speech = f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
+            speech = ""
+        speech = speech or f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
 
         add_event(connection, meeting_id, emp, "note", speech)
         _bus.publish({"type": "meeting", "status": "speaking", "meeting_id": meeting_id,
@@ -171,10 +171,10 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         + "\nBuatkan 1 kesimpulan keputusan aksi konkret."
     )
     try:
-        dec_res = provider.complete([{"role": "user", "content": decision_prompt}])
-        decision = dec_res.text.strip()
+        decision = provider.complete([{"role": "user", "content": decision_prompt}]).text.strip() if provider else ""
     except Exception:
-        decision = f"Tim sepakat mengeksekusi prioritas terkait {topic}."
+        decision = ""
+    decision = decision or f"Tim sepakat mengeksekusi prioritas terkait {topic}."
 
     add_event(connection, meeting_id, participants[0] if participants else "cora", "decision", decision)
     for emp in participants:  # everyone in the room carries the decision into later work

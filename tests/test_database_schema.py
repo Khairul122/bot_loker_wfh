@@ -1,7 +1,11 @@
 from bot_loker_wfh import database
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
+import psycopg
+
+from bot_loker_wfh.__main__ import main
 from bot_loker_wfh.database import apply_schema
 
 
@@ -102,6 +106,34 @@ class DatabaseSchemaTest(unittest.TestCase):
         timestamp = datetime.fromisoformat(row[0].replace("Z", "+00:00"))
 
         self.assertEqual(timestamp.tzinfo, timezone.utc)
+
+    def test_add_ats_upserts_by_host_without_replacing_registry_row(self):
+        with patch("bot_loker_wfh.__main__.initialize_database"), patch(
+            "bot_loker_wfh.__main__.database.session", return_value=self.connection
+        ):
+            self.assertEqual(main(["--name", "Atlas", "--host", "jobs.example.test", "add-ats"]), 0)
+            first_id = self.connection.execute(
+                "SELECT id FROM ats_registry WHERE host = 'jobs.example.test'"
+            ).fetchone()[0]
+            self.assertEqual(main([
+                "--name", "Atlas Updated", "--host", "jobs.example.test",
+                "--mode", "auto_fill", "add-ats",
+            ]), 0)
+
+        rows = self.connection.execute(
+            "SELECT id, ats_name, mode FROM ats_registry WHERE host = 'jobs.example.test'"
+        ).fetchall()
+        self.assertEqual([tuple(row) for row in rows], [(first_id, "Atlas Updated", "auto_fill")])
+
+    def test_connection_failure_does_not_expose_provider_message(self):
+        with patch("bot_loker_wfh.database.psycopg.connect", side_effect=psycopg.OperationalError("password=fake-secret")), patch(
+            "bot_loker_wfh.database.time.sleep"
+        ):
+            with self.assertRaises(psycopg.OperationalError) as raised:
+                database.connect()
+
+        self.assertEqual(str(raised.exception), "database_unavailable")
+        self.assertIsNone(raised.exception.__cause__)
 
 
 if __name__ == "__main__":

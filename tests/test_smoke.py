@@ -4,11 +4,23 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from bot_loker_wfh.__main__ import main
+from bot_loker_wfh.__main__ import _office_hunters, main
 from bot_loker_wfh.config import Settings
 
 
 class ScaffoldSmokeTest(unittest.TestCase):
+    def test_office_job_hunters_follow_external_jobs_flag(self):
+        from unittest.mock import Mock
+
+        disabled = _office_hunters(Mock(), Settings.from_environment({"EXTERNAL_JOBS_ENABLED": "false"}))
+        enabled = _office_hunters(Mock(), Settings.from_environment({"EXTERNAL_JOBS_ENABLED": "true"}))
+
+        self.assertNotIn("remoteok", disabled)
+        self.assertNotIn("dealls", disabled)
+        self.assertIn("freelancer", disabled)
+        self.assertIn("remoteok", enabled)
+        self.assertIn("dealls", enabled)
+
     def test_settings_have_safe_local_defaults(self):
         settings = Settings.from_environment({})
 

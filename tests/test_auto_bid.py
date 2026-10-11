@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from bot_loker_wfh import database
 from bot_loker_wfh.auto_bid import candidates, config, run_auto_bids
@@ -71,6 +72,44 @@ class AutoBidTest(unittest.TestCase):
         self.assertEqual(self.bid_pass()["sent"], 2)
         self.assertEqual(self.bid_pass()["skipped"], "daily_cap")
         self.assertEqual(len(self.sent), 2)
+
+    def test_stale_candidate_does_not_reopen_another_workers_claim(self):
+        self.enable()
+        self.lead("claimed")
+        self.connection.execute("UPDATE leads SET status = 'APPROVED' WHERE id = 'claimed'")
+        self.connection.commit()
+
+        with patch("bot_loker_wfh.auto_bid.candidates", return_value=[("claimed", "Project claimed")]):
+            result = self.bid_pass()
+
+        row = self.connection.execute("SELECT status, bid_error FROM leads WHERE id = 'claimed'").fetchone()
+        self.assertEqual(tuple(row), ("APPROVED", None))
+        self.assertEqual(result["sent"], 0)
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.notes, [])
+
+    def test_claim_race_after_validation_keeps_the_other_workers_status(self):
+        self.enable()
+        self.lead("raced")
+        execute = self.connection.execute
+
+        def race_on_claim(sql, params=None):
+            if sql.startswith("UPDATE leads SET status = 'APPROVED'"):
+                other = database.connect()
+                try:
+                    other.execute("UPDATE leads SET status = 'APPROVED' WHERE id = 'raced'")
+                    other.commit()
+                finally:
+                    other.close()
+            return execute(sql, params)
+
+        with patch.object(self.connection, "execute", side_effect=race_on_claim):
+            result = self.bid_pass()
+
+        row = self.connection.execute("SELECT status, bid_error FROM leads WHERE id = 'raced'").fetchone()
+        self.assertEqual(tuple(row), ("APPROVED", None))
+        self.assertEqual(result["sent"], 0)
+        self.assertEqual(self.sent, [])
 
     def test_a_refusal_about_one_project_skips_it_and_keeps_going(self):
         self.enable()

@@ -25,6 +25,12 @@ MIN_PROPOSAL_CHARS = 100
 
 class RevisionFailed(RuntimeError):
     """The model could not produce a revised draft; the old draft is kept."""
+
+
+class LeadClaimLost(ValueError):
+    """Another worker already claimed or submitted this lead."""
+
+
 INDONESIAN_SOURCES = frozenset({"projects.co.id", "telegram"})
 LEAD_STATUSES = frozenset({"NEW", "INTERESTED", "IGNORED"})
 LOCKED_STATUSES = ("APPROVED", "SUBMITTED")  # a bid is being sent or was sent: its data never changes again
@@ -361,7 +367,7 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
         raise KeyError(lead_id)
     url, proposal, status = row
     if status in LOCKED_STATUSES:
-        raise ValueError("bid ini sudah disetujui/terkirim")
+        raise LeadClaimLost("bid ini sudah disetujui/terkirim")
     if status == "IGNORED":
         raise ValueError("proyek ini diabaikan; kembalikan ke Baru dulu")
     if len((proposal or "").strip()) < MIN_PROPOSAL_CHARS:
@@ -384,7 +390,7 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
     ).rowcount
     connection.commit()
     if claimed != 1:
-        raise ValueError("bid ini sedang diproses atau sudah terkirim")
+        raise LeadClaimLost("bid ini sedang diproses atau sudah terkirim")
     return {"url": url}
 
 

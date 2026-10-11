@@ -19,7 +19,7 @@ from typing import Any
 from .database import Connection
 from .form_agent.bid_terms import parse_budget
 from .freelancer_api import FreelancerError
-from .lead_desk import WHEN, approve_lead, get_bid_terms
+from .lead_desk import WHEN, LeadClaimLost, approve_lead, get_bid_terms
 from .settings_store import get_setting, set_setting
 
 # only account-wide trouble switches auto-bid off; a refusal about one project (needs verification,
@@ -146,15 +146,25 @@ def run_auto_bids(
     for lead_id, title in candidates(connection, cfg, room + MAX_FAILURES_PER_PASS):
         if summary["sent"] + summary.get("already", 0) >= room:
             break
+        claimed = False
         try:
             approve_lead(connection, lead_id)  # validates and marks APPROVED
+            claimed = True
             outcome = place(connection, lead_id)  # official API; marks SUBMITTED
+        except LeadClaimLost:
+            continue
         except Exception as error:
             reason = str(error) if isinstance(error, (FreelancerError, ValueError)) else "gagal mengirim"
-            connection.execute(
-                "UPDATE leads SET status = 'INTERESTED', bid_error = ? WHERE id = ? AND status <> 'SUBMITTED'",
-                (reason[:300], lead_id),
-            )
+            if claimed:
+                connection.execute(
+                    "UPDATE leads SET status = 'INTERESTED', bid_error = ? WHERE id = ? AND status = 'APPROVED'",
+                    (reason[:300], lead_id),
+                )
+            else:
+                connection.execute(
+                    "UPDATE leads SET bid_error = ? WHERE id = ? AND status IN ('NEW', 'INTERESTED')",
+                    (reason[:300], lead_id),
+                )
             connection.commit()
             summary["error"] = reason
             fatal = any(word in reason.lower() for word in FATAL)

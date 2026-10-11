@@ -73,7 +73,7 @@ class Settings:
                 for item in source.get("LEAD_TELEGRAM_CHANNELS", "").split(",")
                 if item.strip()
             ),
-            llm_provider="9router",
+            llm_provider="template" if source.get("LLM_PROVIDER", "").strip().lower() == "template" else "9router",
             ninerouter_base_url=source.get(
                 "NINEROUTER_BASE_URL", "http://localhost:20128/v1"
             ),

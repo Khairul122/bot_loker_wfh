@@ -9,7 +9,7 @@ from threading import RLock
 from .office_desk import ROLES
 
 EMPLOYEE_IDS = frozenset(ROLES)
-SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills" / "employees"
+SKILLS_DIR = Path(__file__).with_name("skills") / "employees"
 MAX_MARKDOWN_BYTES = 32 * 1024
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _CACHE: dict[str, tuple[int, int, str]] = {}

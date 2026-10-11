@@ -74,6 +74,14 @@ class TestNineRouterLLM(unittest.TestCase):
         router = create_llm_from_settings(settings)
         self.assertIsInstance(router, LLMRouter)
 
+    def test_template_provider_does_not_create_an_llm_client(self):
+        from bot_loker_wfh.llm import create_chat_llm
+
+        settings = Settings.from_environment({"LLM_PROVIDER": "template", "NINEROUTER_MODEL": "unused"})
+        self.assertEqual(settings.llm_provider, "template")
+        self.assertIsNone(create_llm_from_settings(settings))
+        self.assertIsNone(create_chat_llm(settings))
+
     def test_create_llm_from_settings_9router(self):
         settings = Settings(
             environment="test",

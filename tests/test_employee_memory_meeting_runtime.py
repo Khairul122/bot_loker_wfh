@@ -1,8 +1,10 @@
 from bot_loker_wfh import database
 import unittest
+from unittest.mock import patch
 
+from bot_loker_wfh.config import Settings
 from bot_loker_wfh.employee_memory import MAX_RECORDS_PER_EMPLOYEE, list_memories, remember
-from bot_loker_wfh.meeting_runtime import add_event, create_meeting, set_status
+from bot_loker_wfh.meeting_runtime import add_event, create_meeting, run_dynamic_meeting, set_status
 
 
 class EmployeeMemoryTest(unittest.TestCase):
@@ -49,6 +51,16 @@ class MeetingRuntimeTest(unittest.TestCase):
             create_meeting(self.db, "Review", "2026-10-11T09:00:00", [])
         with self.assertRaises(ValueError):
             create_meeting(self.db, "Review", "2026-10-11T09:00:00Z", ["sari", "sari"])
+
+    def test_template_meeting_never_creates_a_provider(self):
+        settings = Settings.from_environment({"LLM_PROVIDER": "template"})
+        with patch.object(Settings, "from_environment", return_value=settings), patch(
+            "bot_loker_wfh.llm.OpenAICompatibleProvider", side_effect=AssertionError("provider created")
+        ):
+            result = run_dynamic_meeting(self.db, "Review", ["sari"])
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(result["transcript"]), 1)
 
 
 if __name__ == "__main__":

@@ -221,7 +221,7 @@ def connect(schema: str | None = None) -> Connection:
             break
         except psycopg.OperationalError:
             if attempt == 3:
-                raise
+                raise psycopg.OperationalError("database_unavailable") from None
             time.sleep(0.5 * attempt)
     raw.execute("SET extra_float_digits = 3")  # exact float round-trip
     connection = Connection(raw)

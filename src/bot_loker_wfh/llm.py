@@ -363,6 +363,8 @@ def create_chat_llm(settings: Any, record_calls: bool = False) -> Callable[[str]
 
     Falls back to the normal chain when 9Router is not configured.
     """
+    if getattr(settings, "llm_provider", "9router") == "template":
+        return None
     model = getattr(settings, "ninerouter_model", "")
     if not model:
         router = create_llm_from_settings(settings, record_calls)
@@ -380,8 +382,10 @@ def create_chat_llm(settings: Any, record_calls: bool = False) -> Callable[[str]
 
 
 def create_llm_from_settings(settings: Any, record_calls: bool = False) -> LLMRouter | None:
+    if getattr(settings, "llm_provider", "9router") == "template":
+        return None
     recorder = LLMCallRecorder() if record_calls else None
-    # Legacy provider environment values are ignored; 9Router is sole selectable provider.
+    # Legacy provider names use 9Router; template mode returned above.
     base_url = getattr(settings, "ninerouter_base_url", "http://localhost:20128/v1")
     api_key = getattr(settings, "ninerouter_api_key", None) or "sk-dummy"
     primary_model = getattr(settings, "ninerouter_model", "") or getattr(settings, "llm_model_draft", "") or "LokerHouse"

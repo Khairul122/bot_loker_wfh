@@ -326,8 +326,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         initialize_database()
         with database.session() as connection:
             connection.execute(
-                "INSERT OR REPLACE INTO ats_registry (id, ats_name, host, mode, open_button_label) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO ats_registry (id, ats_name, host, mode, open_button_label) "
+                "VALUES (?, ?, ?, ?, ?) ON CONFLICT (host) DO UPDATE SET "
+                "ats_name = excluded.ats_name, mode = excluded.mode, "
+                "open_button_label = excluded.open_button_label",
                 (
                     str(uuid.uuid4()),
                     args.name,
@@ -424,7 +426,7 @@ def _office_hunters(profile, settings: Settings) -> dict:
         "lever": LeverFetcher,
         "kalibrr": KalibrrFetcher,
         "dealls": DeallsFetcher,
-    }
+    } if settings.external_jobs_enabled else {}
     hunters = {
         source: (
             lambda connection, source=source, fetcher_class=fetcher_class: hunt_jobs(
