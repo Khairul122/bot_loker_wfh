@@ -6,6 +6,7 @@ const SETTINGS_TABS = [
   { id: 'llm', label: '🔀 9Router & Model' },
   { id: 'browser', label: '🌐 BrowserMCP' },
   { id: 'form', label: '📝 Form Engine' },
+  { id: 'freelance', label: '🤖 Freelance Otomatis' },
 ];
 
 let settingsData = null;
@@ -116,6 +117,7 @@ function renderPanelContent(tabId) {
     case 'llm': return renderLLMPanel();
     case 'browser': return renderBrowserPanel();
     case 'form': return renderFormPanel();
+    case 'freelance': return renderFreelancePanel();
     default: return el('div', 'empty', 'Panel tidak ditemukan');
   }
 }
@@ -168,6 +170,31 @@ function renderLLMPanel() {
     ])
   );
   
+  return container;
+}
+
+function renderFreelancePanel() {
+  const container = el('div');
+  const s = settingsData || {};
+  container.append(
+    el('h4', '', '🤖 Bid Freelancer otomatis (tanpa persetujuan)'),
+    el('p', '', 'Kalau aktif, setiap putaran kerja: Cora menulis draf untuk proyek Freelancer baru, lalu bid yang lolos aturan di bawah dikirim lewat API resmi. Hasilnya dikabari lewat Telegram. Karyawan dan server harus tetap menyala.'),
+    createSelect('auto_bid_enabled', 'Auto-bid', [
+      { value: '0', label: '⏸️ Mati (kamu setujui satu per satu)' },
+      { value: '1', label: '🤖 Aktif (bid dikirim otomatis)' },
+    ], String(s.auto_bid_enabled || '0')),
+    createNumberInput('auto_bid_max_per_day', 'Maks bid per 24 jam', s.auto_bid_max_per_day || 5, 1, 50),
+    createNumberInput('auto_bid_min_score', 'Skor relevansi minimum (0-1)', s.auto_bid_min_score || 0.7, 0, 1, 0.05),
+    createNumberInput('auto_bid_max_competitors', 'Lewati proyek dengan bid lebih dari', s.auto_bid_max_competitors || 40, 1, 500),
+    createNumberInput('auto_bid_max_age_hours', 'Hanya proyek yang diposting dalam (jam)', s.auto_bid_max_age_hours || 24, 1, 720),
+    el('hr', '', ''),
+    createList([
+      '✅ Hanya Freelancer.com (API resmi); Projects.co.id tetap lewat persetujuanmu',
+      '💰 Harga = rata-rata bid platform (tidak di bawahnya), tenggang waktu dari Cora',
+      '🛑 Satu penolakan menghentikan putaran itu; token/kuota bermasalah mematikan auto-bid',
+      '🔁 Proyek yang ditolak tidak dicoba ulang otomatis',
+    ]),
+  );
   return container;
 }
 

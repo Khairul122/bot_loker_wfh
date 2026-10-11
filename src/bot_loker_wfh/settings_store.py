@@ -12,6 +12,12 @@ from .database import Connection
 # Key -> (default, lower bound). None lower bound means "no minimum".
 DEFAULTS: dict[str, tuple[str, float | None]] = {
     "scrape_interval_hours": ("4", 0.08),  # 5 minutes
+    # hands-off freelance bidding (see auto_bid.py); off until the owner switches it on
+    "auto_bid_enabled": ("0", None),
+    "auto_bid_max_per_day": ("5", 1),
+    "auto_bid_min_score": ("0.7", 0),
+    "auto_bid_max_competitors": ("40", 1),
+    "auto_bid_max_age_hours": ("24", 1),
 }
 
 

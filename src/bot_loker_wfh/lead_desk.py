@@ -14,7 +14,7 @@ from collections import Counter
 from collections.abc import Callable
 
 from .cv_profile import SafeCvProfile
-from .form_agent.bid_terms import BidTerms, choose_bid_terms, parse_bid_terms
+from .form_agent.bid_terms import BidTerms, choose_bid_terms, parse_bid_terms, parse_budget, suggest_amount
 from .github_portfolio import relevant_repos
 
 LEAD_LIST_LIMIT = 100
@@ -27,6 +27,16 @@ class RevisionFailed(RuntimeError):
     """The model could not produce a revised draft; the old draft is kept."""
 INDONESIAN_SOURCES = frozenset({"projects.co.id", "telegram"})
 LEAD_STATUSES = frozenset({"NEW", "INTERESTED", "IGNORED"})
+LOCKED_STATUSES = ("APPROVED", "SUBMITTED")  # a bid is being sent or was sent: its data never changes again
+
+
+def ensure_open(connection: Connection, lead_id: str) -> None:
+    """Refuse to edit a lead whose bid is in flight or sent, so the record always matches what was bid."""
+    row = connection.execute("SELECT status FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    if row is None:
+        raise KeyError(lead_id)
+    if row[0] in LOCKED_STATUSES:
+        raise ValueError("bid sudah dikirim atau sedang dikirim; datanya dikunci")
 # Common Indonesian function words; English posts almost never contain them.
 INDONESIAN_WORDS = frozenset(
     "yang dan untuk dengan dari ini itu ada saya kami kita bisa akan sudah butuh "
@@ -69,7 +79,7 @@ LEAD_VIEWS = {
 def list_leads(connection: Connection, source: str | None = None, view: str = "all") -> list[dict]:
     sql = (
         "SELECT id, source, kind, title, description, budget, url, status, posted_at, "
-        f"fetched_at, proposal, bid_terms FROM leads WHERE {LEAD_VIEWS.get(view, LEAD_VIEWS['all'])}"
+        f"fetched_at, proposal, bid_terms, bid_auto, bid_error, bid_submitted_at FROM leads WHERE {LEAD_VIEWS.get(view, LEAD_VIEWS['all'])}"
     )
     params: tuple = ()
     if source:
@@ -79,7 +89,7 @@ def list_leads(connection: Connection, source: str | None = None, view: str = "a
         f" ORDER BY (status = 'INTERESTED') DESC, {WHEN} DESC LIMIT ?"
     )
     keys = ("id", "source", "kind", "title", "description", "budget", "url", "status",
-            "posted_at", "fetched_at", "proposal", "bid_terms")
+            "posted_at", "fetched_at", "proposal", "bid_terms", "bid_auto", "bid_error", "bid_submitted_at")
     rows = connection.execute(sql, (*params, LEAD_LIST_LIMIT)).fetchall()
     items = [{**dict(zip(keys, row)), "description": (row[4] or "")[:600]} for row in rows]
     for item in items:
@@ -185,6 +195,7 @@ def draft_proposal(
     if row is None:
         raise KeyError(lead_id)
     title, description, source, budget, previous = row
+    ensure_open(connection, lead_id)
     note = note.strip()[:500]
     indonesian = is_indonesian(f"{title} {description}", source)
     repos = relevant_repos(portfolio or {}, f"{title} {description}")
@@ -264,6 +275,7 @@ def draft_comment(
 def save_proposal(
     connection: Connection, lead_id: str, text: str, *, mark_interested: bool = True
 ) -> None:
+    ensure_open(connection, lead_id)
     # the owner writing/asking for a proposal means interest; an automatic draft does not
     status_sql = "CASE WHEN status = 'NEW' THEN 'INTERESTED' ELSE status END" if mark_interested else "status"
     updated = connection.execute(
@@ -282,9 +294,8 @@ def save_bid_terms(connection: Connection, lead_id: str, terms: BidTerms) -> Non
 
 def edit_bid_terms(connection: Connection, lead_id: str, values: dict) -> BidTerms:
     """The owner corrects the price, deadline or milestones before approving."""
+    ensure_open(connection, lead_id)
     row = connection.execute("SELECT bid_terms FROM leads WHERE id = ?", (lead_id,)).fetchone()
-    if row is None:
-        raise KeyError(lead_id)
     merged = {**(_terms_json(row[0]) or {}), **{k: str(v).strip() for k, v in values.items() if k in BidTerms.__dataclass_fields__}}
     try:
         terms = parse_bid_terms(json.dumps(merged))
@@ -295,13 +306,19 @@ def edit_bid_terms(connection: Connection, lead_id: str, values: dict) -> BidTer
 
 
 def get_bid_terms(connection: Connection, lead_id: str) -> BidTerms | None:
-    row = connection.execute("SELECT bid_terms FROM leads WHERE id = ?", (lead_id,)).fetchone()
+    row = connection.execute("SELECT bid_terms, budget FROM leads WHERE id = ?", (lead_id,)).fetchone()
     if not row or not row[0]:
         return None
     try:
-        return parse_bid_terms(row[0])
+        terms = parse_bid_terms(row[0])
     except ValueError:
         return None
+    if not terms.amount:  # an early draft stored only a model-guessed hourly rate: price it from the market instead
+        budget = parse_budget(row[1])
+        amount = suggest_amount(budget)
+        if amount:
+            terms = BidTerms(amount, amount if budget.hourly else "", terms.weekly_limit, terms.duration_days, terms.milestones)
+    return terms
 
 
 def submit_allowed(url: str) -> bool:
@@ -317,7 +334,7 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
     if row is None:
         raise KeyError(lead_id)
     url, proposal, status = row
-    if status in ("SUBMITTED", "APPROVED"):
+    if status in LOCKED_STATUSES:
         raise ValueError("bid ini sudah disetujui/terkirim")
     if status == "IGNORED":
         raise ValueError("proyek ini diabaikan; kembalikan ke Baru dulu")
@@ -333,8 +350,15 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
             save_bid_terms(connection, lead_id, terms)
     if terms is None or not (terms.amount or terms.hourly_rate):
         raise ValueError("isi harga penawaran dulu (kolom Harga di Ajuan bid)")
-    connection.execute("UPDATE leads SET status = 'APPROVED' WHERE id = ?", (lead_id,))
+    # one atomic claim: a second process, a double click or the auto pass loses here and never sends twice
+    claimed = connection.execute(
+        "UPDATE leads SET status = 'APPROVED', bid_claimed_at = utc_now_iso() "
+        "WHERE id = ? AND status IN ('NEW', 'INTERESTED') AND bid_submitted_at IS NULL",
+        (lead_id,),
+    ).rowcount
     connection.commit()
+    if claimed != 1:
+        raise ValueError("bid ini sedang diproses atau sudah terkirim")
     return {"url": url}
 
 
@@ -343,8 +367,8 @@ def undrafted_leads(connection: Connection, limit: int) -> list[str]:
     return [
         row[0]
         for row in connection.execute(
-            "SELECT id FROM leads WHERE status = 'NEW' AND COALESCE(proposal, '') = '' "
-            "ORDER BY score DESC, fetched_at DESC LIMIT ?",
+            f"SELECT id FROM leads WHERE status = 'NEW' AND COALESCE(proposal, '') = '' AND {FRESH} "
+            f"ORDER BY score DESC, {WHEN} DESC LIMIT ?",
             (limit,),
         ).fetchall()
     ]
@@ -353,6 +377,7 @@ def undrafted_leads(connection: Connection, limit: int) -> list[str]:
 def set_lead_status(connection: Connection, lead_id: str, status: str) -> None:
     if status not in LEAD_STATUSES:
         raise ValueError("unsupported lead status")
+    ensure_open(connection, lead_id)
     updated = connection.execute("UPDATE leads SET status = ? WHERE id = ?", (status, lead_id)).rowcount
     connection.commit()
     if updated != 1:

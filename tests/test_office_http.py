@@ -213,6 +213,13 @@ class SettingsHttpTest(unittest.TestCase):
             status, data = self.call("github/sync", {"username": "nobody"})
         self.assertEqual((status, data["error"]), (404, "github_user_not_found"))
 
+    def test_auto_bid_settings_default_off_roundtrip_and_validation(self):
+        self.assertEqual(self.call("settings.json")[1]["auto_bid_enabled"]["value"], "0")
+        status, data = self.call("settings", {"values": {"auto_bid_enabled": "1", "auto_bid_max_per_day": "3"}})
+        self.assertEqual((status, data["auto_bid_enabled"]["value"], data["auto_bid_max_per_day"]["value"]), (200, "1", "3"))
+        self.assertEqual(self.call("settings", {"key": "auto_bid_enabled", "value": "2"})[0], 400)
+        self.assertEqual(self.call("settings", {"key": "auto_bid_max_per_day", "value": "500"})[0], 400)
+
 
 if __name__ == "__main__":
     unittest.main()

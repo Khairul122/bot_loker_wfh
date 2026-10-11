@@ -378,6 +378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             ),
             screener=_office_screener(profile),
             freelancer_bid=_freelancer_bid(),
+            freelancer_reconcile=_freelancer_reconcile(),
             llm=create_chat_llm(settings, record_calls=True),  # Q&A needs seconds, not an agent run
             notify=_owner_notifier(settings),
             form_assist_enabled=settings.form_assist_enabled,
@@ -601,6 +602,16 @@ def _freelancer_bid():
     return lambda connection, lead_id: place_freelancer_bid(
         connection, lead_id, token=os.environ["FREELANCER_ACCESS_TOKEN"]
     )
+
+
+def _freelancer_reconcile():
+    import os
+
+    from .freelancer_api import reconcile_stuck
+
+    if not os.getenv("FREELANCER_ACCESS_TOKEN"):
+        return None
+    return lambda connection: reconcile_stuck(connection, os.environ["FREELANCER_ACCESS_TOKEN"])
 
 
 def _submit_with_playwright(connection, lead_id: str) -> str | None:

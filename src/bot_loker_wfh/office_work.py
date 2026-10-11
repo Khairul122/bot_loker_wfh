@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
+from .auto_bid import run_auto_bids
 from .freelancer_api import FreelancerError
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
@@ -33,7 +34,7 @@ from .status_transitions import (
 )
 
 DRAFTS_PER_CYCLE = 3
-PROPOSALS_PER_CYCLE = 3
+PROPOSALS_PER_CYCLE = 5
 MIN_INTERVAL_SECONDS = 5 * 60  # hard floor regardless of configured interval
 DAILY_CHECK_SECONDS = 10 * 60
 GITHUB_CHECK_SECONDS = 15 * 60  # how often the saved username is checked
@@ -65,7 +66,8 @@ class OfficeWork:
         form_assist_enabled: bool,
         interval_seconds: float | Callable[[], float],
         lock: threading.Lock,
-        freelancer_bid: Callable[[Connection, str], None] | None = None,
+        freelancer_bid: Callable[[Connection, str], Any] | None = None,
+        freelancer_reconcile: Callable[[Connection], int] | None = None,
         proposal_writer: Callable[..., str] | None = None,
         screener: Callable[[Connection], dict] | None = None,
         llm: Callable[[str], str] | None = None,
@@ -81,6 +83,7 @@ class OfficeWork:
         self.lock = lock  # shared with manual hunts: one search/draft at a time
         self.proposal_writer = proposal_writer
         self.freelancer_bid = freelancer_bid
+        self.freelancer_reconcile = freelancer_reconcile
         self.screener = screener  # Sari & Eli: score the DISCOVERED queue now
         self.llm = llm  # answers the owner's questions; None = plain facts
         self.notify = notify  # sends text to the owner's Telegram; None = not configured
@@ -490,6 +493,15 @@ class OfficeWork:
                         except Exception as error:
                             self.last = {"source": "proposal", "error": True, "at": self.clock()}
                             self.log_failure("cora", "proposal", error)
+                if self.freelancer_bid is not None and self.auto:
+                    self.busy = "bid"
+                    with self.lock:
+                        try:
+                            result = run_auto_bids(connection, self.freelancer_bid, self._tell, self.freelancer_reconcile)
+                            if result.get("sent") or result.get("error"):
+                                self.log_work("faris", "auto_bid", count=result.get("sent", 0), status="error" if result.get("error") else "ok")
+                        except Exception as error:  # a broken bid pass must not stop the work loop
+                            self.log_failure("faris", "auto_bid", error)
         finally:
             self.busy = None
 

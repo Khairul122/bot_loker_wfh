@@ -1,38 +1,32 @@
-// ---------- floor see-through: floors above the owner fade instead of vanishing; house roofs lift ----------
+// ---------- dollhouse cut: everything above the owner's floor is left out, house roofs lift ----------
 import { store } from '../core/store.js';
 import { FH, ROOF } from '../core/util.js';
 import { floors } from '../buildings/floor.js';
+import { shaft, landings } from '../buildings/tower.js';
 import { roof } from '../buildings/rooftop.js';
 import { houses } from '../buildings/houses.js';
 import { inTower, inR } from '../world/navigation.js';
 import { me } from '../characters/player.js';
 import { chars } from '../characters/char.js';
 
-// ponytail: faded clones copy emissive at swap time only; a day/night flip while faded shows on the next swap
-// floors above the owner are almost glass: just a faint outline of the building, nothing to read through
-const FADE_OPACITY = 0.06;
-const fadedOf = new Map();
-function faded(m) {
-  let f = fadedOf.get(m);
-  if (!f) { f = m.clone(); f.transparent = true; f.opacity = FADE_OPACITY; f.depthWrite = false; fadedOf.set(m, f); }
-  if (m.emissive) f.emissiveIntensity = m.emissiveIntensity;
-  return f;
-}
-function setFaded(g, on) {
-  if (!!g.userData.faded === on) return;
-  g.userData.faded = on; // pointer.js skips faded floors so clicks reach the owner's floor
-  g.traverse(o => {
-    if (!o.isMesh) return;
-    if (on) { o.userData.mat0 = o.material; o.userData.cast0 = o.castShadow; o.material = faded(o.material); o.castShadow = false; }
-    else if (o.userData.mat0) { o.material = o.userData.mat0; o.castShadow = o.userData.cast0; }
-  });
+// A floor above the owner is not drawn at all (no see-through ghosts of desks and signs).
+// userData.faded stays as the flag pointer.js reads so clicks reach the owner's floor.
+function setCut(g, cut) {
+  if (!!g.userData.faded === cut) return;
+  g.userData.faded = cut;
+  g.visible = !cut;
 }
 
 export function updateCutaway() {
   const inside = me.level > 0 || inTower(me.pos);
   const lvl = store.overview || store.fp || !inside ? 99 : Math.max(me.level, Math.round(me.y / FH));
-  floors.forEach((g, i) => setFaded(g, i > lvl));
-  setFaded(roof, ROOF > lvl);
+  floors.forEach((g, i) => setCut(g, i > lvl));
+  setCut(roof, ROOF > lvl);
+  // the glass lift shaft ends at the ceiling of the owner's floor, with the landings above it
+  const top = lvl >= ROOF ? ROOF * FH + 1 : (lvl + 1) * FH;
+  shaft.scale.y = top / (ROOF * FH + 1);
+  shaft.position.y = top / 2 - 0.4;
+  landings.forEach((m, i) => { m.visible = i <= lvl; });
   // people and their bubbles on floors above the owner disappear with those floors
   for (const c of chars) c.p.root.visible = c.level <= lvl;
   // lift the roof off the house the owner is standing in

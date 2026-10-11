@@ -201,3 +201,98 @@ class BrowserFormTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SafetyTest(unittest.TestCase):
+    """A bid is never sent twice, never from half-finished data, and a sent lead never changes."""
+
+    def setUp(self):
+        self.connection = database.connect()
+        apply_schema(self.connection)
+        freelancer_api._bidder_ids.clear()
+
+    def calls(self, api):
+        return [(method, path.split("?")[0]) for method, path, *_ in api.calls]
+
+    def test_a_bid_already_on_the_platform_is_recorded_not_resent(self):
+        lead(self.connection)
+
+        class Api(FakeApi):
+            def __call__(self, request, timeout=None):
+                if "/bids/?" in request.full_url:
+                    self.calls.append((request.get_method(), request.full_url.split("/api")[1], None, None))
+                    return FakeResponse(json.dumps({"result": {"bids": [{"id": 9}]}}).encode())
+                return super().__call__(request, timeout)
+
+        api = Api()
+        self.assertEqual(place_freelancer_bid(self.connection, "a", token="t", opener=api), "already")
+        self.assertNotIn(("POST", "/projects/0.1/bids/"), self.calls(api))
+        self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "SUBMITTED")
+
+    def test_a_lost_answer_is_settled_by_asking_the_platform(self):
+        lead(self.connection)
+        state = {"posted": False}
+
+        class Api(FakeApi):
+            def __call__(self, request, timeout=None):
+                if request.get_method() == "POST":
+                    state["posted"] = True
+                    raise OSError("timeout")  # the bid went through, the answer did not come back
+                if "/bids/?" in request.full_url:
+                    return FakeResponse(json.dumps({"result": {"bids": [{"id": 1}] if state["posted"] else []}}).encode())
+                return super().__call__(request, timeout)
+
+        self.assertEqual(place_freelancer_bid(self.connection, "a", token="t", opener=Api()), "sent")
+        self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "SUBMITTED")
+
+    def test_hourly_projects_and_absurd_prices_are_refused(self):
+        lead(self.connection, "hourly")
+        self.connection.execute("UPDATE leads SET budget = 'USD 2-8/hour | 3 bid' WHERE id = 'hourly'")
+        lead(self.connection, "typo")
+        self.connection.execute("UPDATE leads SET bid_terms = ? WHERE id = 'typo'",
+                                (json.dumps({"amount": "5", "weekly_limit": "20", "duration_days": "7", "milestones": "x"}),))
+        for lead_id in ("hourly", "typo"):
+            api = FakeApi()
+            with self.assertRaises(FreelancerError):
+                place_freelancer_bid(self.connection, lead_id, token="t", opener=api)
+            self.assertNotIn(("POST", "/projects/0.1/bids/"), self.calls(api))
+
+    def test_the_old_model_guessed_rate_is_replaced_by_a_market_price(self):
+        lead(self.connection, terms=False)
+        self.connection.execute("UPDATE leads SET bid_terms = ? WHERE id = 'a'",
+                                (json.dumps({"hourly_rate": "25", "weekly_limit": "20", "duration_days": "7", "milestones": "x"}),))
+        from bot_loker_wfh.lead_desk import get_bid_terms
+        self.assertEqual(get_bid_terms(self.connection, "a").amount, "500")  # middle of USD 250-750, not 25
+
+    def test_a_claim_is_taken_once_and_a_sent_lead_is_locked(self):
+        from bot_loker_wfh.lead_desk import approve_lead, draft_proposal, edit_bid_terms, save_proposal, set_lead_status
+        lead(self.connection)
+        approve_lead(self.connection, "a")
+        with self.assertRaises(ValueError):
+            approve_lead(self.connection, "a")  # second process / double click
+        self.connection.execute("UPDATE leads SET status = 'SUBMITTED' WHERE id = 'a'")
+        for attempt in (lambda: set_lead_status(self.connection, "a", "NEW"),
+                        lambda: save_proposal(self.connection, "a", "new text " * 20),
+                        lambda: edit_bid_terms(self.connection, "a", {"amount": "1"}),
+                        lambda: draft_proposal(self.connection, "a", None)):
+            with self.assertRaises(ValueError):
+                attempt()
+        self.assertEqual(self.connection.execute("SELECT proposal FROM leads WHERE id='a'").fetchone()[0], PROPOSAL)
+
+    def test_unfinished_claims_are_settled_from_the_platform_record(self):
+        lead(self.connection, "sent", external_id="111")
+        lead(self.connection, "unsent", external_id="222")
+        lead(self.connection, "pco", source="projects.co.id", external_id="x1", url="https://projects.co.id/p")
+        lead(self.connection, "fresh", external_id="333")
+        self.connection.execute("UPDATE leads SET status = 'APPROVED', bid_claimed_at = utc_now_iso('-1 hours') WHERE id IN ('sent','unsent','pco')")
+        self.connection.execute("UPDATE leads SET status = 'APPROVED', bid_claimed_at = utc_now_iso() WHERE id = 'fresh'")
+
+        class Api(FakeApi):
+            def __call__(self, request, timeout=None):
+                if "/bids/?" in request.full_url:
+                    return FakeResponse(json.dumps({"result": {"bids": [{"id": 1}] if "projects%5B%5D=111" in request.full_url else []}}).encode())
+                return super().__call__(request, timeout)
+
+        self.assertEqual(freelancer_api.reconcile_stuck(self.connection, "t", opener=Api()), 3)
+        status = dict(self.connection.execute("SELECT id, status FROM leads").fetchall())
+        self.assertEqual(status, {"sent": "SUBMITTED", "unsent": "INTERESTED", "pco": "INTERESTED", "fresh": "APPROVED"})

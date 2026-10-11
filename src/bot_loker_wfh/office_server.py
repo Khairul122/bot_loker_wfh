@@ -19,6 +19,7 @@ from . import office_desk as desk
 from . import database
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import USERNAME_RE, load_portfolio, sync_portfolio
+from .auto_bid import AUTO_BID_KEYS
 from .lead_desk import RevisionFailed
 from .office_work import open_db
 from .office_state import load_state, save_state
@@ -42,6 +43,7 @@ ALLOWED_SETTINGS = frozenset({
     "form_min_confidence", "form_max_actions", "form_max_tool_calls",
     "form_timeout_seconds", "form_connect_timeout_seconds", "form_ai_answers",
     "applicant_path", "answers_path", "scrape_interval_hours",
+    "auto_bid_enabled", "auto_bid_max_per_day", "auto_bid_min_score", "auto_bid_max_competitors", "auto_bid_max_age_hours",
 })
 _NUMERIC_SETTINGS = {
     "llm_timeout_seconds": (1, 3600), "llm_task_budget_seconds": (1, 7200),
@@ -49,10 +51,13 @@ _NUMERIC_SETTINGS = {
     "form_max_actions": (1, 1000), "form_max_tool_calls": (1, 1000),
     "form_timeout_seconds": (1, 7200), "form_connect_timeout_seconds": (1, 600),
     "scrape_interval_hours": (0.08, 720),
+    "auto_bid_max_per_day": (1, 50), "auto_bid_min_score": (0, 1),
+    "auto_bid_max_competitors": (1, 500), "auto_bid_max_age_hours": (1, 720),
 }
 _ENUM_SETTINGS = {
     "llm_provider": {"template", "9router"},
     "form_ai_answers": {"review", "off"},
+    "auto_bid_enabled": {"0", "1"},
 }
 
 
@@ -180,6 +185,8 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
         "answers_path": settings.answers_path,
     }
 
+    for key in AUTO_BID_KEYS:  # stored in Supabase only; show the default until the owner changes it
+        all_settings[key] = DEFAULTS[key][0]
     payload = {k: (_mask(v) if k in SECRET_KEYS else {"value": v}) for k, v in all_settings.items()}
     if overrides:
         # Stored values win: real secret values mark "set"

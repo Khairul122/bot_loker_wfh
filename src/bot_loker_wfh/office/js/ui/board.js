@@ -78,6 +78,8 @@ function lead(l) {
   const [cls, label] = STATUS[l.status] || ['mid', l.status];
   const meta = el('div', 'meta', [el('span', null, '🕒 ' + (ago(l.posted_at || l.fetched_at) || '—')), el('span', `tag ${cls}`, label)]);
   if (l.proposal) meta.append(el('span', 'tag mid', '📝 Ada draf'));
+  if (l.bid_auto) meta.append(el('span', 'tag good', '🤖 Dikirim otomatis'));
+  if (l.bid_error) meta.append(el('span', 'tag low', '⚠️ Ditolak platform'));
 
   const quick = el('div', 'lead-actions');
   const star = el('button', 'btn', l.status === 'INTERESTED' ? '↩️ Batal minat' : '⭐ Minati');
@@ -134,6 +136,9 @@ function detail(l) {
     refresh();
     button.disabled = false; button.textContent = keep;
   };
+
+  if (l.bid_error) wrap.append(el('p', 'note', '⚠️ Bid otomatis ditolak: ' + l.bid_error + ' — perbaiki lalu Setujui & kirim manual.'));
+  if (l.bid_auto && l.bid_submitted_at) wrap.append(el('p', 'note', '🤖 Dikirim otomatis ' + ago(l.bid_submitted_at) + '.'));
 
   // interest
   const decide = el('div', 'lead-actions');

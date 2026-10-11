@@ -12,9 +12,11 @@ import re
 from collections.abc import Callable
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from .database import Connection
+from .form_agent.bid_terms import parse_budget
 from .lead_desk import get_bid_terms
 
 API = "https://www.freelancer.com/api"
@@ -59,18 +61,39 @@ def bidder_id(token: str, *, opener: Callable[..., Any] = urlopen) -> int:
     return _bidder_ids[token]
 
 
-def place_freelancer_bid(connection: Connection, lead_id: str, *, token: str, opener: Callable[..., Any] = urlopen) -> None:
-    """Send the approved bid and mark the lead SUBMITTED. Raises FreelancerError with a clear reason."""
+def has_bid(token: str, project_id: int, *, opener: Callable[..., Any] = urlopen) -> bool | None:
+    """Does this account already have a bid on the project (made by the bot or by hand)? None = unknown."""
+    try:
+        query = urlencode([("projects[]", project_id), ("bidders[]", bidder_id(token, opener=opener))])
+        result = _call("GET", f"/projects/0.1/bids/?{query}", token, opener=opener).get("result") or {}
+    except FreelancerError:
+        return None
+    return bool(result.get("bids"))
+
+
+def _mark_submitted(connection: Connection, lead_id: str) -> None:
+    connection.execute(
+        "UPDATE leads SET status = 'SUBMITTED', bid_error = NULL, bid_submitted_at = utc_now_iso() WHERE id = ?", (lead_id,)
+    )
+    connection.commit()
+
+
+def place_freelancer_bid(connection: Connection, lead_id: str, *, token: str, opener: Callable[..., Any] = urlopen) -> str:
+    """Send the approved bid and mark the lead SUBMITTED. Returns "sent", or "already" when the
+    account already had a bid on the project. Raises FreelancerError with a clear reason."""
     row = connection.execute(
-        "SELECT source, external_id, proposal, status FROM leads WHERE id = ?", (lead_id,)
+        "SELECT source, external_id, proposal, status, budget FROM leads WHERE id = ?", (lead_id,)
     ).fetchone()
     if row is None:
         raise KeyError(lead_id)
-    source, external_id, proposal, status = row
+    source, external_id, proposal, status, budget_text = row
     if source != "freelancer" or not str(external_id).isdigit():
         raise FreelancerError("Proyek ini bukan proyek Freelancer.com")
     if status == "SUBMITTED":
         raise FreelancerError("Bid ini sudah terkirim")
+    budget = parse_budget(budget_text)
+    if budget is not None and budget.hourly:
+        raise FreelancerError("Proyek per jam belum didukung pengiriman API; kirim manual lewat Buka proyek")
     terms = get_bid_terms(connection, lead_id)
     try:
         amount = float(terms.amount or terms.hourly_rate) if terms else 0.0
@@ -81,13 +104,56 @@ def place_freelancer_bid(connection: Connection, lead_id: str, *, token: str, op
         raise FreelancerError("Isi harga dan tenggang waktu (hari) di Ajuan bid dulu")
     if len((proposal or "").strip()) < 100:
         raise FreelancerError("Proposal minimal 100 karakter")
-    _call("POST", "/projects/0.1/bids/", token, {
-        "project_id": int(external_id),
+    if budget is not None and budget.high is not None and not budget.low * 0.25 <= amount <= budget.high * 2:
+        raise FreelancerError(f"Harga {amount:g} jauh di luar budget proyek ({budget.low:g}-{budget.high:g}); periksa angkanya")
+    project_id = int(external_id)
+    if has_bid(token, project_id, opener=opener):  # a bid made earlier, even by hand on the website
+        _mark_submitted(connection, lead_id)
+        return "already"
+    payload = {
+        "project_id": project_id,
         "bidder_id": bidder_id(token, opener=opener),
         "amount": amount,
         "period": period,
         "milestone_percentage": 100,
         "description": proposal.strip(),
-    }, opener=opener)
-    connection.execute("UPDATE leads SET status = 'SUBMITTED' WHERE id = ?", (lead_id,))
+    }
+    try:
+        _call("POST", "/projects/0.1/bids/", token, payload, opener=opener)
+    except FreelancerError as error:
+        # an answer lost on the way does not prove the bid failed: ask the platform before reporting a failure
+        if "tidak terjangkau" in str(error) and has_bid(token, project_id, opener=opener):
+            _mark_submitted(connection, lead_id)
+            return "sent"
+        raise
+    _mark_submitted(connection, lead_id)
+    return "sent"
+
+
+STALE_CLAIM_MINUTES = 15
+
+
+def reconcile_stuck(connection: Connection, token: str, *, opener: Callable[..., Any] = urlopen) -> int:
+    """A claim that never finished (crash, power cut) is settled with the platform's own record."""
+    rows = connection.execute(
+        "SELECT id, external_id FROM leads WHERE source = 'freelancer' AND status = 'APPROVED' "
+        "AND (bid_claimed_at IS NULL OR bid_claimed_at < utc_now_iso(?))", (f"-{STALE_CLAIM_MINUTES} minutes",),
+    ).fetchall()
+    fixed = 0
+    for lead_id, external_id in rows:
+        placed = has_bid(token, int(external_id), opener=opener) if str(external_id).isdigit() else False
+        if placed is None:
+            continue  # cannot tell right now; try again next pass
+        if placed:
+            _mark_submitted(connection, lead_id)
+        else:
+            connection.execute("UPDATE leads SET status = 'INTERESTED' WHERE id = ? AND status = 'APPROVED'", (lead_id,))
+            connection.commit()
+        fixed += 1
+    # claims on other platforms (browser window) that nobody finished within an hour: open again, never guessed as sent
+    fixed += connection.execute(
+        "UPDATE leads SET status = 'INTERESTED' WHERE source <> 'freelancer' AND status = 'APPROVED' "
+        "AND (bid_claimed_at IS NULL OR bid_claimed_at < utc_now_iso('-60 minutes'))"
+    ).rowcount
     connection.commit()
+    return fixed
