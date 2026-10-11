@@ -5,7 +5,8 @@ import { plant } from '../../world/props.js';
 import { seats, dyn } from '../floor.js';
 
 export default function build(g, d) {
-  seats('freelance', [[-5, -3], [-1.2, -3], [-5, 1.2], [-1.2, 1.2]], g, d.screen);
+  // four desks for the team, the manager's own desk at the head of the room
+  seats('freelance', [[-5, -3], [-1.2, -3], [-5, 1.2], [-1.2, 1.2], [4, -3]], g, d.screen);
   for (const [x, z, c] of [[2, 2, 0xef8a6b], [4, 3.5, 0x6bb38a], [6, 2, 0x7aa6d8]]) { const b = sph(0.7, c, x, 0.45, z, g); b.scale.y = 0.65; }
   box(4, 2.4, 0.1, 0xc89a6c, 4, 2, -5.7, g); // cork board
   const notes = [];

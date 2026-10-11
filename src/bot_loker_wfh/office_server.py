@@ -303,7 +303,13 @@ def desk_state(connection: Connection) -> dict:
 
 class _Handler(SimpleHTTPRequestHandler):
     # the Windows registry can map .js to text/plain, which browsers refuse for ES modules
-    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".js": "text/javascript", ".css": "text/css"}
+    extensions_map = {
+        **SimpleHTTPRequestHandler.extensions_map,
+        ".js": "text/javascript",
+        ".css": "text/css",
+        ".glb": "model/gltf-binary",
+        ".gltf": "model/gltf+json",
+    }
 
     def __init__(self, *args, work, **kwargs):
         self.work = work

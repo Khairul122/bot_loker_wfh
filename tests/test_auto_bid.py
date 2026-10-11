@@ -103,3 +103,48 @@ class AutoBidTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FreelanceManagerReportTest(unittest.TestCase):
+    """Mira, the freelance division manager, reports what the whole division did."""
+
+    def setUp(self):
+        self.connection = database.connect()
+        apply_schema(self.connection)
+
+    def lead(self, lead_id, source="freelancer", **cols):
+        self.connection.execute(
+            "INSERT INTO leads (id, source, external_id, kind, title, description, url, budget, proposal, status) "
+            "VALUES (?, ?, ?, 'project', ?, 'd', 'https://x', 'USD 250-750 | 10 bid', ?, ?)",
+            (lead_id, source, lead_id, f"Project {lead_id}", cols.get("proposal"), cols.get("status", "NEW")),
+        )
+        for column in ("bid_submitted_at", "bid_auto", "bid_error", "bid_claimed_at", "bid_terms"):
+            if column in cols:
+                self.connection.execute(f"UPDATE leads SET {column} = ? WHERE id = ?", (cols[column], lead_id))
+        self.connection.commit()
+
+    def test_manager_is_an_employee_with_a_division_report(self):
+        from bot_loker_wfh import office_desk as desk
+        self.assertIn("mira", desk.EMPLOYEES)
+        self.lead("sent", proposal=PROPOSAL, status="SUBMITTED", bid_auto=1, bid_submitted_at="2099-01-01T00:00:00.000Z")
+        self.lead("drafted", proposal=PROPOSAL, status="INTERESTED")
+        self.lead("refused", proposal=PROPOSAL, status="INTERESTED", bid_error="Freelancer menolak bid: sudah pernah menawar",
+                  bid_claimed_at="2099-01-01T00:00:00.000Z")
+        self.lead("plain", source="projects.co.id")
+        report = desk.measure(self.connection, "mira", 24)
+        metrics = {label: value for _, label, value in report["metrics"]}
+        self.assertEqual((metrics["Proyek baru"], metrics["Draf bid"], metrics["Bid terkirim"], metrics["Otomatis"], metrics["Ditolak"]), (4, 3, 1, 1, 1))
+        text = "\n".join(report["lines"])
+        for name in ("Lido", "Nara", "Tama", "Bimo"):
+            self.assertIn(f"• {name}:", text)
+        self.assertIn("sudah pernah menawar", text)
+        self.assertIn("Auto-bid mati", text)
+        self.assertIn("Project sent", text)
+        self.assertTrue(0 <= report["score"] <= 1)
+
+    def test_manager_report_can_be_saved_like_any_employee_report(self):
+        from bot_loker_wfh import office_desk as desk
+        saved = desk.create_report(self.connection, "mira")
+        self.assertEqual(saved["employee"], "mira")
+        self.assertTrue(saved["lines"])
+        self.assertEqual(desk.profile(self.connection, "mira")["periods"].keys(), desk.profile(self.connection, "lido")["periods"].keys())

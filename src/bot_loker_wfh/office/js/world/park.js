@@ -11,7 +11,7 @@ const ducks = [];
 for (let k = 0; k < 2; k++) { const dg = group(-30, 0.1, -6); sph(0.35, 0xffffff, 0, 0.2, 0, dg); sph(0.2, 0xffffff, 0.3, 0.5, 0, dg); box(0.15, 0.06, 0.1, 0xf2a03d, 0.5, 0.48, 0, dg); dg.userData.o = k * 3; ducks.push(dg); }
 animated.push(t => ducks.forEach(dk => { const a = t * 0.25 + dk.userData.o; dk.position.set(-30 + Math.cos(a) * 3.5, 0.1 + Math.sin(t * 2 + a) * 0.03, -6 + Math.sin(a) * 3.5); dk.rotation.y = -a; }));
 // the strip behind the office (z < -15) is the housing estate, keep trees off it
-[[-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [12, 24, 0.9], [-8, 26, 1], [30, 24, 1, 1], [-35, -24, 1, 1], [35, -23, 1], [0, -40, 1.1], [-14, -39, 1, 1], [16, -39, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
+[[-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [12, 24, 0.9], [-8, 26, 1], [30, 24, 1, 1], [-35, -24, 1, 1], [35, -23, 1], [0, -40, 1.1], [-6, -47, 1, 1], [16, -39, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
 flowers(-24, -2); flowers(-36, 2); flowers(-20, 14); flowers(-12, 18); flowers(8, 18); flowers(14, 16); flowers(-4, -18);
 lamp(-17, 12, scene); lamp(-30, 6, scene); lamp(17, 12, scene); lamp(30, 3, scene); lamp(-6, 16, scene);
 export const benchA = bench(-24, 3, Math.PI), benchB = bench(-36, 6, Math.PI * 0.75), benchC = bench(-22, -14, 0.2);

@@ -18,5 +18,6 @@ import lido from './lido.js';
 import nara from './nara.js';
 import tama from './tama.js';
 import bimo from './bimo.js';
+import mira from './mira.js';
 
-export const STAFF = [tegar, reno, rima, gery, leva, kalia, dela, sari, eli, cora, lulu, faris, subi, tara, ivan, lido, nara, tama, bimo];
+export const STAFF = [tegar, reno, rima, gery, leva, kalia, dela, sari, eli, cora, lulu, faris, subi, tara, ivan, lido, nara, tama, bimo, mira];

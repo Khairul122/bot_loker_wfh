@@ -47,7 +47,7 @@ export function drawKpi(staff) {
   g.fillStyle = '#4a3426'; g.font = '900 34px Nunito, sans-serif'; g.textBaseline = 'middle';
   g.fillText(`📊 Papan Kinerja Tim${store.live ? '' : ' (data contoh)'}`, 24, 30);
   staff.forEach((c, i) => {
-    const col = i < 9 ? 0 : 1, row = i % 9, x = 24 + col * 500, y = 78 + row * 47;
+    const col = Math.floor(i / 10), row = i % 10, x = 24 + col * 500, y = 74 + row * 43;
     const s = c.perfNow?.score || 0, rt = store.desk.ratings[c.def.id];
     g.fillStyle = '#4a3426'; g.font = '800 24px Nunito, sans-serif'; g.fillText(c.name, x, y);
     g.fillStyle = '#f1e2cf'; g.beginPath(); g.roundRect(x + 100, y - 13, 260, 26, 13); g.fill();

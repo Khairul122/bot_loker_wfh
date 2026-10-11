@@ -30,6 +30,7 @@ ROLES = {
     "eli": "penjaga kelayakan yang menyaring lowongan tidak remote / tidak cocok",
     "cora": "penulis surat lamaran dan proposal freelance",
     "bimo": "eksekutor penawaran proyek freelance (bidding freelancer.com & projects.co.id)",
+    "mira": "manajer divisi proyek freelance yang melapor hasil kerja timnya kepada owner",
     "lulu": "asisten AI yang menjalankan panggilan model bahasa",
     "faris": "pengisi formulir lamaran di browser",
     "subi": "pengirim lamaran",
@@ -112,6 +113,8 @@ def measure(connection: Connection, employee: str, hours: int = 24) -> dict:
             "lines": [f"{filled} dari {bids} penawaran freelance siap diajukan." if bids else "Belum ada penawaran freelance yang diproses."],
             "score": 0.5 * _cap(bids / 3) + 0.5 * _cap(filled / max(bids, 1)),
         }
+    if employee == "mira":
+        return _freelance_division(connection, w, hours)
     if employee == "lulu":
         total = _n(connection, f"SELECT COUNT(*) FROM llm_calls WHERE created_at >= {_SINCE}", w)
         ok = _n(connection, f"SELECT COUNT(*) FROM llm_calls WHERE status = 'success' AND created_at >= {_SINCE}", w)
@@ -156,6 +159,60 @@ def measure(connection: Connection, employee: str, hours: int = 24) -> dict:
                 "lines": [f"{pending} lamaran menunggu persetujuanmu." if pending else "Tidak ada yang menunggu persetujuan."],
                 "score": 0.5 + 0.5 * _cap(decided / 3) if not pending else 0.4 * _cap(decided / max(pending, 1))}
     raise KeyError(employee)
+
+
+FREELANCE_TEAM = (("lido", "Lido"), ("nara", "Nara"), ("tama", "Tama"), ("bimo", "Bimo"))
+
+
+def _ago(minutes: float) -> str:
+    return f"{int(minutes)} mnt lalu" if minutes < 60 else f"{int(minutes // 60)} jam lalu" if minutes < 1440 else f"{int(minutes // 1440)} hari lalu"
+
+
+def _freelance_division(connection: Connection, w: str, hours: int) -> dict:
+    """The manager's report: the whole freelance division in one place, counted from the leads table."""
+    from .auto_bid import config as auto_config, sent_last_24h
+
+    found = _n(connection, f"SELECT COUNT(*) FROM leads WHERE fetched_at >= {_SINCE}", w)
+    drafts = _n(connection, f"SELECT COUNT(*) FROM leads WHERE proposal IS NOT NULL AND fetched_at >= {_SINCE}", w)
+    sent = _n(connection, f"SELECT COUNT(*) FROM leads WHERE bid_submitted_at >= {_SINCE}", w)
+    auto = _n(connection, f"SELECT COUNT(*) FROM leads WHERE bid_auto = 1 AND bid_submitted_at >= {_SINCE}", w)
+    refused = _n(connection, f"SELECT COUNT(*) FROM leads WHERE bid_error IS NOT NULL AND bid_claimed_at >= {_SINCE}", w)
+    waiting = _n(connection, "SELECT COUNT(*) FROM leads WHERE proposal IS NOT NULL AND status IN ('NEW', 'INTERESTED') AND bid_error IS NULL")
+    lines = [f"Divisi freelance {hours} jam terakhir: {found} proyek baru, {drafts} draf bid, {sent} bid terkirim ({auto} otomatis)."]
+    scores = []
+    for employee, name in FREELANCE_TEAM:
+        part = measure(connection, employee, hours)
+        scores.append(part["score"])
+        lines.append(f"• {name}: " + (part["lines"][0] if part["lines"] else "-"))
+    cfg = auto_config(connection)
+    if cfg["enabled"]:
+        lines.append(f"🤖 Auto-bid aktif: {sent_last_24h(connection)} dari {cfg['per_day']} jatah bid 24 jam terpakai.")
+    else:
+        lines.append(f"⏸️ Auto-bid mati: {waiting} draf menunggu persetujuanmu." if waiting else "⏸️ Auto-bid mati.")
+    if refused:
+        reasons = connection.execute(
+            f"SELECT bid_error, COUNT(*) FROM leads WHERE bid_error IS NOT NULL AND bid_claimed_at >= {_SINCE} GROUP BY 1 ORDER BY 2 DESC LIMIT 2", (w,)
+        ).fetchall()
+        lines.append(f"⚠️ {refused} bid ditolak platform: " + "; ".join(f"{r[:90]} ({c}x)" for r, c in reasons))
+    recent = connection.execute(
+        "SELECT title, budget, bid_auto, bid_terms, EXTRACT(EPOCH FROM (now() - bid_submitted_at::timestamptz)) / 60 "
+        "FROM leads WHERE bid_submitted_at IS NOT NULL ORDER BY bid_submitted_at DESC LIMIT 5"
+    ).fetchall()
+    for title, budget, is_auto, terms, minutes in recent:
+        amount = ""
+        try:
+            amount = " · harga " + json.loads(terms)["amount"] if terms and json.loads(terms).get("amount") else ""
+        except ValueError:
+            pass
+        lines.append(f"🚀 {title[:60]}{amount} · {_ago(minutes)}{' 🤖' if is_auto else ''}")
+    team = sum(scores) / len(scores) if scores else 0.0
+    quality = 1.0 if not refused else max(0.0, 1 - refused / max(sent + refused, 1))
+    return {
+        "metrics": [["📌", "Proyek baru", found], ["✍️", "Draf bid", drafts], ["🚀", "Bid terkirim", sent],
+                    ["🤖", "Otomatis", auto], ["⚠️", "Ditolak", refused], ["⏳", "Menunggu", waiting]],
+        "lines": lines,
+        "score": 0.35 * _cap(sent / 3) + 0.25 * team + 0.2 * _cap(drafts / 5) + 0.2 * quality,
+    }
 
 
 def _row(row) -> dict:

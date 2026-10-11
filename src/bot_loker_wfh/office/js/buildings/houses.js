@@ -10,10 +10,10 @@ import { staff } from '../characters/team.js';
 import { me, myLook } from '../characters/player.js';
 
 export const houses = [];
-const HOUSE_ROWS = [{ z: -21, street: -16.5 }, { z: -31, street: -26 }];
+const HOUSE_ROWS = [{ z: -21, street: -16.5 }, { z: -31, street: -26 }, { z: -41, street: -36 }];
 const EDGE_X = 29.5;
 function buildHouse(slot, name, color) {
-  const row = slot < 9 ? 0 : 1, hx = -24.8 + (slot % 9) * 6.2, hz = HOUSE_ROWS[row].z, front = hz + 2.5;
+  const row = Math.floor(slot / 9), hx = -24.8 + (slot % 9) * 6.2, hz = HOUSE_ROWS[row].z, front = hz + 2.5;
   const g = group(hx, 0, hz), wall = 0xfdf3e4;
   box(5, 0.1, 5, 0xd9b48a, 0, 0.05, 0, g, { cast: false });
   box(5.2, 2.6, 0.2, wall, 0, 1.3, -2.5, g);
@@ -43,7 +43,7 @@ function buildHouse(slot, name, color) {
   rug(0.4, 0.4, 1.1, 0xf6c89f, g);
   const sx = hx <= 0 ? -EDGE_X : EDGE_X;
   const via = row === 0 ? [V(hx, HOUSE_ROWS[0].street), V(hx, front + 0.9), V(hx, front - 0.7)]
-    : [V(sx, HOUSE_ROWS[0].street), V(sx, HOUSE_ROWS[1].street), V(hx, HOUSE_ROWS[1].street), V(hx, front + 0.9), V(hx, front - 0.7)];
+    : [...HOUSE_ROWS.slice(0, row).map(r => V(sx, r.street)), V(sx, HOUSE_ROWS[row].street), V(hx, HOUSE_ROWS[row].street), V(hx, front + 0.9), V(hx, front - 0.7)];
   const hb = [hx - 2.5, hx + 2.5, hz - 2.5, hz + 2.5];
   ROOM_WALLS.push([hx - 2.6, hx + 2.6, hz - 2.6, hz - 2.4, 0], [hx - 2.6, hx - 2.4, hz - 2.6, hz + 2.6, 0], [hx + 2.4, hx + 2.6, hz - 2.6, hz + 2.6, 0],
     [hx - 2.6, hx - 0.6, front - 0.1, front + 0.1, 0], [hx + 0.6, hx + 2.6, front - 0.1, front + 0.1, 0]);
@@ -61,5 +61,5 @@ function buildHouse(slot, name, color) {
 staff.forEach((c, i) => { c.home = buildHouse(i < 4 ? i : i + 1, c.name, c.look.shirt); c.home.who = c; });
 me.home = buildHouse(4, myLook.name, parseInt(myLook.shirt.slice(1), 16) || 0xffb26b); me.home.who = me;
 for (const [x, z] of [[-15.5, -15.4], [15.5, -15.4], [-EDGE_X - 1.3, -21], [EDGE_X + 1.3, -21]]) lamp(x, z, scene, 2.8);
-path(0, -16.5, 2 * EDGE_X + 2, 2.6); path(0, -26, 2 * EDGE_X + 2, 2.6); path(-EDGE_X, -21.2, 2.6, 12); path(EDGE_X, -21.2, 2.6, 12);
+path(0, -16.5, 2 * EDGE_X + 2, 2.6); path(0, -26, 2 * EDGE_X + 2, 2.6); path(0, -36, 2 * EDGE_X + 2, 2.6); path(-EDGE_X, -21.2, 2.6, 12); path(EDGE_X, -21.2, 2.6, 12); path(-EDGE_X, -31.2, 2.6, 12); path(EDGE_X, -31.2, 2.6, 12);
 sign('🏘️', 'Komplek Rumah', '#d98b5f', '#fff', 0, 3.2, -14.9, scene, 4.4);
