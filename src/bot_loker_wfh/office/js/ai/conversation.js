@@ -9,6 +9,7 @@ import { night } from '../systems/night.js';
 import { sendTo, goBack } from './routine.js';
 import { freeSeats, goEat } from './dining.js';
 import { pingSpots, joinPong } from './pong.js';
+import { shareSocialKnowledge } from './reflection.js';
 
 // who hands work to whom in the pipeline, so desk visits make sense
 const HANDOFF = { reno: 'sari', rima: 'sari', gery: 'sari', leva: 'sari', kalia: 'sari', dela: 'sari', sari: 'eli', eli: 'cora',
@@ -34,7 +35,12 @@ function converse(lines, onDone) {
   const step = () => {
     const ln = lines[i++];
     const apart = people.some(p => people.some(q => p.level !== q.level || p.pos.distanceTo(q.pos) > 4.5));
-    if (!ln || apart) { people.forEach(c => c.talking = false); onDone && onDone(); return; }
+    if (!ln || apart) {
+      people.forEach(c => c.talking = false);
+      if (people.length >= 2 && Math.random() < 0.35) shareSocialKnowledge(people[0], people[1]);
+      onDone && onDone();
+      return;
+    }
     if (!Array.isArray(ln)) { followPlan(ln.plan, people); return step(); }
     const [who, text] = ln;
     for (const o of people) if (o !== who && ['stand', 'work'].includes(o.pose) && o.state !== 'work') o.face(who.pos.x, who.pos.z);

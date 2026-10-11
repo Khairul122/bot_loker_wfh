@@ -4,8 +4,8 @@ import { staff } from '../characters/team.js';
 import { me } from '../characters/player.js';
 import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from './routine.js';
-import { pick, rand } from '../core/util.js';
-import { DIVS, ROOF } from '../buildings/divisions.js';
+import { pick, rand, ROOF } from '../core/util.js';
+import { DIVS } from '../buildings/divisions.js';
 
 // LLM Endpoint Configuration (Supports Supabase Edge Functions, Groq, Ollama, or OpenAI)
 const LLM_CONFIG = {

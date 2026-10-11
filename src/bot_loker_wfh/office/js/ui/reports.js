@@ -7,6 +7,7 @@ import { MOODS } from '../characters/body.js';
 import { staff, byId } from '../characters/team.js';
 import { say } from '../fx/bubbles.js';
 import { loadStats } from '../systems/sync.js';
+import { recordExperience } from '../ai/reflection.js';
 import { $, el, post, toast, ago, starsHtml, faceStyle, OFFLINE } from './dom.js';
 import { startChat } from './card.js';
 
@@ -103,6 +104,7 @@ function reportCard(r) {
     save.disabled = false;
     if (!res.ok) { toast('Gagal menyimpan'); return; }
     save.textContent = '💾 Perbarui nilai'; Snd.play('pop');
+    recordExperience(r.employee || (c ? c.def.id : ''), { type: 'report_review', rating, note: note.value, score: r.score });
     if (c) {
       if (rating >= 4) { c.boost = 2; c.boostUntil = clock.elapsedTime + 120; c.doEmote('cheer', 2); say(c, pick(['Makasih bos! 🥹', 'Yeay dinilai bagus! ⭐', 'Aku makin semangat! 🔥'])); }
       else if (rating <= 2) { c.sadUntil = clock.elapsedTime + 30; c.doEmote('sigh', 2); say(c, note.value.trim() ? 'Siap bos, catatannya aku perbaiki 🙏' : 'Maaf bos, aku perbaiki 🙏'); }
