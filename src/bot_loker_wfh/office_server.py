@@ -88,6 +88,30 @@ def _validate_setting(key: str, value: str) -> str | None:
 _PREF_KEYS = ("look", "sound", "auto", "freelancer", "linkedin", "github")
 _LOOK_FIELDS = ("name", "skin", "hair", "shirt", "pants")
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _browser_request_is_local(headers, server_port: int) -> bool:
+    """Reject browser requests that can reach loopback through DNS rebinding."""
+    request_url = urlsplit(f"//{headers.get('Host') or ''}")
+    if request_url.hostname not in _LOOPBACK_HOSTS:
+        return False
+    try:
+        if request_url.port not in (None, server_port):
+            return False
+    except ValueError:
+        return False
+
+    origin = headers.get("Origin")
+    if not origin:
+        return True
+    origin_url = urlsplit(origin)
+    if origin_url.scheme != "http" or origin_url.hostname not in _LOOPBACK_HOSTS:
+        return False
+    try:
+        return origin_url.port == server_port
+    except ValueError:
+        return False
 
 
 def _validate_pref(key: str, value: str) -> str | None:
@@ -368,6 +392,8 @@ class _Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             return
         if path in ("/ws/logs", "/ws"):
+            if not _browser_request_is_local(self.headers, self.server.server_address[1]):
+                return self._json(403, {"error": "forbidden"})
             ws_key = self.headers.get("Sec-WebSocket-Key")
             if not ws_key:
                 self.send_error(400, "Missing Sec-WebSocket-Key")
@@ -515,16 +541,8 @@ class _Handler(SimpleHTTPRequestHandler):
 
     def _post(self):
         # Other sites open in the browser must not trigger actions on the owner's machine.
-        origin = self.headers.get("Origin")
-        if origin:
-            origin_host = origin.split("://", 1)[-1].rstrip("/")
-            req_host = (self.headers.get("Host") or "").rstrip("/")
-            # Remove port numbers when comparing host origin (e.g. 127.0.0.1:8765 vs localhost)
-            def _norm_host(h: str) -> str:
-                h_no_port = h.split(":")[0]
-                return "127.0.0.1" if h_no_port in ("localhost", "127.0.0.1") else h_no_port
-            if _norm_host(origin_host) != _norm_host(req_host):
-                return self._json(403, {"error": "forbidden"})
+        if not _browser_request_is_local(self.headers, self.server.server_address[1]):
+            return self._json(403, {"error": "forbidden"})
         parts = self.path.strip("/").split("/")
         if parts == ["office", "character-state"]:
             try:

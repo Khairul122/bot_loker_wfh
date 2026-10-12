@@ -1,4 +1,5 @@
 import json
+import http.client
 import shutil
 from bot_loker_wfh import database
 import tempfile
@@ -34,9 +35,10 @@ class OfficeHttpTest(unittest.TestCase):
         self.server.server_close()
         self.tmp.cleanup()
 
-    def call(self, path, body=None):
+    def call(self, path, body=None, headers=None):
+        request_headers = {"Content-Type": "application/json", **(headers or {})}
         req = Request(self.base + path, data=None if body is None else json.dumps(body).encode(),
-                      headers={"Content-Type": "application/json"})
+                      headers=request_headers)
         try:
             with urlopen(req) as r:
                 return r.status, json.loads(r.read())  # one JSON document, never two
@@ -58,6 +60,40 @@ class OfficeHttpTest(unittest.TestCase):
         self.assertEqual(data["id"], "reno")
         self.assertIn("#", data["markdown"])
         self.assertEqual(self.call("employee-skills?id=../reno")[0], 404)
+
+    def test_post_rejects_dns_rebinding_origin_and_host(self):
+        status, data = self.call(
+            "settings",
+            {"key": "unknown", "value": "1"},
+            headers={"Origin": "http://attacker.invalid", "Host": "attacker.invalid"},
+        )
+        self.assertEqual((status, data), (403, {"error": "forbidden"}))
+
+    def test_post_allows_same_loopback_origin(self):
+        port = self.server.server_address[1]
+        status, data = self.call(
+            "settings",
+            {"key": "unknown", "value": "1"},
+            headers={"Origin": f"http://localhost:{port}"},
+        )
+        self.assertEqual((status, data["error"]), (400, "unknown_setting"))
+
+    def test_websocket_rejects_cross_site_origin_before_upgrade(self):
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1], timeout=2)
+        connection.request(
+            "GET",
+            "/ws",
+            headers={
+                "Connection": "Upgrade",
+                "Upgrade": "websocket",
+                "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+                "Sec-WebSocket-Version": "13",
+                "Origin": "http://attacker.invalid",
+            },
+        )
+        response = connection.getresponse()
+        self.assertEqual(response.status, 403)
+        connection.close()
 
     def test_desk_routes_answer_exactly_once(self):
         status, data = self.call("reports/request/reno", {})
