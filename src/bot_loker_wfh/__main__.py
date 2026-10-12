@@ -310,6 +310,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"model aliases: {', '.join(readiness['models'])})."
                 )
                 return 0
+            if readiness.get("status") == "misconfigured":
+                print("Hermes Agent belum siap (HERMES_API_KEY belum dikonfigurasi).")
+                return 1
             print(
                 "Hermes Agent belum siap "
                 f"(status {readiness.get('status')}; "

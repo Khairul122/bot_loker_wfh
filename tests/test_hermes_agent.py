@@ -233,6 +233,17 @@ class CheckLLMCommandTest(unittest.TestCase):
         client.check_readiness.assert_called_once()
         self.assertIn("Hermes Agent siap", output.call_args.args[0])
 
+    def test_check_llm_explains_missing_hermes_key(self):
+        from bot_loker_wfh import __main__ as app
+
+        client = MagicMock()
+        client.check_readiness.return_value = {
+            "ok": False, "status": "misconfigured", "toolsets": [], "models": [],
+        }
+        with patch("bot_loker_wfh.llm.HermesAgentClient", return_value=client), patch("builtins.print") as output:
+            self.assertEqual(app.main(["check-llm"]), 1)
+        self.assertIn("HERMES_API_KEY belum dikonfigurasi", output.call_args.args[0])
+
 
 if __name__ == "__main__":
     unittest.main()
