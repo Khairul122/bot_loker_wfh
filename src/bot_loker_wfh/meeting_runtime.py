@@ -110,18 +110,14 @@ def list_events(connection: Connection, meeting_id: str) -> list[dict[str, Any]]
 
 
 def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) -> dict[str, Any]:
-    """Run a team meeting with 9Router or offline fallback text."""
+    """Run a team meeting with the configured LLM provider or offline fallback text."""
     from .config import Settings
     from .employee_memory import lessons_text, remember
     from .employee_skills import load_employee_skills
-    from .llm import OpenAICompatibleProvider
+    from .llm import create_llm_from_settings
 
     settings = Settings.from_environment()
-    provider = None if settings.llm_provider == "template" else OpenAICompatibleProvider(
-        settings.ninerouter_base_url,
-        settings.ninerouter_api_key or "sk-dummy",
-        settings.ninerouter_model or "LokerHouse",
-    )
+    llm = create_llm_from_settings(settings)
 
     from .office_events import bus as _bus
 
@@ -142,10 +138,15 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             pass
 
         lessons = lessons_text(connection, emp)
+        handoff = "\n".join(
+            f"{turn['employee'].title()} menyampaikan: {turn['speech']}"
+            for turn in transcript
+        ) or "Belum ada pendapat sebelumnya."
         prompt = (
             f"Konteks: Rapat tim kantor Loker House.\n"
             f"Topik rapat: '{topic}'.\n"
             f"Identitas Anda: Karyawan '{emp}'.\n"
+            f"Pendapat rekan yang perlu ditanggapi (jika ada):\n{handoff}\n\n"
             f"Skill & peran Anda:\n{skill_text}\n\n"
             + (f"Pelajaran dari pengalaman & feedback owner sebelumnya:\n{lessons}\n\n" if lessons else "")
             +
@@ -153,7 +154,14 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             f"Sampaikan solusi konkret, bukan basa-basi."
         )
         try:
-            speech = provider.complete([{"role": "user", "content": prompt}]).text.strip() if provider else ""
+            speech = llm.complete(
+                "answer",
+                [{"role": "user", "content": prompt}],
+                persona=emp,
+                memory_context=lessons,
+                session_key=f"loker:employee:{emp}",
+                session_id=f"loker-meeting-{meeting_id}-{emp}",
+            ).text.strip() if llm else ""
         except Exception:
             speech = ""
         speech = speech or f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
@@ -171,7 +179,13 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         + "\nBuatkan 1 kesimpulan keputusan aksi konkret."
     )
     try:
-        decision = provider.complete([{"role": "user", "content": decision_prompt}]).text.strip() if provider else ""
+        decision = llm.complete(
+            "answer",
+            [{"role": "user", "content": decision_prompt}],
+            persona=participants[0] if participants else "tegar",
+            session_key=f"loker:employee:{participants[0] if participants else 'tegar'}",
+            session_id=f"loker-meeting-{meeting_id}-decision",
+        ).text.strip() if llm else ""
     except Exception:
         decision = ""
     decision = decision or f"Tim sepakat mengeksekusi prioritas terkait {topic}."

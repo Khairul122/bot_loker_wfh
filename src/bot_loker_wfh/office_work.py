@@ -183,7 +183,7 @@ class OfficeWork:
         }
 
     def draft_next(self, connection: Connection, limit: int = DRAFTS_PER_CYCLE) -> int:
-        """Let Cora draft letters for the best candidates that have none yet.
+        """Let Leva draft letters for the best candidates that have none yet.
 
         Jobs matching Sari's standing instruction (owner keywords) go first.
         """
@@ -199,8 +199,7 @@ class OfficeWork:
         drafted = sum(
             1 for job_id in job_ids if service.prepare(job_id).application_status == "PENDING_APPROVAL"
         )
-        # Cora writes the letters; one line whether the cycle or the owner's button asked
-        self.log_work("cora", "draft", count=drafted)
+        self.log_work("leva", "draft", count=drafted)
         return drafted
 
     def decide(self, connection: Connection, application_id: str, action: str) -> dict:

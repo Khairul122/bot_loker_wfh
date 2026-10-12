@@ -104,32 +104,24 @@ class TelegramCommandHandlerTest(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertEqual(result.message, "Unauthorized chat.")
 
-    def test_model_command_lists_combo_and_vision_models(self):
+    def test_model_command_lists_configured_hermes_routes(self):
         mock_router = MagicMock()
         mock_router.active_model = "loker-draft"
-
-        mock_info = {
-            "combo": ["Antigravity", "GithubCopilot"],
-            "vision": ["ag/gemini-3.8-flash", "gh/gpt-4o"],
-            "error": None,
-        }
-
-        with patch("bot_loker_wfh.telegram_commands.fetch_9router_models_categorized", return_value=mock_info):
-            res = self.handler.handle(TelegramRequest(chat_id=123, text="/model"), router=mock_router)
-            self.assertTrue(res.success)
-            self.assertIn("Combo Models (2)", res.message)
-            self.assertIn("Antigravity", res.message)
-            self.assertIn("GithubCopilot", res.message)
-            self.assertIn("Vision Adapters (2) & Models (2)", res.message)
-            self.assertIn("ag/gemini-3.8-flash", res.message)
+        mock_router.task_models = {"draft": "loker-draft", "answer": "loker-answer"}
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/model"), router=mock_router)
+        self.assertTrue(res.success)
+        self.assertIn("Model AI Hermes", res.message)
+        self.assertIn("draft: loker-draft", res.message)
+        self.assertIn("answer: loker-answer", res.message)
 
     def test_model_command_changes_and_resets_model(self):
         mock_router = MagicMock()
+        mock_router.task_models = {"draft": "loker-draft"}
 
-        res = self.handler.handle(TelegramRequest(chat_id=123, text="/model Antigravity"), router=mock_router)
+        res = self.handler.handle(TelegramRequest(chat_id=123, text="/model loker-draft"), router=mock_router)
         self.assertTrue(res.success)
-        self.assertIn("Antigravity", res.message)
-        mock_router.set_active_model.assert_called_with("Antigravity")
+        self.assertIn("loker-draft", res.message)
+        mock_router.set_active_model.assert_called_with("loker-draft")
 
         res_reset = self.handler.handle(TelegramRequest(chat_id=123, text="/model reset"), router=mock_router)
         self.assertTrue(res_reset.success)

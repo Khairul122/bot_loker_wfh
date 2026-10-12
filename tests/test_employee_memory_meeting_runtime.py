@@ -55,12 +55,31 @@ class MeetingRuntimeTest(unittest.TestCase):
     def test_template_meeting_never_creates_a_provider(self):
         settings = Settings.from_environment({"LLM_PROVIDER": "template"})
         with patch.object(Settings, "from_environment", return_value=settings), patch(
-            "bot_loker_wfh.llm.OpenAICompatibleProvider", side_effect=AssertionError("provider created")
+            "bot_loker_wfh.llm.HermesAgentClient", side_effect=AssertionError("provider created")
         ):
             result = run_dynamic_meeting(self.db, "Review", ["sari"])
 
         self.assertEqual(result["status"], "completed")
         self.assertEqual(len(result["transcript"]), 1)
+
+    def test_hermes_meeting_uses_the_configured_answer_route(self):
+        settings = Settings.from_environment({
+            "LLM_PROVIDER": "hermes",
+            "HERMES_API_KEY": "local-test-token",
+        })
+        response = {
+            "choices": [{"message": {"content": "Prioritaskan lowongan remote."}}],
+            "usage": {"prompt_tokens": 8, "completion_tokens": 5},
+        }
+
+        with patch.object(Settings, "from_environment", return_value=settings), patch(
+            "bot_loker_wfh.llm.HermesAgentClient._make_request", return_value=response
+        ) as request:
+            result = run_dynamic_meeting(self.db, "Remote hiring", ["sari"])
+
+        self.assertEqual(result["transcript"][0]["speech"], "Prioritaskan lowongan remote.")
+        self.assertEqual(request.call_count, 2)
+        self.assertTrue(all(call.args[1]["model"] == "loker-answer" for call in request.call_args_list))
 
 
 if __name__ == "__main__":

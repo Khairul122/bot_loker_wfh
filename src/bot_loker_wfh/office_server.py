@@ -34,12 +34,11 @@ _INSTINCT_COOLDOWN = 90.0  # seconds between LLM instinct calls per employee (co
 _INSTINCT_LAST: dict[str, float] = {}
 
 # Settings the office panel may persist. Anything else is rejected.
-SECRET_KEYS = frozenset({"ninerouter_api_key"})
+SECRET_KEYS = frozenset({"hermes_api_key"})
 ALLOWED_SETTINGS = frozenset({
     "llm_provider",
-    "ninerouter_base_url", "ninerouter_api_key", "ninerouter_model",
-    "ninerouter_fallback_models", "llm_model_draft", "llm_model_form",
-    "llm_model_answer", "llm_timeout_seconds", "llm_task_budget_seconds",
+    "hermes_base_url", "hermes_api_key", "hermes_model_draft",
+    "hermes_model_form", "hermes_model_answer", "llm_timeout_seconds", "llm_task_budget_seconds",
     "llm_temperature_draft",
     "browser_mcp_command",
     "form_min_confidence", "form_max_actions", "form_max_tool_calls",
@@ -57,9 +56,29 @@ _NUMERIC_SETTINGS = {
     "auto_bid_max_competitors": (1, 500), "auto_bid_max_age_hours": (1, 720),
 }
 _ENUM_SETTINGS = {
-    "llm_provider": {"template", "9router"},
+    "llm_provider": {"template", "hermes"},
     "form_ai_answers": {"review", "off"},
     "auto_bid_enabled": {"0", "1"},
+}
+_ENV_SETTINGS_KEYS = {
+    "llm_provider": "LLM_PROVIDER",
+    "hermes_base_url": "HERMES_BASE_URL",
+    "hermes_api_key": "HERMES_API_KEY",
+    "hermes_model_draft": "HERMES_MODEL_DRAFT",
+    "hermes_model_form": "HERMES_MODEL_FORM",
+    "hermes_model_answer": "HERMES_MODEL_ANSWER",
+    "llm_timeout_seconds": "LLM_TIMEOUT_SECONDS",
+    "llm_task_budget_seconds": "LLM_TASK_BUDGET_SECONDS",
+    "llm_temperature_draft": "LLM_TEMPERATURE_DRAFT",
+    "browser_mcp_command": "BROWSER_MCP_COMMAND",
+    "form_min_confidence": "FORM_MIN_CONFIDENCE",
+    "form_max_actions": "FORM_MAX_ACTIONS",
+    "form_max_tool_calls": "FORM_MAX_TOOL_CALLS",
+    "form_timeout_seconds": "FORM_TIMEOUT_SECONDS",
+    "form_connect_timeout_seconds": "FORM_CONNECT_TIMEOUT_SECONDS",
+    "form_ai_answers": "FORM_AI_ANSWERS",
+    "applicant_path": "APPLICANT_PATH",
+    "answers_path": "ANSWERS_PATH",
 }
 
 
@@ -184,15 +203,13 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
     
     # All settings that the panel needs
     all_settings = {
-        # 9Router Configuration
+        # Hermes Agent configuration
         "llm_provider": settings.llm_provider,
-        "ninerouter_base_url": settings.ninerouter_base_url,
-        "ninerouter_api_key": settings.ninerouter_api_key,
-        "ninerouter_model": settings.ninerouter_model,
-        "ninerouter_fallback_models": ",".join(settings.ninerouter_fallback_models),
-        "llm_model_draft": settings.llm_model_draft,
-        "llm_model_form": settings.llm_model_form,
-        "llm_model_answer": settings.llm_model_answer,
+        "hermes_base_url": settings.hermes_base_url,
+        "hermes_api_key": settings.hermes_api_key,
+        "hermes_model_draft": settings.hermes_model_draft,
+        "hermes_model_form": settings.hermes_model_form,
+        "hermes_model_answer": settings.hermes_model_answer,
         "llm_timeout_seconds": settings.llm_timeout_seconds,
         "llm_task_budget_seconds": settings.llm_task_budget_seconds,
         "llm_temperature_draft": settings.llm_temperature_draft,
@@ -526,7 +543,7 @@ class _Handler(SimpleHTTPRequestHandler):
         if path == "/llm/test":
             return self._json(200, self._test_llm())
         if path == "/llm/list-models":
-            return self._json(200, self._list_9router_models())
+            return self._json(200, self._list_hermes_models())
         if path == "/browser/test":
             return self._json(200, self._test_browser())
         if path == "/ats/list":
@@ -619,7 +636,7 @@ class _Handler(SimpleHTTPRequestHandler):
                 # Success is only reported once the values are stored in Supabase.
                 return self._json(503, {"error": "supabase_unavailable"})
             try:  # persist to .env so it survives a restart (best effort)
-                save_dotenv(values)
+                save_dotenv({_ENV_SETTINGS_KEYS.get(key, key): value for key, value in values.items()})
             except Exception:
                 pass
             if values.get("auto_bid_enabled") == "1" and self.work.auto:
@@ -741,41 +758,52 @@ class _Handler(SimpleHTTPRequestHandler):
         return None
 
     def _test_llm(self):
-        """Test 9Router LLM connection based on current settings."""
+        """Check Hermes gateway readiness without spending a model request."""
         try:
             from bot_loker_wfh.config import Settings
-            from bot_loker_wfh.llm import OpenAICompatibleProvider, LLMError
+            from bot_loker_wfh.llm import HermesAgentClient
             
             settings = Settings.from_environment()
-            prov = OpenAICompatibleProvider(
-                settings.ninerouter_base_url,
-                settings.ninerouter_api_key or "sk-dummy",
-                settings.ninerouter_model or "LokerHouse",
+            client = HermesAgentClient(
+                settings.hermes_base_url,
+                settings.hermes_api_key,
+                settings.hermes_model_draft,
+                timeout=settings.llm_timeout_seconds,
             )
-            models = prov.list_models()
-            test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
-            return {"ok": True, "message": f"9Router terhubung. {len(models)} model tersedia. Model test: {test_res.model}", "model": test_res.model}
-        except LLMError as err:
-            if err.code == "unauthorized":
-                return {"ok": False, "error": "API key ditolak (401)"}
-            return {"ok": False, "error": str(err)}
-        except Exception as err:
-            return {"ok": False, "error": f"Koneksi gagal: {err}"}
+            aliases = (
+                settings.hermes_model_draft,
+                settings.hermes_model_form,
+                settings.hermes_model_answer,
+            )
+            readiness = client.check_readiness(required_models=aliases)
+            actual = set(readiness.get("toolsets") or [])
+            ready = readiness.get("ok")
+            return {
+                "ok": bool(ready),
+                "status": readiness.get("status", "unknown"),
+                "version": readiness.get("version", ""),
+                "toolsets": sorted(actual),
+                "models": readiness.get("models", []),
+                "error": None if ready else "Periksa gateway, model aliases, dan allowlist skills/memory/delegation",
+            }
+        except (ValueError, OSError, RuntimeError):
+            return {"ok": False, "status": "misconfigured", "toolsets": [], "error": "Hermes configuration is invalid"}
 
-    def _list_9router_models(self):
-        """List all models from 9Router."""
+    def _list_hermes_models(self):
+        """List model aliases advertised by Hermes; provider inventory stays in Hermes."""
         try:
             from bot_loker_wfh.config import Settings
-            from bot_loker_wfh.llm import fetch_9router_models_categorized
+            from bot_loker_wfh.llm import HermesAgentClient
             
             settings = Settings.from_environment()
-            result = fetch_9router_models_categorized(
-                settings.ninerouter_base_url,
-                settings.ninerouter_api_key or "sk-dummy",
-            )
-            return result
-        except Exception as err:
-            return {"combo": [], "vision": [], "all": [], "error": str(err)}
+            models = HermesAgentClient(
+                settings.hermes_base_url,
+                settings.hermes_api_key,
+                timeout=settings.llm_timeout_seconds,
+            ).list_models()
+            return {"models": models, "error": None}
+        except Exception:
+            return {"models": [], "error": "Hermes API Server is unavailable or misconfigured"}
 
     def _test_browser(self):
         """Test BrowserMCP connection."""

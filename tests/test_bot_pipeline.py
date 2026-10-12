@@ -215,7 +215,7 @@ class ConfigTest(unittest.TestCase):
     def test_new_settings_have_defaults(self):
         settings = Settings.from_environment({})
         self.assertEqual(settings.profile_path, "data/profile.json")
-        self.assertEqual(settings.llm_provider, "9router")
+        self.assertEqual(settings.llm_provider, "hermes")
         self.assertEqual(settings.fetch_interval_hours, 4.0)
 
     def test_load_profile_reads_json_and_sanitizes(self):

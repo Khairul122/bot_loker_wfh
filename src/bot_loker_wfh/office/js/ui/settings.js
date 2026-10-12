@@ -1,9 +1,9 @@
-// ---------- Settings Panel: 9Router, BrowserMCP, Form Engine ----------
+// ---------- Settings Panel: Hermes Agent, BrowserMCP, Form Engine ----------
 import { store } from '../core/store.js';
 import { $, el, get, post, toast, closeFlyouts } from './dom.js';
 
 const SETTINGS_TABS = [
-  { id: 'llm', label: '🔀 9Router & Model' },
+  { id: 'llm', label: '🔀 Hermes Agent' },
   { id: 'browser', label: '🌐 BrowserMCP' },
   { id: 'form', label: '📝 Form Engine' },
   { id: 'freelance', label: '🤖 Freelance Otomatis' },
@@ -149,20 +149,23 @@ function renderLLMPanel() {
   const s = settingsData || {};
   
   container.append(
-    el('h4', '', '🔀 Konfigurasi 9Router (Provider AI Utama)'),
-    createInput('ninerouter_base_url', 'Base URL', 'text', s.ninerouter_base_url || 'http://localhost:20128/v1', 'Endpoint 9Router'),
-    createInput('ninerouter_api_key', 'API Key', 'password', s.ninerouter_api_key || '', settingsMeta.ninerouter_api_key?.hint ? 'Terset (' + settingsMeta.ninerouter_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'Key dari dashboard 9Router'),
-    createInput('ninerouter_model', 'Model/Combo Utama', 'text', s.ninerouter_model || 'LokerHouse', 'Contoh: LokerHouse, loker-draft, cc/claude-sonnet-4-5'),
-    createTextarea('ninerouter_fallback_models', 'Model Cadangan (comma-separated)', s.ninerouter_fallback_models || '', 'glm/glm-5.1,kr/claude-sonnet-4.5'),
+    el('h4', '', '🔀 Hermes Agent gateway'),
+    createSelect('llm_provider', 'Backend AI', [
+      { value: 'hermes', label: 'Hermes Agent' },
+      { value: 'template', label: 'Template offline' },
+    ], s.llm_provider || 'hermes'),
+    createInput('hermes_base_url', 'API Server URL', 'text', s.hermes_base_url || 'http://127.0.0.1:8642/v1', 'Loopback HTTP atau HTTPS'),
+    createInput('hermes_api_key', 'API Server Key', 'password', '', settingsMeta.hermes_api_key?.hint ? 'Terset (' + settingsMeta.hermes_api_key.hint + ') — isi untuk ganti, kosongkan biarkan' : 'API_SERVER_KEY dari profile Hermes khusus aplikasi'),
+    el('p', 'settings-note', 'Gunakan profile Hermes khusus. Allowlist wajib: skills, memory, delegation; tanpa terminal/file/browser/cron.'),
     
     el('hr', '', ''),
     
     // Per-task model routing
     createSection([
       el('h4', '', '🎯 Routing Model per Tugas'),
-      createInput('llm_model_draft', 'Cover Letter Draft', 'text', s.llm_model_draft || '', 'Model untuk menulis cover letter'),
-      createInput('llm_model_form', 'Form Mapping (JSON)', 'text', s.llm_model_form || '', 'Model stabil untuk output JSON'),
-      createInput('llm_model_answer', 'Open Questions', 'text', s.llm_model_answer || '', 'Model untuk jawaban pertanyaan terbuka'),
+      createInput('hermes_model_draft', 'Draft & proposal alias', 'text', s.hermes_model_draft || 'loker-draft', 'Route alias di profile Hermes'),
+      createInput('hermes_model_form', 'Form planning alias', 'text', s.hermes_model_form || 'loker-form', 'Route alias Hermes untuk JSON/form'),
+      createInput('hermes_model_answer', 'Employee & Q&A alias', 'text', s.hermes_model_answer || 'loker-answer', 'Route alias Hermes untuk chat/meeting'),
     ]),
     
     el('hr', '', ''),
@@ -179,12 +182,12 @@ function renderLLMPanel() {
     
     // Actions
     el('div', 'settings-actions', [
-      createButton('🔍 Test Koneksi 9Router', 'btn ok', async () => {
+      createButton('🔍 Cek Hermes readiness', 'btn ok', async () => {
         const res = await get('llm/test');
-        if (res.ok && res.data.ok !== false) toast('✅ ' + (res.data.message || '9Router sehat: ' + res.data.model));
-        else toast('❌ ' + (res.data.error || 'Gagal'));
+        if (res.ok && res.data.ok) toast('✅ Hermes siap (' + res.data.version + '): ' + (res.data.toolsets || []).join(', '));
+        else toast('❌ ' + (res.data.error || res.data.status || 'Gagal'));
       }),
-      createButton('📋 Lihat Model 9Router', 'btn', async () => {
+      createButton('📋 Lihat alias Hermes', 'btn', async () => {
         const res = await get('llm/list-models');
         if (res.ok) showModelsModal(res.data);
         else toast('❌ Gagal memuat model');
@@ -479,10 +482,8 @@ function appendList(parent, heading, items, format) {
 }
 
 function showModelsModal(data) {
-  openModal('📋 Model 9Router Tersedia', body => {
-    appendList(body, '🔀 Combo Models', data.combo, m => String(m));
-    appendList(body, '👁️ Vision Models', data.vision, m => String(m));
-    appendList(body, '📦 Semua Model', data.all, m => `${m.id} (${m.owned_by || 'unknown'})`);
+  openModal('📋 Alias model Hermes', body => {
+    appendList(body, '🔀 Alias tersedia di API Server', data.models, m => String(m));
     if (data.error) body.append(el('p', 'error', 'Error: ' + data.error));
   });
 }

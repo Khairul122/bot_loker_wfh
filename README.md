@@ -30,7 +30,7 @@ https://github.com/user-attachments/assets/b2e24839-4e14-4d4f-8fc6-beb60e016436
 
 - Python 3.11 or newer
 - A Supabase project (Postgres). Tables live in the `loker` schema.
-- Optional: a Telegram bot token, an OpenAI-compatible LLM endpoint (9Router), Node.js 18+ for BrowserMCP form filling, and a Freelancer.com API token
+- Optional: a Telegram bot token, a Hermes Agent API Server, Node.js 18+ for BrowserMCP form filling, and a Freelancer.com API token
 
 ### Quick start
 
@@ -58,7 +58,7 @@ Open <http://127.0.0.1:8765> in your browser.
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | Telegram control and notifications. Only allowlisted chat IDs are accepted. |
 | `EXTERNAL_JOBS_ENABLED` | `false` by default. Set it to `true` to let scouts call the job APIs. |
 | `FETCH_INTERVAL_HOURS` | Fetch cycle interval, minimum 4. |
-| `LLM_PROVIDER`, `NINEROUTER_BASE_URL`, `NINEROUTER_API_KEY`, `NINEROUTER_MODEL` | The model that writes drafts. Use `template` for offline templates. |
+| `LLM_PROVIDER`, `HERMES_BASE_URL`, `HERMES_API_KEY`, `HERMES_MODEL_*` | Hermes routes for drafts, form assistance, and employee chat. Use `template` for offline templates. |
 | `GITHUB_USERNAME` | Your public repos, used as proof in bids. They re-sync every 6 hours. |
 | `FREELANCER_ACCESS_TOKEN` | Sends approved Freelancer.com bids through the official API. |
 | `FORM_ASSIST_ENABLED`, `BROWSER_MCP_COMMAND` | Form filling in your own Chrome. It always stops before Submit. |
@@ -126,7 +126,7 @@ More detail is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 
 - Python 3.11 ke atas
 - Proyek Supabase (Postgres). Tabel ada di schema `loker`.
-- Opsional: token bot Telegram, endpoint LLM yang kompatibel OpenAI (9Router), Node.js 18+ untuk pengisian form BrowserMCP, dan token API Freelancer.com
+- Opsional: token bot Telegram, Hermes Agent API Server, Node.js 18+ untuk pengisian form BrowserMCP, dan token API Freelancer.com
 
 ### Cara menjalankan
 
@@ -154,7 +154,7 @@ Buka <http://127.0.0.1:8765> di browser.
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_CHAT_IDS` | Kontrol dan notifikasi Telegram. Hanya chat ID yang di-allowlist yang diterima. |
 | `EXTERNAL_JOBS_ENABLED` | Bawaannya `false`. Ubah ke `true` agar pemburu boleh memanggil API lowongan. |
 | `FETCH_INTERVAL_HOURS` | Jeda siklus pencarian, minimal 4 jam. |
-| `LLM_PROVIDER`, `NINEROUTER_BASE_URL`, `NINEROUTER_API_KEY`, `NINEROUTER_MODEL` | Model penulis draf. Pakai `template` untuk template offline. |
+| `LLM_PROVIDER`, `HERMES_BASE_URL`, `HERMES_API_KEY`, `HERMES_MODEL_*` | Route Hermes untuk draf, bantuan form, dan chat karyawan. Pakai `template` untuk template offline. |
 | `GITHUB_USERNAME` | Repo publikmu sebagai bukti di bid. Disinkronkan ulang tiap 6 jam. |
 | `FREELANCER_ACCESS_TOKEN` | Mengirim bid Freelancer.com yang disetujui lewat API resmi. |
 | `FORM_ASSIST_ENABLED`, `BROWSER_MCP_COMMAND` | Pengisian form di Chrome milikmu. Selalu berhenti sebelum Submit. |

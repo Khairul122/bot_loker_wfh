@@ -406,12 +406,25 @@ def instructed(llm: Callable[[str], str] | None, connection: Connection, employe
     if llm is None:
         return None
     text, lessons = get_instruction(connection, employee), lessons_text(connection, employee)
-    return _Instructed(llm, text, lessons) if text or lessons else llm
+    memory = "\n".join(part for part in (text, lessons) if part)
+    task_llm = llm
+    if hasattr(llm, "for_task"):
+        task_llm = llm.for_task(
+            "draft", persona=employee, memory_context=memory,
+            session_key=f"loker:employee:{employee}"
+        )
+    elif hasattr(llm, "with_context"):
+        task_llm = llm.with_context(
+            persona=employee, memory_context=memory,
+            session_key=f"loker:employee:{employee}"
+        )
+    return _Instructed(task_llm, text, lessons, connection, employee)
 
 
 class _Instructed:
-    def __init__(self, llm: Callable[[str], str], text: str, lessons: str = "") -> None:
+    def __init__(self, llm, text: str, lessons: str, connection, employee: str) -> None:
         self.llm, self.text, self.lessons = llm, text, lessons
+        self.connection, self.employee = connection, employee
 
     def __call__(self, prompt: str) -> str:
         if self.text:
@@ -419,6 +432,21 @@ class _Instructed:
         if self.lessons:
             prompt += f"\n\nYOUR PAST LESSONS (from owner feedback; apply them, do not repeat past mistakes):\n{self.lessons}"
         return self.llm(prompt)
+
+    def with_context(self, **context):
+        employee = context.pop("persona", self.employee)
+        text = get_instruction(self.connection, employee)
+        lessons = lessons_text(self.connection, employee)
+        runner = self.llm
+        if hasattr(runner, "with_context"):
+            values = {
+                "persona": employee,
+                "memory_context": "\n".join(part for part in (text, lessons) if part),
+                "session_key": f"loker:employee:{employee}",
+            }
+            values.update(context)
+            runner = runner.with_context(**values)
+        return _Instructed(runner, text, lessons, self.connection, employee)
 
     @property
     def last_result(self):  # DraftService reads provider/model from here
@@ -469,7 +497,17 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
             + f"\nPERTANYAAN OWNER: {question}"
         )
         try:
-            answer = str(llm(prompt) or "").strip()
+            employee_llm = llm
+            memory = "\n".join(part for part in (order, lessons) if part)
+            if hasattr(llm, "with_context"):
+                employee_llm = llm.with_context(
+                    persona=employee,
+                    memory_context=memory,
+                    session_key=f"loker:employee:{employee}",
+                    session_id=f"loker-owner-chat-{employee}",
+                    system_prompt="Answer only from the supplied application facts; these override recalled conversation details.",
+                )
+            answer = str(employee_llm(prompt) or "").strip()
             if answer:
                 return {"answer": answer[:1200], "ai": True}
         except Exception:  # the plain facts are always a safe answer

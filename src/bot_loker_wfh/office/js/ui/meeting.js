@@ -1,4 +1,4 @@
-﻿// ---------- interactive dynamic meeting room: pick topic + crew, run via 9Router ----------
+// ---------- interactive dynamic meeting room: pick topic + crew, run via Hermes ----------
 import { store } from '../core/store.js';
 import { staff, byId } from '../characters/team.js';
 import { me } from '../characters/player.js';
@@ -108,7 +108,7 @@ function speak(emp, text) {
   say(c, text, Math.max(2.4, Math.min(6, text.length / 20)));
 }
 
-// while 9Router is still thinking, the table is not frozen: people glance around and ponder
+// while Hermes is still thinking, the table is not frozen: people glance around and ponder
 function ponder(crew) {
   return setInterval(() => {
     const c = pick(crew), o = pick(crew);
@@ -142,7 +142,7 @@ $('meetingRun').onclick = async () => {
   crew = ready;
   if (!crew.length) return toast('Semua peserta sedang sibuk, coba lagi sebentar ⏳');
   busy = true; $('meetingRun').disabled = true; $('meeting').classList.add('live');
-  $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan… tim sedang berdiskusi lewat 9Router'));
+  $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan… tim sedang berdiskusi lewat Hermes'));
   const run = { crew, streamed: false };
   activeRun = run;
   const arrivals = gather(crew);
@@ -152,7 +152,7 @@ $('meetingRun').onclick = async () => {
   await Promise.race([Promise.all(arrivals), sleep(10000)]); // let them sit before anyone talks
   if (activeRun !== run) return; // a live meeting stream already finished this run
   if (!run.streamed) {
-    if (!r.ok) { line('❌ Gagal menjalankan rapat. Cek koneksi 9Router di Pengaturan.'); finishRun(null); return; }
+    if (!r.ok) { line('❌ Gagal menjalankan rapat. Cek koneksi Hermes di Pengaturan.'); finishRun(null); return; }
     // synchronous backend: replay the returned transcript one turn at a time
     for (const t of r.data.transcript || []) {
       if (activeRun !== run) return;

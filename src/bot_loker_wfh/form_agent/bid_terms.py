@@ -127,7 +127,13 @@ def choose_bid_terms(
             + f"Title: {title}\nBudget: {budget or '-'}\nDescription: {description[:3000]}"
         )
         try:
-            data = json.loads(str(llm(prompt) or ""))
+            terms_llm = llm
+            if hasattr(llm, "with_context"):
+                terms_llm = llm.with_context(
+                    persona="lido", session_key="loker:employee:lido",
+                    system_prompt="Choose only project scope, duration, weekly hours and milestones. Never decide or submit a bid.",
+                )
+            data = json.loads(str(terms_llm(prompt) or ""))
             plan = data if isinstance(data, dict) else {}
         except Exception:
             plan = {}

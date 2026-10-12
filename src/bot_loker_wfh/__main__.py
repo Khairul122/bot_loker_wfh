@@ -286,26 +286,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "check-llm":
-        from .llm import OpenAICompatibleProvider, LLMError
-        prov = OpenAICompatibleProvider(
-            settings.ninerouter_base_url,
-            settings.ninerouter_api_key or "sk-dummy",
-            settings.ninerouter_model or "LokerHouse",
-        )
+        from .llm import HermesAgentClient
+
         try:
-            models = prov.list_models()
-            print(f"9Router terhubung. {len(models)} model tersedia.")
-            test_res = prov.complete([{"role": "user", "content": "Tes satu kata."}])
-            print(f"Uji model '{test_res.model}': {test_res.text[:50]}")
-            return 0
-        except LLMError as err:
-            if err.code == "unauthorized":
-                print("API key 9Router ditolak (401)")
-                return 1
-            print(f"9Router error: {err}")
+            client = HermesAgentClient(
+                settings.hermes_base_url,
+                settings.hermes_api_key,
+                settings.hermes_model_draft,
+                timeout=settings.llm_timeout_seconds,
+            )
+            readiness = client.check_readiness(
+                required_models=(
+                    settings.hermes_model_draft,
+                    settings.hermes_model_form,
+                    settings.hermes_model_answer,
+                )
+            )
+            if readiness["ok"]:
+                print(
+                    "Hermes Agent siap "
+                    f"(versi {readiness.get('version') or 'unknown'}; "
+                    f"toolsets: {', '.join(readiness['toolsets'])}; "
+                    f"model aliases: {', '.join(readiness['models'])})."
+                )
+                return 0
+            print(
+                "Hermes Agent belum siap "
+                f"(status {readiness.get('status')}; "
+                f"toolsets: {', '.join(readiness.get('toolsets') or []) or 'none'}; "
+                f"model aliases kurang: {', '.join(readiness.get('missing_models') or []) or 'none'})."
+            )
             return 1
-        except Exception as err:
-            print(f"Koneksi 9Router gagal: {err}")
+        except (ValueError, OSError, RuntimeError):
+            print("Konfigurasi Hermes Agent tidak valid.")
             return 1
 
     if args.command == "check-browser":
@@ -387,9 +400,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         llm = create_llm_from_settings(settings, record_calls=True)
         work = OfficeWork(
             hunters=_office_hunters(profile, settings),
-            # Cora writes with the owner's standing instruction appended to every prompt
+            # Leva handles candidate-facing cover letters with the owner's standing instruction.
             draft_service_for=lambda connection: DraftService(
-                connection, profile, llm=office_desk.instructed(llm, connection, "cora")
+                connection, profile, llm=office_desk.instructed(llm, connection, "leva")
             ),
             proposal_writer=lambda connection, lead_id, mark_interested=True, note="": draft_proposal(
                 connection, lead_id, profile, office_desk.instructed(llm, connection, "cora"),

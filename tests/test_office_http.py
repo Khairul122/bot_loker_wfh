@@ -154,17 +154,17 @@ class SettingsHttpTest(unittest.TestCase):
     def test_offline_settings_still_serve_and_never_leak_secret(self):
         status, data = self.call("settings.json")
         self.assertEqual(status, 200)
-        self.assertEqual(data["ninerouter_api_key"]["value"], "")
+        self.assertEqual(data["hermes_api_key"]["value"], "")
         self.assertNotIn("sk-", json.dumps(data))
 
     def test_stored_settings_are_served_and_secret_is_masked(self):
-        self.call("settings", {"key": "llm_provider", "value": "9router"})
-        self.call("settings", {"key": "ninerouter_api_key", "value": "sk-live-123456"})
+        self.call("settings", {"key": "llm_provider", "value": "hermes"})
+        self.call("settings", {"key": "hermes_api_key", "value": "hermes-live-123456"})
         status, data = self.call("settings.json")
         self.assertEqual(status, 200)
-        self.assertEqual(data["llm_provider"]["value"], "9router")
-        self.assertTrue(data["ninerouter_api_key"]["set"])
-        self.assertNotIn("sk-live-123456", json.dumps(data))
+        self.assertEqual(data["llm_provider"]["value"], "hermes")
+        self.assertTrue(data["hermes_api_key"]["set"])
+        self.assertNotIn("hermes-live-123456", json.dumps(data))
 
     def test_post_is_stored_in_database(self):
         status, data = self.call("settings", {"key": "scrape_interval_hours", "value": "9"})
@@ -180,10 +180,10 @@ class SettingsHttpTest(unittest.TestCase):
         self.assertEqual(data, {"error": "supabase_unavailable"})
 
     def test_blank_secret_keeps_stored_value(self):
-        self.call("settings", {"key": "ninerouter_api_key", "value": "sk-keep-1234"})
-        status, data = self.call("settings", {"key": "ninerouter_api_key", "value": ""})
+        self.call("settings", {"key": "hermes_api_key", "value": "hermes-keep-1234"})
+        status, data = self.call("settings", {"key": "hermes_api_key", "value": ""})
         self.assertEqual(status, 200)
-        self.assertTrue(data["ninerouter_api_key"]["set"])
+        self.assertTrue(data["hermes_api_key"]["set"])
 
     def test_unknown_setting_is_rejected(self):
         status, data = self.call("settings", {"key": "drop_table", "value": "1"})

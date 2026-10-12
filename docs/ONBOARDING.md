@@ -15,7 +15,7 @@ Batas penting: pengiriman lamaran produksi masih disabled. Bot hanya menyiapkan 
 | Database | Supabase Postgres (schema `loker`) |
 | Interface kontrol | Telegram Bot API |
 | Browser automation | BrowserMCP (Chrome asli Anda) |
-| LLM | Template atau 9Router |
+| AI runtime | Hermes Agent API Server atau template offline |
 | Office UI | Standard-library HTTP server + Three.js CDN |
 | Test | pytest |
 | Deployment | Docker Compose, satu service bot |

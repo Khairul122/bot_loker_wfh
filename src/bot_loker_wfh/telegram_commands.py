@@ -6,7 +6,6 @@ from .database import Connection
 from dataclasses import dataclass
 
 from .filters import FilterConfig, FilterRepository
-from .llm import fetch_9router_models_categorized
 from .status_transitions import (
     InvalidTransitionError,
     TransitionActor,
@@ -50,60 +49,19 @@ class TelegramCommandHandler:
                 if router and hasattr(router, "reset_model"):
                     router.reset_model()
                 return "Model AI dikembalikan ke konfigurasi awal .env."
+            available = set(getattr(router, "task_models", {}).values()) if router else set()
+            if target not in available:
+                return "Alias model tidak dikenal. Gunakan /model untuk melihat alias Hermes yang tersedia."
             if router and hasattr(router, "set_active_model"):
                 router.set_active_model(target)
-            return f"Model AI berhasil diubah ke: {target}."
+            return f"Alias model Hermes aktif: {target}."
 
-        base_url = "http://localhost:20128/v1"
-        api_key = "sk-dummy"
-        if router and hasattr(router, "chain") and router.chain:
-            first_prov = router.chain[0][0]
-            if hasattr(first_prov, "base_url"):
-                base_url = first_prov.base_url
-            if hasattr(first_prov, "api_key") and first_prov.api_key:
-                api_key = first_prov.api_key
-
-        model_info = fetch_9router_models_categorized(base_url=base_url, api_key=api_key)
-
-        active = getattr(router, "active_model", None) if router else None
-        last = getattr(router, "last_result", None) if router else None
-
-        lines = ["🤖 Model AI 9Router\n"]
-        if active:
-            lines.append(f"📌 Model Aktif: {active}")
-        elif last:
-            lines.append(f"📌 Model Terakhir: {last.provider}/{last.model}")
-
-        if model_info.get("error"):
-            lines.append(f"\n⚠️ (9Router tidak dapat dihubungi: {model_info['error']})")
-        else:
-            combos = model_info.get("combo", [])
-            visions = model_info.get("vision", [])
-
-            lines.append(f"\n📦 Combo Models ({len(combos)}):")
-            if combos:
-                for c in combos:
-                    lines.append(f"• {c}")
-            else:
-                lines.append("• (tidak ada)")
-
-            by_adapter: dict[str, list[str]] = {}
-            for m in visions:
-                adapter = m.split("/")[0] if "/" in m else "other"
-                by_adapter.setdefault(adapter, []).append(m)
-
-            lines.append(f"\n👁️ Vision Adapters ({len(by_adapter)}) & Models ({len(visions)}):")
-            if by_adapter:
-                for adapter, mlist in sorted(by_adapter.items()):
-                    limit = 5 if len(mlist) <= 5 else 3
-                    sample = ", ".join(mlist[:limit])
-                    more = f" (+{len(mlist)-limit} lainnya)" if len(mlist) > limit else ""
-                    lines.append(f"• [{adapter.upper()}]: {sample}{more}")
-            else:
-                lines.append("• (tidak ada)")
-
-        lines.append("\n💡 Ketik '/model <nama>' untuk mengganti model aktif.")
-        lines.append("💡 Ketik '/model reset' untuk mengembalikan ke default.")
+        aliases = getattr(router, "task_models", {}) if router else {}
+        lines = ["Model AI Hermes"]
+        lines.extend(f"{task}: {model}" for task, model in sorted(aliases.items()))
+        if not aliases:
+            lines.append("Alias belum tersedia; periksa konfigurasi Hermes di Pengaturan.")
+        lines.append("Ketik /model <alias> untuk override sementara atau /model reset untuk kembali ke konfigurasi.")
         return "\n".join(lines)
 
     def _filter_command(self, args: list[str]) -> str:

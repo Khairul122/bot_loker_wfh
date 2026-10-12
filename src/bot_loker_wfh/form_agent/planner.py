@@ -97,7 +97,10 @@ class FormPlanner:
         ]
 
         try:
-            res = self.router.complete("form", messages, json_mode=True)
+            res = self.router.complete(
+                "form", messages, json_mode=True, persona="leva",
+                session_key="loker:employee:leva",
+            )
             data = json.loads(res.text)
             raw_actions = data.get("actions", [])
             raw_skipped = data.get("skipped", [])
@@ -143,7 +146,10 @@ class FormPlanner:
             {"role": "user", "content": prompt},
         ]
         try:
-            res = self.router.complete("answer", messages, json_mode=False)
+            res = self.router.complete(
+                "answer", messages, json_mode=False, persona="leva",
+                session_key="loker:employee:leva",
+            )
             ans = res.text.strip()
             if "NEEDS_USER" in ans:
                 return "NEEDS_USER"

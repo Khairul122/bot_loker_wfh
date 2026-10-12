@@ -9,8 +9,8 @@ from threading import RLock
 from .office_desk import ROLES
 
 EMPLOYEE_IDS = frozenset(ROLES)
-SKILLS_DIR = Path(__file__).with_name("skills") / "employees"
-MAX_MARKDOWN_BYTES = 32 * 1024
+SKILLS_DIR = Path(__file__).with_name("hermes_skills")
+MAX_MARKDOWN_BYTES = 128 * 1024
 _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _CACHE: dict[str, tuple[int, int, str]] = {}
 _CACHE_LOCK = RLock()
@@ -19,9 +19,9 @@ _CACHE_LOCK = RLock()
 def _employee_sources(employee_id: str) -> list[Path]:
     if not isinstance(employee_id, str) or employee_id not in EMPLOYEE_IDS or not _ID_RE.fullmatch(employee_id):
         raise KeyError(employee_id)
-    emp_dir = (SKILLS_DIR / employee_id).resolve()
-    single_file = (SKILLS_DIR / f"{employee_id}.md").resolve()
-    
+    emp_dir = (SKILLS_DIR / f"loker-employee-{employee_id}").resolve()
+    single_file = (SKILLS_DIR / f"loker-employee-{employee_id}.md").resolve()
+
     if emp_dir.is_dir():
         files = sorted(emp_dir.glob("*.md"))
         if files:
@@ -52,9 +52,8 @@ def load_employee_skills(employee_id: str) -> str:
                 parts.append(f"### Skill Source: {p.stem}\n{content.strip()}")
         
         full_content = "\n\n---\n\n".join(parts)
-        full_bytes = full_content.encode("utf-8")
-        if len(full_bytes) > MAX_MARKDOWN_BYTES:
-            full_content = full_bytes[:MAX_MARKDOWN_BYTES].decode("utf-8", errors="ignore")
+        if len(full_content.encode("utf-8")) > MAX_MARKDOWN_BYTES:
+            raise ValueError("combined employee skill file is invalid")
         _CACHE[employee_id] = (*combined_sig, full_content)
         return full_content
 

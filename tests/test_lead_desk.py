@@ -324,25 +324,23 @@ class LanguageAndCommentTest(unittest.TestCase):
         self.assertEqual(self.connection.execute("SELECT comment FROM leads WHERE id='x'").fetchone()[0], comment)
 
 
-class NineRouterRunnableTest(unittest.TestCase):
-    def test_9router_is_the_only_provider_and_template_falls_back(self):
+class HermesRunnableTest(unittest.TestCase):
+    def test_hermes_is_the_only_provider_and_template_falls_back(self):
         from bot_loker_wfh.llm import (
             LLMError,
             LLMRouter,
-            OpenAICompatibleProvider,
+            HermesAgentClient,
             create_llm_from_settings,
         )
         from bot_loker_wfh.config import Settings
 
-        for legacy in ("anthropic", "opencode", "9router", ""):
-            settings = Settings.from_environment({"LLM_PROVIDER": legacy})
-            self.assertEqual(settings.llm_provider, "9router")
-            router = create_llm_from_settings(settings)
-            self.assertIsInstance(router, LLMRouter)
-            provider = router.chain[0][0]
-            self.assertIsInstance(provider, OpenAICompatibleProvider)
+        settings = Settings.from_environment({"LLM_PROVIDER": "hermes"})
+        router = create_llm_from_settings(settings)
+        self.assertIsInstance(router, LLMRouter)
+        provider = router.chain[0][0]
+        self.assertIsInstance(provider, HermesAgentClient)
 
-        # draft callers fall back to the template when 9Router raises
+        # Draft callers retain the explicit offline fallback on Hermes failure.
         def failing(prompt):
             raise LLMError("all_providers_failed")
 
