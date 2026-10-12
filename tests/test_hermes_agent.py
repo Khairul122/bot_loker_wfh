@@ -170,7 +170,8 @@ class HermesRouterTest(unittest.TestCase):
         self.assertEqual(router.provider_name, "hermes")
         self.assertIsInstance(router.chain[0][0], HermesAgentClient)
         self.assertEqual(router.task_models, {
-            "draft": "draft-route", "form": "form-route", "answer": "answer-route"
+            "draft": "draft-route", "form": "form-route", "answer": "answer-route",
+            "manager": "answer-route",
         })
 
     def test_template_mode_creates_no_agent(self):

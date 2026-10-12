@@ -9,6 +9,6 @@ export const store = {
   S: DEMO, // latest stats.json (or DEMO when the server is not running)
   live: false,
   desk: { ratings: {}, instructions: {}, undelivered: [], tray: 0 },
-  overview: true, // start with the complete seven-floor office in view
+  overview: false, // refresh into the owner-follow camera; overview remains an explicit action
   fp: false, yaw: 0, pitch: 0, // owner POV camera
 };

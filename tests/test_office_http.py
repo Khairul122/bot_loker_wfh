@@ -111,6 +111,45 @@ class OfficeHttpTest(unittest.TestCase):
         self.assertEqual(self.call("employee.json?id=reno")[1]["rating"]["avg"], 5)
         self.assertIn("counts", self.call("leads.json?view=new")[1])
 
+    def test_manager_task_routes_return_client_errors_for_invalid_requests(self):
+        self.assertEqual(self.call("manager/brief", {"manager": "rima"}), (404, {"error": "not_manager"}))
+        self.assertEqual(self.call("manager/brief", {"manager": "tegar"}), (503, {"error": "hermes_unavailable"}))
+
+        status, data = self.call("manager/tasks", {
+            "manager": "rima", "assignee": "rima", "title": "Check candidate summary",
+        })
+        self.assertEqual((status, data), (404, {"error": "not_manager"}))
+
+        status, data = self.call("manager/tasks", {
+            "manager": "tegar", "assignee": "reno", "title": "Check candidate summary",
+        })
+        self.assertEqual((status, data), (400, {"error": "assignee_must_be_in_managed_division"}))
+
+        status, data = self.call("manager/tasks", {
+            "manager": "tegar", "assignee": "tegar", "title": "No",
+        })
+        self.assertEqual((status, data), (400, {"error": "invalid_title"}))
+
+    def test_manager_brief_route_records_validated_hermes_assignments(self):
+        from bot_loker_wfh import manager_tasks
+        with mock.patch.object(manager_tasks, "division_brief", return_value={
+            "division": {"id": "lobi", "name": "Lobi & Operasional", "manager": "tegar"},
+            "summary": "Antrean owner perlu dirapikan.",
+            "priorities": [{"title": "Periksa antrean persetujuan", "assignee": "tegar", "priority": "high"}],
+        }), mock.patch.object(manager_tasks, "assign_recommendations", return_value=[{
+            "id": "task-1", "division": "lobi", "manager": "tegar", "assignee": "tegar",
+            "assignee_name": "Tegar", "title": "Periksa antrean persetujuan", "priority": "high",
+            "status": "assigned", "review_note": "",
+        }]):
+            status, data = self.call("manager/brief", {"manager": "tegar"})
+        self.assertEqual(status, 200)
+        self.assertEqual(data["assigned_tasks"][0]["assignee_name"], "Tegar")
+
+        status, data = self.call("manager/tasks/unknown", {
+            "manager": "tegar", "status": "sent_to_client",
+        })
+        self.assertEqual((status, data), (400, {"error": "invalid_status"}))
+
 
 class SettingsHttpTest(unittest.TestCase):
     """Settings routes backed by the app_settings table."""

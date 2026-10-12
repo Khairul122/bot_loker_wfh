@@ -2,7 +2,7 @@
 import { store } from '../core/store.js';
 import { FH, ROOF } from '../core/util.js';
 import { floors } from '../buildings/floor.js';
-import { shaft, landings } from '../buildings/tower.js';
+import { shaft, landings, supportBuildings } from '../buildings/tower.js';
 import { roof } from '../buildings/rooftop.js';
 import { houses } from '../buildings/houses.js';
 import { inTower, inR } from '../world/navigation.js';
@@ -22,6 +22,10 @@ export function updateCutaway() {
   const lvl = store.overview || store.fp || !inside ? 99 : Math.max(me.level, Math.round(me.y / FH));
   floors.forEach((g, i) => setCut(g, i > lvl));
   setCut(roof, ROOF > lvl);
+  supportBuildings.forEach(building => {
+    const viewingCampus = inR(me.pos.x, me.pos.z, building.userData.bounds, 6);
+    setCut(building.userData.roof, store.overview || (viewingCampus && !store.fp && me.level === 0));
+  });
   // the glass lift shaft ends at the ceiling of the owner's floor, with the landings above it
   const top = lvl >= ROOF ? ROOF * FH + 1 : (lvl + 1) * FH;
   shaft.scale.y = top / (ROOF * FH + 1);

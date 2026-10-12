@@ -24,7 +24,9 @@ export function buildAnnex({ id, name, icon, accent, floorColor, wallColor, x, z
   for (const wx of [-5.4, -2.7, 0, 2.7, 5.4]) {
     box(1.7, 1.25, 0.06, 0xbfe3f2, wx, 2.05, -D / 2 - 0.08, root, { cast: false });
   }
-  box(W + 1, 0.18, D + 1, accent, 0, FH - 0.04, 0, root, { cast: false });
+  const roof = box(W + 1, 0.18, D + 1, accent, 0, FH - 0.04, 0, root, { cast: false });
+  root.userData.roof = roof;
+  root.userData.bounds = [x - W / 2, x + W / 2, z - D / 2, z + D / 2];
   box(3.6, 0.16, 2.3, accent, 0, FH + 0.08, D / 2 + 0.65, root, { cast: false });
   const accentHex = `#${accent.toString(16).padStart(6, '0')}`;
   sign(icon, name, accentHex, '#ffffff', 0, 3.05, D / 2 + 0.42, root, 7.5);

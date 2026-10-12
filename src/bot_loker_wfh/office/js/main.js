@@ -26,7 +26,7 @@ import { setAuto } from './ui/inbox.js';
 import { night, followClock } from './systems/night.js';
 import { updateCutaway } from './systems/cutaway.js';
 import { updateWorld } from './systems/life.js';
-import { updateCamera } from './systems/camera.js';
+import { updateCamera, focusOwnerCamera } from './systems/camera.js';
 import { keyMove } from './systems/input.js';
 import { initAnimals, updateAnimals } from './world/animals.js';
 import { loadStats, poll } from './systems/sync.js';
@@ -69,6 +69,7 @@ function frame() {
 
 followClock();
 const [, , prefs] = await Promise.all([loadStats(), initSettings(), loadPrefs(), restorePositions()]);
+if (!store.overview) focusOwnerCamera();
 // owner preferences live in Supabase (app_settings ui_*)
 if (prefs.look) { try { applyLook(JSON.parse(prefs.look)); } catch {} }
 applySound(prefs.sound === '1');

@@ -620,6 +620,7 @@ def create_llm_from_settings(settings: Any, record_calls: bool = False) -> LLMRo
         "draft": draft_model,
         "form": getattr(settings, "hermes_model_form", "loker-form") or "loker-form",
         "answer": getattr(settings, "hermes_model_answer", "loker-answer") or "loker-answer",
+        "manager": getattr(settings, "hermes_model_answer", "loker-answer") or "loker-answer",
     }
     provider = HermesAgentClient(
         getattr(settings, "hermes_base_url", "http://127.0.0.1:8642/v1"),

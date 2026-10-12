@@ -6,6 +6,7 @@ import { chair, plant } from '../../world/props.js';
 import { ROOM_WALLS } from '../../world/navigation.js';
 import { KANTIN } from '../divisions.js';
 import { roomSpots } from '../floor.js';
+import { CANTEEN_ORDER_OFFSETS } from '../../domain/campus-layout.js';
 
 export const FOODS = [
   { id: 'nasgor', icon: '🍛', name: 'Nasi Goreng', energy: 35, joy: 6 },
@@ -13,7 +14,7 @@ export const FOODS = [
   { id: 'bakso', icon: '🍲', name: 'Bakso', energy: 28, joy: 10 },
   { id: 'esteh', icon: '🧋', name: 'Es Teh', energy: 12, joy: 12 },
 ];
-export const ORDER_AT = [V(-6, -3.4), V(-4.4, -3.4), V(-2.8, -3.4)]; // in front of the counter
+export const ORDER_AT = CANTEEN_ORDER_OFFSETS.map(({ x, z }) => V(x, z)); // translated to the pavilion by tower.js
 export const stalls = [];
 
 export default function build(g) {

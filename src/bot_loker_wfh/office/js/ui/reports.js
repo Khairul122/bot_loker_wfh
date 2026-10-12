@@ -59,7 +59,41 @@ async function renderProfile(emp) {
 async function managerTeam(division, managerId) {
   const section = el('section', 'division-team');
   section.setAttribute('aria-label', `Tim ${division.name}`);
+  const manager = division.team.find(member => member.employee === division.manager);
   section.append(el('h4', null, `Tim ${division.name} · ${division.team.length} karyawan`));
+
+  const lead = el('div', 'division-manager');
+  const leadInfo = el('div');
+  leadInfo.append(el('b', null, `Penanggung jawab: ${manager?.name || managerId}`));
+  leadInfo.append(el('small', null, manager?.role || 'Manager divisi'));
+  leadInfo.append(el('small', null, 'Brief dapat mencatat tugas internal. Submit lamaran atau bid tetap menunggu persetujuanmu.'));
+  const briefButton = el('button', 'btn ok', 'Minta brief dan prioritas Hermes');
+  briefButton.type = 'button';
+  const briefStatus = el('p', 'division-manager-status');
+  briefStatus.textContent = 'Belum ada brief baru. Hermes membaca metrik 24 jam untuk menyusun prioritas divisi.';
+  briefStatus.setAttribute('role', 'status');
+  briefStatus.setAttribute('aria-live', 'polite');
+  briefButton.onclick = async () => {
+    briefButton.disabled = true;
+    briefStatus.textContent = 'Hermes sedang membaca kinerja tim dan tugas internal…';
+    briefStatus.setAttribute('aria-busy', 'true');
+    const response = await post('manager/brief', { manager: managerId });
+    briefStatus.setAttribute('aria-busy', 'false');
+    briefButton.disabled = false;
+    if (!response.ok) {
+      briefStatus.textContent = response.status === 503
+        ? 'Hermes belum tersambung. Periksa koneksi di Pengaturan Hermes, lalu coba lagi.'
+        : 'Brief belum berhasil dibuat. Coba lagi atau periksa log kantor.';
+      return;
+    }
+    const assigned = response.data.assigned_tasks || [];
+    briefStatus.textContent = assigned.length
+      ? `${response.data.summary} ${assigned.length} tugas internal telah dicatat untuk tim.`
+      : `${response.data.summary} Belum ada tugas baru yang perlu dicatat.`;
+    await renderTasks();
+  };
+  lead.append(leadInfo, briefButton);
+  section.append(lead, briefStatus);
 
   const members = el('div', 'division-members');
   for (const member of division.team) {
@@ -98,7 +132,7 @@ async function managerTeam(division, managerId) {
   const tasks = el('div', 'manager-tasks');
   const renderTasks = async () => {
     const response = await get(`manager/tasks.json?id=${encodeURIComponent(managerId)}`);
-    if (!response.ok) { tasks.replaceChildren(el('p', 'note', 'Daftar tugas belum dapat dimuat.')); return; }
+    if (!response.ok) { tasks.replaceChildren(el('p', 'note', 'Koneksi ke kantor gagal memuat daftar tugas. Tutup dan buka lagi panel laporan untuk mencoba ulang.')); return; }
     tasks.replaceChildren(...(response.data.items.length ? response.data.items.map(task => {
       const item = el('article', 'manager-task');
       const top = el('div', 'manager-task-head');

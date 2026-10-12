@@ -3,9 +3,11 @@ import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { gradient, box, tag } from '../core/factory.js';
 import { FH, ROOF, ELEV_X } from '../core/util.js';
+import { path } from '../world/props.js';
 import { DIVS } from './divisions.js';
 import { buildFloor } from './floor.js';
 import { buildAnnex } from './annex.js';
+import { SUPPORT_BUILDING_SITES } from '../domain/campus-layout.js';
 import lobi from './rooms/lobi.js';
 import cari from './rooms/cari.js';
 import seleksi from './rooms/seleksi.js';
@@ -13,7 +15,7 @@ import tulis from './rooms/tulis.js';
 import lamar from './rooms/lamar.js';
 import pantau from './rooms/pantau.js';
 import freelance from './rooms/freelance.js';
-import kantin from './rooms/kantin.js';
+import kantin, { ORDER_AT } from './rooms/kantin.js';
 import owner, { DELIVER_AT } from './rooms/owner.js';
 import rapat from './rooms/rapat.js';
 import './rooftop.js';
@@ -23,11 +25,9 @@ DIVS.forEach((d, i) => {
   ROOMS[d.id](buildFloor(i, d), d);
 });
 
-// Keep the one-storey support buildings on the far side of the tower so the
-// first view stays focused on the seven-floor office instead of roof slabs.
-const ownerOrigin = { x: -22, z: -30 };
-const meetingOrigin = { x: 0, z: -30 };
-const canteenOrigin = { x: 22, z: -30 };
+// The front campus keeps service buildings clear of the homes behind the tower.
+// Two side paths lead to the gaps between pavilions, then to the front doors.
+const { owner: ownerOrigin, meeting: meetingOrigin, canteen: canteenOrigin } = SUPPORT_BUILDING_SITES;
 
 export const ownerBuilding = buildAnnex({
   id: 'owner', name: 'Ruang Owner', icon: '👑', accent: 0x8a6b55,
@@ -41,6 +41,13 @@ export const canteenBuilding = buildAnnex({
   id: 'canteen', name: 'Kantin & Toilet', icon: '🍜', accent: 0xe0844a,
   floorColor: 0xf3e3c8, wallColor: 0xfff8ec, ...canteenOrigin, room: kantin,
 });
+export const supportBuildings = [ownerBuilding, meetingBuilding, canteenBuilding];
+ORDER_AT.forEach(point => { point.x += canteenOrigin.x; point.z += canteenOrigin.z; });
+
+// A small paved loop makes each pavilion reachable from the public garden path.
+path(-11, 22, 2.4, 26);
+path(11, 22, 2.4, 26);
+path(0, 35, 56, 2.4);
 
 DELIVER_AT.forEach(point => { point.x += ownerOrigin.x; point.z += ownerOrigin.z; });
 

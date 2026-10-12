@@ -729,21 +729,53 @@ class _Handler(SimpleHTTPRequestHandler):
     def _desk_post(self, parts: list[str]):
         """Owner's office routes; None when the path is not one of them."""
         try:
+            if parts == ["manager", "brief"]:
+                from .manager_tasks import assign_recommendations, division_brief
+                manager = str(self._body().get("manager") or "")
+                try:
+                    with self._connect() as connection:
+                        brief = division_brief(connection, manager, self.work.llm)
+                        brief["assigned_tasks"] = assign_recommendations(
+                            connection, manager, brief["priorities"]
+                        )
+                except KeyError:
+                    return self._json(404, {"error": "not_manager"})
+                except RuntimeError:
+                    return self._json(503, {"error": "hermes_unavailable"})
+                except ValueError:
+                    return self._json(502, {"error": "invalid_manager_brief"})
+                self.work.log_work(manager, "division_brief", division=brief["division"]["id"],
+                                   assignments=len(brief["assigned_tasks"]))
+                for task in brief["assigned_tasks"]:
+                    office_events.publish({"employee": task["assignee"], "task": task["title"],
+                                           "status": "ditugaskan"})
+                office_events.publish({"employee": manager, "task": "brief divisi", "status": "selesai"})
+                return self._json(200, brief)
             if parts == ["manager", "tasks"]:
                 from .manager_tasks import create_task
                 body = self._body()
-                with self._connect() as connection:
-                    task = create_task(connection, str(body.get("manager") or ""),
-                                       str(body.get("assignee") or ""), str(body.get("title") or ""),
-                                       str(body.get("priority") or "normal"))
+                try:
+                    with self._connect() as connection:
+                        task = create_task(connection, str(body.get("manager") or ""),
+                                           str(body.get("assignee") or ""), str(body.get("title") or ""),
+                                           str(body.get("priority") or "normal"))
+                except KeyError:
+                    return self._json(404, {"error": "not_manager"})
+                except ValueError as error:
+                    return self._json(400, {"error": str(error)})
                 office_events.publish({"employee": task["assignee"], "task": task["title"], "status": "ditugaskan"})
                 return self._json(201, task)
             if len(parts) == 3 and parts[:2] == ["manager", "tasks"]:
                 from .manager_tasks import update_task
                 body = self._body()
-                with self._connect() as connection:
-                    task = update_task(connection, str(body.get("manager") or ""), parts[2],
-                                       str(body.get("status") or ""), str(body.get("review_note") or ""))
+                try:
+                    with self._connect() as connection:
+                        task = update_task(connection, str(body.get("manager") or ""), parts[2],
+                                           str(body.get("status") or ""), str(body.get("review_note") or ""))
+                except KeyError:
+                    return self._json(404, {"error": "not_found"})
+                except ValueError as error:
+                    return self._json(400, {"error": str(error)})
                 office_events.publish({"employee": task["assignee"], "task": task["title"], "status": task["status"]})
                 return self._json(200, task)
             if len(parts) == 3 and parts[:2] == ["reports", "request"]:

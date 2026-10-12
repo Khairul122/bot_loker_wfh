@@ -9,7 +9,7 @@ cyl(6.4, 6.4, 0.06, 0xd9c7a4, -30, 0.02, -6, scene, { cast: false });
 for (let k = 0; k < 5; k++) cyl(0.5, 0.5, 0.05, 0x7cbf72, -30 + rand(-4, 4), 0.11, -6 + rand(-4, 4), scene, { cast: false });
 // Ducks are procedurally managed and rendered in animals.js
 // the strip behind the office (z < -15) is the housing estate, keep trees off it
-[[-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [36, 29, 0.9], [-8, 26, 1], [35, 32, 1, 1], [-35, -24, 1, 1], [35, -23, 1], [0, -40, 1.1], [-6, -47, 1, 1], [16, -39, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
+[[-38, -14, 1.2, 1], [-40, 2, 1], [-36, 14, 1.2], [-18, 18, 0.9, 1], [-26, 20, 1], [-44, -4, 1, 1], [40, 16, 1.1], [44, -10, 1, 1], [36, 29, 0.9], [-7, 16, 1], [35, 32, 1, 1], [-35, -24, 1, 1], [35, -23, 1], [0, -40, 1.1], [-6, -47, 1, 1], [16, -39, 1]].forEach(([x, z, s, k]) => tree(x, z, s, k || 0));
 flowers(-24, -2); flowers(-36, 2); flowers(-20, 14); flowers(-12, 18); flowers(8, 18); flowers(14, 16); flowers(-4, -18);
 lamp(-17, 12, scene); lamp(-30, 6, scene); lamp(17, 12, scene); lamp(30, 3, scene); lamp(-6, 16, scene);
 export const benchA = bench(-24, 3, Math.PI), benchB = bench(-36, 6, Math.PI * 0.75), benchC = bench(-22, -14, 0.2);

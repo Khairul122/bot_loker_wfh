@@ -53,6 +53,8 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .navbtn{background:#f8fafc;font-size:20px;box-shadow:none;border:1px solid #e2e8f0;border-radius:9999px;width:44px;height:44px;display:grid;place-items:center;flex:none;transition:all .18s ease;color:#334155}
 .navbtn:hover{background:var(--accent);color:#fff;border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px rgba(59,130,246,.3)}
 #nav button i{font-style:normal;font-size:15px;width:28px;height:28px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;display:grid;place-items:center;flex:none;transition:all .15s ease}
+#nav .place-label{display:grid;gap:2px;min-width:0;white-space:normal}
+#nav .place-manager{font-size:10px;font-weight:800;color:var(--ink-soft);line-height:1.25}
 #nav button:hover i{background:#fff;border-color:var(--accent);color:var(--accent)}
 #nav hr{border:0;border-top:1px solid #e2e8f0;margin:4px 4px}
 #hud{position:fixed;left:14px;bottom:14px;padding:6px 14px 6px 6px;display:flex;gap:12px;align-items:center;max-width:calc(100vw - 28px);background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:9999px;box-shadow:0 12px 36px rgba(15,23,42,.12)}
@@ -166,6 +168,11 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .tag.good{background:rgba(92,184,122,.2)}.tag.mid{background:rgba(242,184,75,.25)}.tag.low{background:rgba(239,138,107,.25)}.tag.idle{background:rgba(169,180,200,.25)}
 .division-team{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--paper-2)}
 .division-team h4{margin:0 0 10px;font-size:14px}
+.division-manager{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:12px;background:var(--paper);border:1px solid var(--line)}
+.division-manager>div{min-width:0;display:grid;gap:3px}
+.division-manager small,.division-manager-status{color:var(--ink-soft)}
+.division-manager .btn{min-height:44px;flex:0 0 auto}
+.division-manager-status{min-height:1.4em;margin:8px 2px;font-size:13px;line-height:1.45}
 .manager-task-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(92px,.55fr) minmax(84px,.45fr) auto;gap:8px;margin:10px 0}
 .manager-task-form input,.manager-task-form select,.manager-task-actions input{min-width:0;min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:12px;background:var(--paper);color:var(--ink);font:inherit}
 .manager-tasks{display:grid;gap:8px}
@@ -176,7 +183,7 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .manager-task-actions{margin-top:8px;flex-wrap:wrap}
 .manager-task-actions input{flex:1 1 160px}
 .manager-task .btn{min-height:44px;padding:8px 12px}
-@media(max-width:760px){.manager-task-form{grid-template-columns:1fr 1fr}.manager-task-form input{grid-column:1/-1}.manager-task-form button{grid-column:1/-1}}
+@media(max-width:760px){.division-manager{align-items:stretch;flex-direction:column}.division-manager .btn{width:100%;justify-content:center}.manager-task-form{grid-template-columns:1fr 1fr}.manager-task-form input{grid-column:1/-1}.manager-task-form button{grid-column:1/-1}}
 .division-members{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px}
 .division-member{min-width:0;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
 .division-member-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
