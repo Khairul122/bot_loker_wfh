@@ -54,10 +54,13 @@ def transition_job_status(
     else:
         _validate_manual_correction(reason)
 
-    connection.execute(
-        "UPDATE jobs SET status = ? WHERE id = ?",
-        (to_status, job_id),
-    )
+    updated = connection.execute(
+        "UPDATE jobs SET status = ? WHERE id = ? AND status = ?",
+        (to_status, job_id, from_status),
+    ).rowcount
+    if updated != 1:
+        connection.rollback()
+        raise InvalidTransitionError("Job status changed concurrently")
     connection.commit()
 
 
@@ -83,10 +86,13 @@ def transition_application_status(
     else:
         _validate_manual_correction(reason)
 
-    connection.execute(
-        "UPDATE applications SET status = ? WHERE id = ?",
-        (to_status, application_id),
-    )
+    updated = connection.execute(
+        "UPDATE applications SET status = ? WHERE id = ? AND status = ?",
+        (to_status, application_id, from_status),
+    ).rowcount
+    if updated != 1:
+        connection.rollback()
+        raise InvalidTransitionError("Application status changed concurrently")
     connection.execute(
         "INSERT INTO application_status_history "
         "(id, application_id, from_status, to_status, changed_by) "

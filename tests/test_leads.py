@@ -276,6 +276,23 @@ class LeadServiceTest(unittest.TestCase):
         service.set_status(ids[1], "IGNORED")
         self.assertNotIn("IGNORED", service.list_text())
 
+    def test_stale_status_callback_cannot_reopen_locked_bid(self):
+        service = self.service(StaticFetcher("freelancer", [lead(1)]))
+        service.collect()
+        lead_id = service.unnotified_ids(1)[0]
+
+        for locked_status in ("APPROVED", "SUBMITTED"):
+            with self.subTest(status=locked_status):
+                self.connection.execute(
+                    "UPDATE leads SET status = ? WHERE id = ?", (locked_status, lead_id)
+                )
+                self.connection.commit()
+                self.assertFalse(service.set_status(lead_id, "IGNORED"))
+                stored = self.connection.execute(
+                    "SELECT status FROM leads WHERE id = ?", (lead_id,)
+                ).fetchone()[0]
+                self.assertEqual(stored, locked_status)
+
 
 class BotLeadTest(unittest.TestCase):
     def setUp(self):

@@ -604,7 +604,9 @@ class LeadService:
         if status not in {"INTERESTED", "IGNORED"}:
             raise ValueError("unsupported lead status")
         updated = self.connection.execute(
-            "UPDATE leads SET status = ? WHERE id = ?", (status, lead_id)
+            "UPDATE leads SET status = ? WHERE id = ? "
+            "AND status IN ('NEW', 'INTERESTED', 'IGNORED')",
+            (status, lead_id),
         ).rowcount
         self.connection.commit()
         return updated == 1

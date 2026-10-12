@@ -41,6 +41,18 @@ from .settings_store import get_scrape_interval_hours
 from .telegram_client import TelegramClient
 
 
+EXTERNAL_FETCH_COMMANDS = frozenset({
+    "fetch-remoteok",
+    "fetch-remotive",
+    "fetch-greenhouse",
+    "fetch-lever",
+    "fetch-kalibrr",
+    "fetch-dealls",
+    "fetch-leads",
+    "fetch-once",
+})
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the bot-loker-wfh service.")
     parser.add_argument("--version", action="version", version="0.1.0")
@@ -111,6 +123,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         initialize_database()
         print("database initialized (supabase postgres)")
         return 0
+
+    if args.command in EXTERNAL_FETCH_COMMANDS and not settings.external_jobs_enabled:
+        print(f"EXTERNAL_JOBS_ENABLED is false; {args.command} blocked")
+        return 1
 
     if args.command == "fetch-remoteok":
         initialize_database()
@@ -419,6 +435,8 @@ def _office_screener(profile):
 
 def _office_hunters(profile, settings: Settings) -> dict:
     """Real searches the 3D office can trigger, one per employee."""
+    if not settings.external_jobs_enabled:
+        return {}
     job_fetchers = {
         "remoteok": RemoteOKFetcher,
         "remotive": RemotiveFetcher,
@@ -426,7 +444,7 @@ def _office_hunters(profile, settings: Settings) -> dict:
         "lever": LeverFetcher,
         "kalibrr": KalibrrFetcher,
         "dealls": DeallsFetcher,
-    } if settings.external_jobs_enabled else {}
+    }
     hunters = {
         source: (
             lambda connection, source=source, fetcher_class=fetcher_class: hunt_jobs(

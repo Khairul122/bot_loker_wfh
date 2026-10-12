@@ -164,6 +164,53 @@ class StatusTransitionTest(unittest.TestCase):
         self.assertEqual(status, "PENDING_APPROVAL")
         self.assertEqual(history_count, 3)
 
+    def test_application_transition_loses_cleanly_when_status_changes_after_read(self):
+        connection = self.connection
+
+        class OneRow:
+            def __init__(self, row):
+                self.row = row
+
+            def fetchone(self):
+                return self.row
+
+        class RacingConnection:
+            raced = False
+
+            def execute(self, sql, params=()):
+                if not self.raced and sql.startswith("SELECT status FROM applications"):
+                    self.raced = True
+                    row = connection.execute(sql, params).fetchone()
+                    connection.execute(
+                        "UPDATE applications SET status = 'WITHDRAWN' WHERE id = ?", params
+                    )
+                    connection.commit()
+                    return OneRow(row)
+                return connection.execute(sql, params)
+
+            def commit(self):
+                connection.commit()
+
+            def rollback(self):
+                connection.rollback()
+
+        with self.assertRaisesRegex(InvalidTransitionError, "changed concurrently"):
+            transition_application_status(
+                RacingConnection(),
+                application_id="application-1",
+                to_status="PENDING_APPROVAL",
+                actor=TransitionActor.SYSTEM,
+            )
+
+        status = connection.execute(
+            "SELECT status FROM applications WHERE id = ?", ("application-1",)
+        ).fetchone()[0]
+        history_count = connection.execute(
+            "SELECT COUNT(*) FROM application_status_history"
+        ).fetchone()[0]
+        self.assertEqual(status, "WITHDRAWN")
+        self.assertEqual(history_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

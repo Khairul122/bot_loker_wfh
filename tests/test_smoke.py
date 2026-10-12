@@ -15,11 +15,28 @@ class ScaffoldSmokeTest(unittest.TestCase):
         disabled = _office_hunters(Mock(), Settings.from_environment({"EXTERNAL_JOBS_ENABLED": "false"}))
         enabled = _office_hunters(Mock(), Settings.from_environment({"EXTERNAL_JOBS_ENABLED": "true"}))
 
-        self.assertNotIn("remoteok", disabled)
-        self.assertNotIn("dealls", disabled)
-        self.assertIn("freelancer", disabled)
+        self.assertEqual(disabled, {})
         self.assertIn("remoteok", enabled)
         self.assertIn("dealls", enabled)
+        self.assertIn("freelancer", enabled)
+
+    def test_external_fetch_commands_are_blocked_by_global_flag(self):
+        commands = (
+            "fetch-remoteok",
+            "fetch-remotive",
+            "fetch-greenhouse",
+            "fetch-lever",
+            "fetch-kalibrr",
+            "fetch-dealls",
+            "fetch-leads",
+            "fetch-once",
+        )
+        for command in commands:
+            with self.subTest(command=command), patch.dict(
+                os.environ, {"EXTERNAL_JOBS_ENABLED": "false"}
+            ), patch("bot_loker_wfh.__main__.initialize_database") as initialize, redirect_stdout(io.StringIO()):
+                self.assertEqual(main([command]), 1)
+                initialize.assert_not_called()
 
     def test_settings_have_safe_local_defaults(self):
         settings = Settings.from_environment({})
