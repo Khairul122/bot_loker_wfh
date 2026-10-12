@@ -97,6 +97,16 @@ class HermesClientTest(unittest.TestCase):
         self.assertEqual(readiness["status"], "misconfigured")
         get.assert_not_called()
 
+    def test_toolset_inventory_accepts_documented_array_response(self):
+        client = self.client()
+        with patch.object(client, "_get_json", return_value=[
+            {"name": "skills", "enabled": True},
+            {"name": "memory", "enabled": True},
+            {"name": "delegation", "enabled": True},
+            {"name": "terminal", "enabled": False},
+        ]):
+            self.assertEqual(client.list_enabled_toolsets(), ("skills", "memory", "delegation"))
+
     def test_session_headers_reject_control_characters(self):
         with self.assertRaises(ValueError):
             self.client().complete(

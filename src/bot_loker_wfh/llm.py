@@ -100,13 +100,19 @@ class HermesAgentClient:
         except LLMError as error:
             error.latency_ms = int((time.monotonic() - started) * 1000)
             raise
-        choice_rows = result.get("choices", [])
-        if not isinstance(choice_rows, list) or not choice_rows:
-            raise LLMError("bad_response", "Hermes returned no assistant response")
-        message = choice_rows[0].get("message", {})
-        content = message.get("content", "") if isinstance(message, dict) else ""
-        if not isinstance(content, str):
-            raise LLMError("bad_response", "Hermes returned an invalid assistant response")
+        try:
+            choice_rows = result.get("choices", [])
+            if not isinstance(choice_rows, list) or not choice_rows:
+                raise LLMError("bad_response", "Hermes returned no assistant response")
+            message = choice_rows[0].get("message", {})
+            content = message.get("content", "") if isinstance(message, dict) else ""
+            if not isinstance(content, str):
+                raise LLMError("bad_response", "Hermes returned an invalid assistant response")
+        except (AttributeError, IndexError, TypeError) as error:
+            raise LLMError("bad_response", "Hermes returned an invalid assistant response") from error
+        except LLMError as error:
+            error.latency_ms = int((time.monotonic() - started) * 1000)
+            raise
         usage = result.get("usage", {}) if isinstance(result.get("usage"), dict) else {}
         runtime = result.get("runtime", {}) if isinstance(result.get("runtime"), dict) else {}
         served_model = runtime.get("model") or target_model
@@ -152,7 +158,7 @@ class HermesAgentClient:
         if not self.api_key:
             raise LLMError("misconfigured", "HERMES_API_KEY is required")
         payload = self._get_json(f"{self.base_url}/models")
-        rows = payload.get("data", [])
+        rows = payload if isinstance(payload, list) else payload.get("data", [])
         return [item["id"] for item in rows if isinstance(item, dict) and isinstance(item.get("id"), str)] if isinstance(rows, list) else []
 
     def __call__(self, prompt: str) -> str:
@@ -176,7 +182,7 @@ class HermesAgentClient:
         if not self.api_key:
             raise LLMError("misconfigured", "HERMES_API_KEY is required")
         payload = self._get_json(f"{self.base_url}/toolsets")
-        rows = payload.get("data", [])
+        rows = payload if isinstance(payload, list) else payload.get("data", [])
         if not isinstance(rows, list):
             raise LLMError("bad_response", "invalid Hermes toolset response")
         return tuple(
@@ -213,7 +219,7 @@ class HermesAgentClient:
             "version": payload.get("version", "") if isinstance(payload.get("version", ""), str) else "",
         }
 
-    def _get_json(self, url: str) -> dict[str, Any]:
+    def _get_json(self, url: str) -> dict[str, Any] | list[Any]:
         request = Request(
             url,
             headers={
@@ -239,7 +245,7 @@ class HermesAgentClient:
             ) from None
         except (UnicodeError, ValueError):
             raise LLMError("bad_response", "invalid Hermes API response") from None
-        if not isinstance(payload, dict):
+        if not isinstance(payload, (dict, list)):
             raise LLMError("bad_response", "invalid Hermes API response")
         return payload
 
@@ -278,6 +284,14 @@ def _parse_chat_body(body: str) -> dict[str, Any]:
         return json.loads(body)
     except ValueError:
         pass
+    json_prefix, marker, suffix = body.partition("data:")
+    if marker and suffix.strip() == "[DONE]":
+        try:
+            payload = json.loads(json_prefix.strip())
+            if isinstance(payload, dict):
+                return payload
+        except ValueError:
+            pass
     text, last = [], {}
     for line in body.splitlines():
         line = line.strip()
@@ -382,6 +396,7 @@ class LLMRouter:
             for attempt in (1, 2):
                 if time.monotonic() - start_task_time > self.task_budget_seconds:
                     break
+                attempt_started = time.monotonic()
                 try:
                     res = provider.complete(
                         messages,
@@ -394,14 +409,18 @@ class LLMRouter:
                         session_id=session_id,
                     )
                     if not res.text.strip():
-                        raise LLMError("empty_response", retryable=True)
+                        empty_error = LLMError("empty_response", retryable=True)
+                        empty_error.latency_ms = res.latency_ms
+                        raise empty_error
                     if json_mode:
                         try:
                             json.loads(res.text)
                         except Exception as jerr:
-                            raise LLMError(
+                            invalid_error = LLMError(
                                 "invalid_json", "Invalid JSON output", retryable=True
-                            ) from jerr
+                            )
+                            invalid_error.latency_ms = res.latency_ms
+                            raise invalid_error from jerr
 
                     self._last_result = res
                     if self.recorder:
@@ -419,6 +438,8 @@ class LLMRouter:
                         )
                     return res
                 except LLMError as err:
+                    if err.latency_ms is None:
+                        err.latency_ms = int((time.monotonic() - attempt_started) * 1000)
                     if self.recorder:
                         self.recorder.record_call(
                             task=task,
@@ -434,6 +455,20 @@ class LLMRouter:
                     if err.code == "rate_limited" and attempt == 1:
                         time.sleep(1.0)
                         continue
+                    break
+                except Exception:
+                    if self.recorder:
+                        self.recorder.record_call(
+                            task=task,
+                            provider=provider_name,
+                            model=requested_model,
+                            status="error",
+                            attempt=attempt,
+                            run_id=run_id,
+                            error_code="unexpected_error",
+                            latency_ms=int((time.monotonic() - attempt_started) * 1000),
+                            application_id=application_id,
+                        )
                     break
 
         raise LLMError("all_providers_failed", "All configured AI models failed")
