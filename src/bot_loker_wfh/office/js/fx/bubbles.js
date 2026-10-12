@@ -6,8 +6,14 @@ import { $ } from '../ui/dom.js';
 const bubbles = new Map();
 export function say(c, text, dur = 3.6) {
   let b = bubbles.get(c);
+  const now = performance.now();
+  const visible = [...bubbles.values()].filter(item => item !== b && Number(item.style.opacity) > 0 && item.until > now);
+  if (visible.length >= 4) {
+    visible.sort((a, b) => a.until - b.until);
+    visible[0].style.opacity = 0;
+  }
   if (!b) { b = document.createElement('div'); b.className = 'bub'; $('bubbles').appendChild(b); bubbles.set(c, b); }
-  b.textContent = text; b.style.opacity = 1; b.until = performance.now() + dur * 1000;
+  b.textContent = text; b.style.opacity = 1; b.until = now + dur * 1000;
 }
 const tmpV = new THREE.Vector3();
 export function updateBubbles() {

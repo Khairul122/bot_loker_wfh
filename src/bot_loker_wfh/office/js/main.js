@@ -36,36 +36,41 @@ import { loadPrefs } from './systems/prefs.js';
 import { applyLook } from './ui/customize.js';
 import { applySound } from './ui/hud.js';
 import './ui/logs.js';
+import './ui/dialogs.js';
 import './systems/realtime.js';
 
 let frameNo = 0;
+let reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => { reduceMotion = event.matches; });
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   keyMove(dt);
-  for (const f of [...animated]) f(t, dt);
-  for (const c of staff) updateStaff(c, dt, t);
-  updateMe(dt);
-  for (const c of chars) c.update(dt, t);
-  updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
+  if (!reduceMotion) {
+    for (const f of [...animated]) f(t, dt);
+    for (const c of staff) updateStaff(c, dt, t);
+    updateMe(dt);
+    for (const c of chars) c.update(dt, t);
+    updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
+  }
   updateLightPool(dt, store.fp ? camera.position : controls.target, night);
   if ((frameNo = (frameNo + 1) % 2) === 0 || store.fp) renderer.shadowMap.needsUpdate = true;
   adaptQuality(dt);
-  swings.forEach(s => { if (!spots.some(sp => sp.swing === s && sp.by && sp.by.pose === 'swing')) s.rotation.x *= 0.96; });
-  clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 110) c.position.x = -110; });
-  trees.forEach(tr => tr.rotation.z = Math.sin(t * 0.8 + tr.userData.sway) * 0.02);
-  updateAnimals(dt, t);
-  updateParts(dt); updateCutaway(); updateLiftPanel(); updateCamera(dt); if (!store.fp) controls.update();
+  if (!reduceMotion) {
+    swings.forEach(s => { if (!spots.some(sp => sp.swing === s && sp.by && sp.by.pose === 'swing')) s.rotation.x *= 0.96; });
+    clouds.forEach(c => { c.position.x += c.userData.v * dt; if (c.position.x > 110) c.position.x = -110; });
+    trees.forEach(tr => tr.rotation.z = Math.sin(t * 0.8 + tr.userData.sway) * 0.02);
+    updateAnimals(dt, t);
+    updateParts(dt);
+  }
+  updateCutaway(); updateLiftPanel(); updateCamera(dt); if (!store.fp) controls.update();
   renderer.render(scene, camera);
-  updateBubbles();
+  if (!reduceMotion) updateBubbles();
   requestAnimationFrame(frame);
 }
 
 followClock();
-await loadStats();
-initSettings();
-await restorePositions();
+const [, , prefs] = await Promise.all([loadStats(), initSettings(), loadPrefs(), restorePositions()]);
 // owner preferences live in Supabase (app_settings ui_*)
-const prefs = await loadPrefs();
 if (prefs.look) { try { applyLook(JSON.parse(prefs.look)); } catch {} }
 applySound(prefs.sound === '1');
 startPositionSync();

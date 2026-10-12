@@ -12,7 +12,9 @@
 </script>
 </head>
 <body>
-<div id="app"></div>
+<main id="app" aria-label="Kantor Bot Loker WFH">
+  <h1 class="visually-hidden">Kantor Bot Loker WFH</h1>
+</main>
 <div id="bubbles"></div>
 <div id="tip"></div>
 <div id="cross" aria-hidden="true"></div>
@@ -91,14 +93,14 @@
   <ul class="leads" id="cHunt"></ul>
 </div>
 
-<div id="inbox"><div class="panel" role="dialog" aria-label="Kotak persetujuan">
+<div id="inbox" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Kotak persetujuan">
   <button class="xbtn" id="inboxClose" aria-label="Tutup">✕</button>
   <h2>Kotak Persetujuan</h2>
   <div class="sub" id="inboxSub">Lowongan yang cocok, siap kamu putuskan</div>
   <div id="inboxList"></div>
 </div></div>
 
-<div id="board"><div class="panel" role="dialog" aria-label="Papan proyek freelance">
+<div id="board" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Papan proyek freelance">
   <button class="xbtn" id="boardClose" aria-label="Tutup">✕</button>
   <h2>Papan Proyek Freelance</h2>
   <div class="sub">Proyek dari Freelancer.com 🌍, Projects.co.id 🏠 dan Telegram 🏠. Kamu yang memutuskan dan menekan kirim.</div>
@@ -114,7 +116,7 @@
   <div id="boardList"></div>
 </div></div>
 
-<div id="reports"><div class="panel" role="dialog" aria-label="Laporan kinerja">
+<div id="reports" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Laporan kinerja">
   <button class="xbtn" id="reportsClose" aria-label="Tutup">✕</button>
   <h2>Laporan Kinerja</h2>
   <div class="sub">Dihitung dari data asli bot. Nilai & catatanmu tersimpan dan memengaruhi semangat karyawan.</div>
@@ -130,7 +132,7 @@
   <button class="btn no" id="menuClose">Batal</button>
 </div>
 
-<div id="results"><div class="panel" role="dialog" aria-label="Hasil kerja karyawan">
+<div id="results" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Hasil kerja karyawan">
   <button class="xbtn" id="resultsClose" aria-label="Tutup">✕</button>
   <h2>Hasil Kerja</h2>
   <div class="sub">Pilih karyawan untuk melihat apa saja yang sudah dikerjakan</div>
@@ -139,7 +141,7 @@
   <div id="resultsList"></div>
 </div></div>
 
-<div id="perf"><div class="panel">
+<div id="perf" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Kinerja Tim">
   <button class="xbtn" id="perfClose" aria-label="Tutup">✕</button>
   <h2>Kinerja Tim</h2>
   <div class="sub">Perjalanan lamaranmu dan siapa yang paling rajin</div>
@@ -147,7 +149,7 @@
   <div class="grid" id="team"></div>
 </div></div>
 
-<div id="custom" class="panel">
+<div id="custom" class="panel" role="dialog" aria-label="Kustomisasi karakter">
   <div style="font-weight:900;font-size:16px;margin-bottom:6px">Karaktermu</div>
   <label>Nama <input type="text" id="cuName" maxlength="14"></label>
   <label>Kulit <input type="color" id="cuSkin"></label>
@@ -158,7 +160,7 @@
 
 <div id="settings" class="panel" role="dialog" aria-label="Pengaturan Bot" aria-hidden="true">
   <div class="phead"><h2>⚙️ Pengaturan Bot</h2><button class="xbtn" id="settingsClose" aria-label="Tutup">✕</button></div>
-  <div class="settings-tabs" id="settingsTabs" role="tablist"></div>
+<div class="settings-tabs" id="settingsTabs" role="tablist" aria-label="Kategori pengaturan"></div>
   <div class="settings-panels" id="settingsPanels"></div>
   <div class="settings-footer" id="settingsFooter"></div>
 </div>
@@ -168,7 +170,7 @@
 <div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik lift kaca untuk pindah lantai · kantin & ruang owner di lantai atas · rumah di belakang gedung · V mode POV</div>
 <div id="loading">Menyiapkan kantor…</div>
 
-<div id="meeting"><div class="panel" role="dialog" aria-label="Ruang rapat">
+<div id="meeting" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Ruang rapat">
   <button class="xbtn" id="meetingClose" aria-label="Tutup">✕</button>
   <h2>💬 Ruang Rapat</h2>
   <div class="sub">Pilih topik & peserta. Tim berdiskusi lewat 9Router lalu sepakati satu keputusan.</div>

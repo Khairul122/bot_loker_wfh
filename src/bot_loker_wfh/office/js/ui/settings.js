@@ -69,14 +69,33 @@ function renderSettings() {
   
   tabsEl.replaceChildren(...SETTINGS_TABS.map(tab => {
     const btn = el('button', 'chipb' + (tab.id === 'llm' ? ' on' : ''), tab.label);
+    btn.type = 'button';
+    btn.id = `settings-tab-${tab.id}`;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(tab.id === 'llm'));
+    btn.setAttribute('aria-controls', `settings-${tab.id}`);
+    btn.tabIndex = tab.id === 'llm' ? 0 : -1;
     btn.dataset.tab = tab.id;
     btn.onclick = () => switchTab(tab.id);
+    btn.onkeydown = event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const buttons = [...tabsEl.querySelectorAll('[role="tab"]')];
+      const current = buttons.indexOf(btn);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+        : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next].focus();
+      buttons[next].click();
+    };
     return btn;
   }));
   
   panelsEl.replaceChildren(...SETTINGS_TABS.map(tab => {
     const panel = el('div', 'settings-panel' + (tab.id === 'llm' ? ' show' : ''));
     panel.id = `settings-${tab.id}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `settings-tab-${tab.id}`);
+    panel.tabIndex = 0;
     panel.dataset.tab = tab.id;
     panel.append(renderPanelContent(tab.id));
     return panel;
@@ -86,9 +105,12 @@ function renderSettings() {
 function switchTab(tabId) {
   document.querySelectorAll('#settingsTabs .chipb').forEach(b => {
     b.classList.toggle('on', b.dataset.tab === tabId);
+    b.setAttribute('aria-selected', String(b.dataset.tab === tabId));
+    b.tabIndex = b.dataset.tab === tabId ? 0 : -1;
   });
   document.querySelectorAll('.settings-panel').forEach(p => {
     p.classList.toggle('show', p.dataset.tab === tabId);
+    p.hidden = p.dataset.tab !== tabId;
   });
 }
 
@@ -285,6 +307,8 @@ function renderFormPanel() {
 // Helper functions for UI components
 function createSelect(id, label, options, value, onChange, key = id) {
   const wrapper = el('div', 'setting-row');
+  const labelEl = el('label', '', label);
+  labelEl.htmlFor = id;
   const select = el('select', '');
   select.append(...options.map(o => {
     const option = el('option', '', o.label);
@@ -301,7 +325,7 @@ function createSelect(id, label, options, value, onChange, key = id) {
   };
   
   wrapper.append(
-    el('label', '', label),
+    labelEl,
     select
   );
   return wrapper;
@@ -309,6 +333,8 @@ function createSelect(id, label, options, value, onChange, key = id) {
 
 function createInput(id, label, type, value, placeholder) {
   const wrapper = el('div', 'setting-row');
+  const labelEl = el('label', '', label);
+  labelEl.htmlFor = id;
   const input = el('input', '');
   input.id = id;
   input.type = type;
@@ -319,7 +345,7 @@ function createInput(id, label, type, value, placeholder) {
   input.onchange = () => saveSetting(id, input.value);
   
   wrapper.append(
-    el('label', '', label),
+    labelEl,
     input
   );
   return wrapper;
@@ -327,6 +353,8 @@ function createInput(id, label, type, value, placeholder) {
 
 function createTextarea(id, label, value, placeholder) {
   const wrapper = el('div', 'setting-row');
+  const labelEl = el('label', '', label);
+  labelEl.htmlFor = id;
   const textarea = el('textarea', '');
   textarea.id = id;
   textarea.value = value;
@@ -337,7 +365,7 @@ function createTextarea(id, label, value, placeholder) {
   textarea.onchange = () => saveSetting(id, textarea.value);
   
   wrapper.append(
-    el('label', '', label),
+    labelEl,
     textarea
   );
   return wrapper;
@@ -345,6 +373,8 @@ function createTextarea(id, label, value, placeholder) {
 
 function createNumberInput(id, label, value, min, max, step = 1) {
   const wrapper = el('div', 'setting-row');
+  const labelEl = el('label', '', label);
+  labelEl.htmlFor = id;
   const input = el('input', '');
   input.id = id;
   input.type = 'number';
@@ -361,7 +391,7 @@ function createNumberInput(id, label, value, min, max, step = 1) {
   };
   
   wrapper.append(
-    el('label', '', label),
+    labelEl,
     input
   );
   return wrapper;
