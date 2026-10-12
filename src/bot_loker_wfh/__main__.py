@@ -314,6 +314,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "Hermes Agent belum siap "
                 f"(status {readiness.get('status')}; "
                 f"toolsets: {', '.join(readiness.get('toolsets') or []) or 'none'}; "
+                f"tool capability kurang: {', '.join(readiness.get('missing_tools') or []) or 'none'}; "
+                f"employee skills kurang: {', '.join(readiness.get('missing_skills') or []) or 'none'}; "
                 f"model aliases kurang: {', '.join(readiness.get('missing_models') or []) or 'none'})."
             )
             return 1

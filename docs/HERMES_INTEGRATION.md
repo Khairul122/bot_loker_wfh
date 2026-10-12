@@ -43,14 +43,19 @@ external skill directory from writes by the Hermes service account where the
 host supports separate service permissions.
 
 The application's `check-llm` command checks authenticated Hermes readiness,
-required toolsets, and all three model aliases. It does not make an inference
-request or incur model cost. Template mode remains available when Hermes is
-offline.
+required toolsets and capabilities, all employee skills, and all three model
+aliases. Hermes' `/v1/toolsets` inventory advertises the full static expansion
+of each enabled toolset; it does not report per-tool suppression. Because the
+`skills` toolset includes `skill_manage`, the dedicated profile must disable
+that tool with `agent.disabled_toolsets: [skill_manage]`. Keep the profile
+restricted to the documented allowlist and inspect its configuration during
+provisioning. The readiness check makes no inference request and incurs no
+model cost. Template mode remains available when Hermes is offline.
 
 ## Current migration status
 
-Hermes routing, task personas, employee sessions, and sequential meeting handoff
-are implemented. The local Hermes gateway has not yet been enabled as this
+Hermes routing, task personas, employee sessions, sequential meeting handoff,
+and authenticated readiness checks are implemented. The local Hermes gateway has not yet been enabled as this
 application's API server, so no live canary has run. The remaining acceptance
 gate is to configure the dedicated profile, verify its effective toolsets and
 route aliases, then run mocked and sanitized end-to-end checks before enabling

@@ -32,3 +32,6 @@ delegation:
 
 agent:
   max_iterations: 12
+  # `skills` also contains skill_manage; the app needs read-only skill lookup only.
+  disabled_toolsets:
+    - skill_manage

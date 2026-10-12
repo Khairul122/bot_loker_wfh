@@ -16,6 +16,18 @@ from urllib.request import Request, urlopen
 from bot_loker_wfh.llm_calls import LLMCallRecorder
 
 HERMES_REQUIRED_TOOLSETS = frozenset({"skills", "memory", "delegation"})
+HERMES_REQUIRED_TOOLS = frozenset({"skills_list", "skill_view", "memory", "delegate_task"})
+HERMES_REQUIRED_SKILLS = frozenset(
+    {
+        "loker-employee-tegar", "loker-employee-tara", "loker-employee-tama",
+        "loker-employee-subi", "loker-employee-sari", "loker-employee-rima",
+        "loker-employee-reno", "loker-employee-kalia", "loker-employee-eli",
+        "loker-employee-nara", "loker-employee-ivan", "loker-employee-mira",
+        "loker-employee-dela", "loker-employee-gery", "loker-employee-cora",
+        "loker-employee-lulu", "loker-employee-bimo", "loker-employee-faris",
+        "loker-employee-lido", "loker-employee-leva",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -179,18 +191,35 @@ class HermesAgentClient:
         }
 
     def list_enabled_toolsets(self) -> tuple[str, ...]:
+        return tuple(
+            item["name"] for item in self.list_toolset_inventory()
+            if item.get("enabled") is True
+        )
+
+    def list_toolset_inventory(self) -> list[dict[str, Any]]:
         if not self.api_key:
             raise LLMError("misconfigured", "HERMES_API_KEY is required")
         payload = self._get_json(f"{self.base_url}/toolsets")
         rows = payload if isinstance(payload, list) else payload.get("data", [])
         if not isinstance(rows, list):
             raise LLMError("bad_response", "invalid Hermes toolset response")
-        return tuple(
-            item["name"]
+        if any(not isinstance(item, dict) or not isinstance(item.get("name"), str) for item in rows):
+            raise LLMError("bad_response", "invalid Hermes toolset response")
+        return [
+            item
             for item in rows
-            if isinstance(item, dict)
-            and item.get("enabled") is True
-            and isinstance(item.get("name"), str)
+        ]
+
+    def list_skill_names(self) -> tuple[str, ...]:
+        if not self.api_key:
+            raise LLMError("misconfigured", "HERMES_API_KEY is required")
+        payload = self._get_json(f"{self.base_url}/skills")
+        rows = payload if isinstance(payload, list) else payload.get("data", [])
+        if not isinstance(rows, list):
+            raise LLMError("bad_response", "invalid Hermes skill response")
+        return tuple(
+            item["name"] for item in rows
+            if isinstance(item, dict) and isinstance(item.get("name"), str)
         )
 
     def check_readiness(
@@ -200,21 +229,34 @@ class HermesAgentClient:
             return {"ok": False, "status": "misconfigured", "toolsets": [], "models": []}
         try:
             payload = self._get_json(f"{self.server_url}/health/detailed")
-            toolsets = self.list_enabled_toolsets()
+            inventory = self.list_toolset_inventory()
+            toolsets = tuple(item["name"] for item in inventory if item.get("enabled") is True)
+            skills = self.list_skill_names()
             models = tuple(self.list_models())
         except LLMError as error:
             return {"ok": False, "status": error.code, "toolsets": [], "models": []}
         status = payload.get("status", "unknown")
         missing_toolsets = HERMES_REQUIRED_TOOLSETS - set(toolsets)
         unexpected_toolsets = set(toolsets) - HERMES_REQUIRED_TOOLSETS
+        enabled_tools = {
+            tool for item in inventory if item.get("enabled") is True
+            for tool in item.get("tools", []) if isinstance(tool, str)
+        }
+        missing_tools = HERMES_REQUIRED_TOOLS - enabled_tools
+        missing_skills = HERMES_REQUIRED_SKILLS - set(skills)
         missing_models = set(required_models) - set(models)
         return {
-            "ok": status == "ok" and not missing_toolsets and not unexpected_toolsets and not missing_models,
+            "ok": status == "ok" and not missing_toolsets and not unexpected_toolsets
+            and not missing_tools and not missing_skills and not missing_models,
             "status": status if isinstance(status, str) else "unknown",
             "toolsets": list(toolsets),
+            "advertised_tools": sorted(enabled_tools),
+            "skills": sorted(skills),
             "models": list(models),
             "missing_toolsets": sorted(missing_toolsets),
             "unexpected_toolsets": sorted(unexpected_toolsets),
+            "missing_tools": sorted(missing_tools),
+            "missing_skills": sorted(missing_skills),
             "missing_models": sorted(missing_models),
             "version": payload.get("version", "") if isinstance(payload.get("version", ""), str) else "",
         }

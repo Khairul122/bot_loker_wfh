@@ -10,6 +10,7 @@ from bot_loker_wfh.config import Settings
 from bot_loker_wfh.llm import (
     HermesAgentClient,
     HermesTaskRunner,
+    HERMES_REQUIRED_SKILLS,
     LLMError,
     LLMResult,
     LLMRouter,
@@ -74,7 +75,12 @@ class HermesClientTest(unittest.TestCase):
             self.assertEqual(get.call_args.args[0], "http://127.0.0.1:8642/health")
 
         with patch.object(client, "_get_json", return_value={"status": "ok", "version": "0.22"}), \
-             patch.object(client, "list_enabled_toolsets", return_value=("skills", "memory", "delegation")), \
+             patch.object(client, "list_toolset_inventory", return_value=[
+                 {"name": "skills", "enabled": True, "tools": ["skills_list", "skill_view"]},
+                 {"name": "memory", "enabled": True, "tools": ["memory"]},
+                 {"name": "delegation", "enabled": True, "tools": ["delegate_task"]},
+             ]), \
+             patch.object(client, "list_skill_names", return_value=tuple(HERMES_REQUIRED_SKILLS)), \
              patch.object(client, "list_models", return_value=["loker-draft", "loker-form", "loker-answer"]):
             readiness = client.check_readiness(required_models=("loker-draft", "loker-form", "loker-answer"))
         self.assertTrue(readiness["ok"])
@@ -83,12 +89,33 @@ class HermesClientTest(unittest.TestCase):
     def test_readiness_rejects_dangerous_toolsets_and_missing_aliases(self):
         client = self.client()
         with patch.object(client, "_get_json", return_value={"status": "ok"}), \
-             patch.object(client, "list_enabled_toolsets", return_value=("skills", "memory", "delegation", "terminal")), \
+             patch.object(client, "list_toolset_inventory", return_value=[
+                 {"name": "skills", "enabled": True, "tools": ["skills_list", "skill_view", "skill_manage"]},
+                 {"name": "memory", "enabled": True, "tools": ["memory"]},
+                 {"name": "delegation", "enabled": True, "tools": ["delegate_task"]},
+                 {"name": "terminal", "enabled": True, "tools": ["terminal"]},
+             ]), \
+             patch.object(client, "list_skill_names", return_value=tuple(HERMES_REQUIRED_SKILLS)), \
              patch.object(client, "list_models", return_value=["loker-draft"]):
             readiness = client.check_readiness(required_models=("loker-draft", "loker-form"))
         self.assertFalse(readiness["ok"])
         self.assertEqual(readiness["unexpected_toolsets"], ["terminal"])
+        self.assertIn("skill_manage", readiness["advertised_tools"])
         self.assertEqual(readiness["missing_models"], ["loker-form"])
+
+    def test_readiness_requires_every_employee_skill(self):
+        client = self.client()
+        with patch.object(client, "_get_json", return_value={"status": "ok"}), \
+             patch.object(client, "list_toolset_inventory", return_value=[
+                 {"name": "skills", "enabled": True, "tools": ["skills_list", "skill_view"]},
+                 {"name": "memory", "enabled": True, "tools": ["memory"]},
+                 {"name": "delegation", "enabled": True, "tools": ["delegate_task"]},
+             ]), \
+             patch.object(client, "list_skill_names", return_value=("loker-employee-leva",)), \
+             patch.object(client, "list_models", return_value=[]):
+            readiness = client.check_readiness()
+        self.assertFalse(readiness["ok"])
+        self.assertEqual(len(readiness["missing_skills"]), len(HERMES_REQUIRED_SKILLS) - 1)
 
     def test_readiness_without_key_makes_no_request(self):
         client = self.client("")
@@ -100,10 +127,10 @@ class HermesClientTest(unittest.TestCase):
     def test_toolset_inventory_accepts_documented_array_response(self):
         client = self.client()
         with patch.object(client, "_get_json", return_value=[
-            {"name": "skills", "enabled": True},
-            {"name": "memory", "enabled": True},
-            {"name": "delegation", "enabled": True},
-            {"name": "terminal", "enabled": False},
+            {"name": "skills", "enabled": True, "tools": []},
+            {"name": "memory", "enabled": True, "tools": []},
+            {"name": "delegation", "enabled": True, "tools": []},
+            {"name": "terminal", "enabled": False, "tools": []},
         ]):
             self.assertEqual(client.list_enabled_toolsets(), ("skills", "memory", "delegation"))
 
