@@ -313,10 +313,12 @@ def _validate_hermes_base_url(base_url: str) -> None:
         or parsed.password is not None
         or parsed.query
         or parsed.fragment
-        or path != "/v1"
+        or not re.fullmatch(r"(?:/p/[A-Za-z0-9][A-Za-z0-9_.-]*)?/v1", path)
         or (parsed.scheme == "http" and not is_loopback)
     ):
-        raise ValueError("HERMES_BASE_URL must use HTTPS remotely or loopback HTTP and end in /v1")
+        raise ValueError(
+            "HERMES_BASE_URL must use HTTPS remotely or loopback HTTP and end in /v1 or /p/<profile>/v1"
+        )
 
 
 def _parse_chat_body(body: str) -> dict[str, Any]:

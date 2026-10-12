@@ -67,6 +67,13 @@ class HermesClientTest(unittest.TestCase):
         client = HermesAgentClient("https://hermes.internal/v1", "key", "alias")
         self.assertEqual(client.base_url, "https://hermes.internal/v1")
 
+    def test_client_accepts_profile_scoped_api_server_url(self):
+        client = HermesAgentClient(
+            "http://127.0.0.1:8642/p/loker-wfh/v1", "key", "alias"
+        )
+        self.assertEqual(client.base_url, "http://127.0.0.1:8642/p/loker-wfh/v1")
+        self.assertEqual(client.server_url, "http://127.0.0.1:8642/p/loker-wfh")
+
     def test_health_and_readiness_verify_runtime_contract_without_chat(self):
         client = self.client()
         with patch.object(client, "_get_json", return_value={"status": "ok", "version": "0.22"}) as get:
