@@ -42,7 +42,7 @@ export function interact(h) {
   if (level > 0) { x = clamp(x, -W / 2 + 0.6, W / 2 - 0.4); z = clamp(z, -D / 2 + 0.6, D / 2 - 0.4); }
   else if (Math.hypot(x, z) > 46) return;
   store.overview = false;
-  me.goTo(level, x, z);
+  me.goTo(level, x, z, null, w ? { via: w.via || [], box: w.box } : {});
   burst(new THREE.Vector3(x, level * FH - 1.8, z), ['📍'], 1);
 }
 const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "max_floors": 7,
+  "divisions": [
+    {"id":"lobi","name":"Lobi & Operasional","icon":"🛎️","floor":0,"manager":"tegar","colors":{"floor":"#f3dcc0","wall":"#fff2df","accent":"#f08a5d","screen":"#76c7ff"}},
+    {"id":"cari","name":"Pencarian Kerja","icon":"🔭","floor":1,"manager":"reno","colors":{"floor":"#d9e8c9","wall":"#f3f8e8","accent":"#6bb38a","screen":"#9be3b0"}},
+    {"id":"seleksi","name":"Seleksi","icon":"🧪","floor":2,"manager":"sari","colors":{"floor":"#dfe0f4","wall":"#f3f2fc","accent":"#8a86d8","screen":"#c6c3ff"}},
+    {"id":"tulis","name":"Penulisan","icon":"✍️","floor":3,"manager":"cora","colors":{"floor":"#f6e1cf","wall":"#fff5ea","accent":"#d98b5f","screen":"#ffd7a8"}},
+    {"id":"lamar","name":"Lamaran","icon":"🚀","floor":4,"manager":"subi","colors":{"floor":"#d4ecf2","wall":"#eef9fc","accent":"#4ea7c4","screen":"#9fe6ff"}},
+    {"id":"pantau","name":"Pantau & Interview","icon":"📈","floor":5,"manager":"tara","colors":{"floor":"#f4dbe2","wall":"#fff1f4","accent":"#d8738f","screen":"#ffb3c6"}},
+    {"id":"freelance","name":"Proyek Freelance","icon":"🤝","floor":6,"manager":"mira","colors":{"floor":"#f4ecc6","wall":"#fffbe8","accent":"#c9a227","screen":"#ffe58a"}}
+  ],
+  "employees": [
+    {"id":"tegar","name":"Tegar","title":"Manajer Lobi & Operasional","division":"lobi","responsibility":"resepsionis Telegram yang mengantar notifikasi dan menjaga antrean persetujuan"},
+    {"id":"reno","name":"Reno","title":"Manajer Pencarian Kerja","division":"cari","pipeline":"jobs","source":"remoteok","responsibility":"pemburu lowongan di RemoteOK"},
+    {"id":"rima","name":"Rima","title":"Pemburu Remotive","division":"cari","pipeline":"jobs","source":"remotive","responsibility":"pemburu lowongan di Remotive"},
+    {"id":"gery","name":"Gery","title":"Pemburu Greenhouse","division":"cari","pipeline":"jobs","source":"greenhouse","responsibility":"pemburu lowongan di Greenhouse"},
+    {"id":"leva","name":"Leva","title":"Pemburu Lever","division":"cari","pipeline":"jobs","source":"lever","responsibility":"pemburu lowongan di Lever"},
+    {"id":"kalia","name":"Kalia","title":"Pemburu Kalibrr","division":"cari","pipeline":"jobs","source":"kalibrr","responsibility":"pemburu lowongan di Kalibrr"},
+    {"id":"dela","name":"Dela","title":"Pemburu Dealls","division":"cari","pipeline":"jobs","source":"dealls","responsibility":"pemburu lowongan di Dealls"},
+    {"id":"sari","name":"Sari","title":"Manajer Seleksi","division":"seleksi","responsibility":"penilai skill yang memberi skor relevansi lowongan"},
+    {"id":"eli","name":"Eli","title":"Penjaga Kelayakan","division":"seleksi","responsibility":"penjaga kelayakan yang menyaring lowongan tidak remote / tidak cocok"},
+    {"id":"cora","name":"Cora","title":"Manajer Penulisan","division":"tulis","responsibility":"penulis surat lamaran dan proposal freelance"},
+    {"id":"lulu","name":"Lulu","title":"Asisten AI","division":"tulis","responsibility":"asisten AI yang menjalankan panggilan model bahasa"},
+    {"id":"faris","name":"Faris","title":"Pengisi Formulir","division":"lamar","responsibility":"pengisi formulir lamaran di browser"},
+    {"id":"subi","name":"Subi","title":"Manajer Lamaran","division":"lamar","responsibility":"pengirim lamaran"},
+    {"id":"tara","name":"Tara","title":"Manajer Pantau & Interview","division":"pantau","responsibility":"pemantau status lamaran"},
+    {"id":"ivan","name":"Ivan","title":"Pelatih Interview","division":"pantau","responsibility":"pelatih interview"},
+    {"id":"lido","name":"Lido","title":"Pemburu Freelancer.com","division":"freelance","pipeline":"leads","source":"freelancer","responsibility":"pemburu proyek freelance di Freelancer.com"},
+    {"id":"nara","name":"Nara","title":"Pemburu Projects.co.id","division":"freelance","pipeline":"leads","source":"projects.co.id","responsibility":"pemburu proyek freelance di Projects.co.id"},
+    {"id":"tama","name":"Tama","title":"Pengintai Telegram","division":"freelance","pipeline":"leads","source":"telegram","responsibility":"pemburu proyek freelance di Telegram"},
+    {"id":"bimo","name":"Bimo","title":"Eksekutor Penawaran","division":"freelance","responsibility":"eksekutor penawaran proyek freelance (bidding freelancer.com & projects.co.id)"},
+    {"id":"mira","name":"Mira","title":"Manajer Proyek Freelance","division":"freelance","responsibility":"manajer divisi proyek freelance yang mengatur prioritas dan pembagian kerja tim, meninjau hasil, serta melapor kepada owner"}
+  ]
+}

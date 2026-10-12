@@ -19,5 +19,23 @@ import nara from './nara.js';
 import tama from './tama.js';
 import bimo from './bimo.js';
 import mira from './mira.js';
+import { EMPLOYEES } from '../../domain/company.js';
 
-export const STAFF = [tegar, reno, rima, gery, leva, kalia, dela, sari, eli, cora, lulu, faris, subi, tara, ivan, lido, nara, tama, bimo, mira];
+const VISUAL_BY_ID = new Map([
+  ['tegar', tegar], ['reno', reno], ['rima', rima], ['gery', gery], ['leva', leva],
+  ['kalia', kalia], ['dela', dela], ['sari', sari], ['eli', eli], ['cora', cora],
+  ['lulu', lulu], ['faris', faris], ['subi', subi], ['tara', tara], ['ivan', ivan],
+  ['lido', lido], ['nara', nara], ['tama', tama], ['bimo', bimo], ['mira', mira],
+]);
+
+export const STAFF = EMPLOYEES.map(employee => {
+  const visual = VISUAL_BY_ID.get(employee.id);
+  if (!visual) throw new Error(`Missing visual definition for employee ${employee.id}`);
+
+  return {
+    ...visual,
+    ...employee,
+    role: employee.title,
+    div: employee.division,
+  };
+});

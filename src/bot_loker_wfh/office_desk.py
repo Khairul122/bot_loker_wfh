@@ -10,6 +10,13 @@ from __future__ import annotations
 import json
 import re
 from .database import Connection
+from .company import (
+    EMPLOYEES as EMPLOYEE_CATALOG,
+    JOB_SCOUTS,
+    LEAD_SCOUTS,
+    ROLES as EMPLOYEE_ROLES,
+    managed_division_for,
+)
 from .employee_memory import DRAFT_SOURCE, lessons_text, list_memories, remember
 from .github_portfolio import MIN_MATCH, load_portfolio
 import uuid
@@ -21,26 +28,7 @@ INSTRUCTION_LIMIT = 500
 NOTE_LIMIT = 1000
 QUESTION_LIMIT = 300
 
-JOB_SCOUTS = {
-    "reno": "remoteok", "rima": "remotive", "gery": "greenhouse",
-    "leva": "lever", "kalia": "kalibrr", "dela": "dealls",
-}
-LEAD_SCOUTS = {"lido": "freelancer", "nara": "projects.co.id", "tama": "telegram"}
-ROLES = {
-    "tegar": "resepsionis Telegram yang mengantar notifikasi dan menjaga antrean persetujuan",
-    "sari": "penilai skill yang memberi skor relevansi lowongan",
-    "eli": "penjaga kelayakan yang menyaring lowongan tidak remote / tidak cocok",
-    "cora": "penulis surat lamaran dan proposal freelance",
-    "bimo": "eksekutor penawaran proyek freelance (bidding freelancer.com & projects.co.id)",
-    "mira": "manajer divisi proyek freelance yang melapor hasil kerja timnya kepada owner",
-    "lulu": "asisten AI yang menjalankan panggilan model bahasa",
-    "faris": "pengisi formulir lamaran di browser",
-    "subi": "pengirim lamaran",
-    "tara": "pemantau status lamaran",
-    "ivan": "pelatih interview",
-    **{e: f"pemburu lowongan di {s}" for e, s in JOB_SCOUTS.items()},
-    **{e: f"pemburu proyek freelance di {s}" for e, s in LEAD_SCOUTS.items()},
-}
+ROLES = EMPLOYEE_ROLES
 EMPLOYEES = tuple(ROLES)
 SOURCE_OWNER = {s: e for e, s in {**JOB_SCOUTS, **LEAD_SCOUTS}.items()}
 
@@ -344,6 +332,24 @@ def profile(connection: Connection, employee: str) -> dict:
             "SELECT rating, note, created_at FROM office_reports WHERE employee = ? AND note IS NOT NULL "
             "ORDER BY created_at DESC LIMIT 5", (employee,)).fetchall()
     ]
+    managed_division = managed_division_for(employee)
+    team = None
+    if managed_division:
+        team = {
+            "id": managed_division["id"],
+            "name": managed_division["name"],
+            "manager": employee,
+            "team": [
+                {
+                    "employee": member["id"],
+                    "name": member["name"],
+                    "role": member["title"],
+                    **measure(connection, member["id"], 24),
+                }
+                for member in EMPLOYEE_CATALOG
+                if member["division"] == managed_division["id"]
+            ],
+        }
     return {
         "employee": employee,
         "role": ROLES[employee],
@@ -353,6 +359,7 @@ def profile(connection: Connection, employee: str) -> dict:
         "notes": notes,
         "rating": ratings(connection).get(employee),
         "instruction": get_instruction(connection, employee),
+        "managed_division": team,
     }
 
 

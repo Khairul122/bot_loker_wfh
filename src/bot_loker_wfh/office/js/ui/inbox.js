@@ -9,7 +9,8 @@ import { say } from '../fx/bubbles.js';
 import { burst, at } from '../fx/particles.js';
 import { loadStats } from '../systems/sync.js';
 import { savePref } from '../systems/prefs.js';
-import { $, el, post, toast, starsHtml, OFFLINE } from './dom.js';
+import { $, el, toast, starsHtml, OFFLINE } from './dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 import { TAG } from './results.js';
 
 const fmtIn = sec => sec == null ? 'segera' : sec < 3600 ? `${Math.max(1, Math.round(sec / 60))} menit lagi` : `${Math.round(sec / 3600)} jam lagi`;
@@ -75,8 +76,9 @@ $('inbox').onclick = e => { if (e.target === $('inbox')) toggleInbox(false); };
 async function renderInbox() {
   const L = $('inboxList');
   if (!store.live) { L.replaceChildren(el('div', 'empty', `🔌 ${OFFLINE}`)); return; }
-  let d;
-  try { d = await (await fetch('inbox.json', { cache: 'no-store' })).json(); } catch { L.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const response = await get('inbox.json');
+  if (!response.ok) { L.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const d = response.data;
   $('inboxSub').textContent = d.pending.length ? `${d.pending.length} lowongan cocok menunggu keputusanmu` : 'Belum ada yang perlu kamu setujui';
   const parts = [];
   if (d.pending.length) parts.push(el('h3', null, '🕵️ Menunggu persetujuanmu'), ...d.pending.map(i => jobCard(i, 'pending', d.form_assist)));

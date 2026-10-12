@@ -489,6 +489,14 @@ class _Handler(SimpleHTTPRequestHandler):
                     return self._json(200, desk.profile(connection, employee))
                 except KeyError:
                     return self._json(404, {"error": "not_found"})
+        if path == "/manager/tasks.json":
+            manager = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+            from .manager_tasks import list_tasks
+            try:
+                with self._connect() as connection:
+                    return self._json(200, {"items": list_tasks(connection, manager)})
+            except KeyError:
+                return self._json(404, {"error": "not_manager"})
         if path == "/employee-memory.json":
             employee = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
             if employee not in desk.ROLES:
@@ -721,6 +729,23 @@ class _Handler(SimpleHTTPRequestHandler):
     def _desk_post(self, parts: list[str]):
         """Owner's office routes; None when the path is not one of them."""
         try:
+            if parts == ["manager", "tasks"]:
+                from .manager_tasks import create_task
+                body = self._body()
+                with self._connect() as connection:
+                    task = create_task(connection, str(body.get("manager") or ""),
+                                       str(body.get("assignee") or ""), str(body.get("title") or ""),
+                                       str(body.get("priority") or "normal"))
+                office_events.publish({"employee": task["assignee"], "task": task["title"], "status": "ditugaskan"})
+                return self._json(201, task)
+            if len(parts) == 3 and parts[:2] == ["manager", "tasks"]:
+                from .manager_tasks import update_task
+                body = self._body()
+                with self._connect() as connection:
+                    task = update_task(connection, str(body.get("manager") or ""), parts[2],
+                                       str(body.get("status") or ""), str(body.get("review_note") or ""))
+                office_events.publish({"employee": task["assignee"], "task": task["title"], "status": task["status"]})
+                return self._json(200, task)
             if len(parts) == 3 and parts[:2] == ["reports", "request"]:
                 with self._connect() as connection:
                     return self._json(200, self.work.request_reports(connection, parts[2]))

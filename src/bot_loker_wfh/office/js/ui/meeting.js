@@ -6,7 +6,8 @@ import { spots } from '../world/spots.js';
 import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from '../ai/routine.js';
 import { pick } from '../core/util.js';
-import { $, el, post, toast } from './dom.js';
+import { $, el, toast } from './dom.js';
+import { post } from '../infrastructure/office-api.js';
 
 const DEFAULT = ['cora', 'tegar', 'reno'];
 const picked = new Set(DEFAULT.filter(id => staff.some(c => c.def.id === id)));

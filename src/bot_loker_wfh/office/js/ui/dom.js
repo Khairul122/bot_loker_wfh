@@ -21,20 +21,6 @@ export function closeFlyouts(except) {
   }
 }
 
-export async function get(path) {
-  try {
-    const r = await fetch(path, { cache: 'no-store' });
-    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
-  } catch { return { ok: false, status: 0, data: {} }; }
-}
-
-export async function post(path, body) {
-  try {
-    const r = await fetch(path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
-    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
-  } catch { return { ok: false, status: 0, data: {} }; }
-}
-
 export function ago(iso) {
   const t = Date.parse(iso || ''); if (!t) return '';
   const m = Math.round((Date.now() - t) / 60000);

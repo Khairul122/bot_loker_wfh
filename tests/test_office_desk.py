@@ -119,6 +119,21 @@ class DeskTest(unittest.TestCase):
         with self.assertRaises(KeyError):
             desk.profile(self.connection, "nobody")
 
+    def test_manager_profile_includes_real_metrics_for_their_division(self):
+        insert_job(self.connection, "remoteok-a")
+        insert_job(self.connection, "remoteok-b", status="FILTERED_OUT")
+        p = desk.profile(self.connection, "reno")
+
+        self.assertEqual(p["managed_division"]["id"], "cari")
+        self.assertEqual(p["managed_division"]["manager"], "reno")
+        self.assertEqual(
+            {member["employee"] for member in p["managed_division"]["team"]},
+            {"reno", "rima", "gery", "leva", "kalia", "dela"},
+        )
+        reno = next(member for member in p["managed_division"]["team"] if member["employee"] == "reno")
+        self.assertEqual(reno["metrics"][0][2], 2)
+        self.assertIsNone(desk.profile(self.connection, "rima")["managed_division"])
+
     def test_lead_board_filters(self):
         from bot_loker_wfh.lead_desk import lead_counts, list_leads
         rows = [("NEW", None), ("NEW", "2000-01-01T00:00:00.000Z"), ("INTERESTED", None), ("IGNORED", None)]

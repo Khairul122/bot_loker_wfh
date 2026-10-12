@@ -1,6 +1,7 @@
 // ---------- Employee lessons: learned from owner feedback, stored server-side (Supabase) ----------
 import { say } from '../fx/bubbles.js';
 import { pick } from '../core/util.js';
+import { get } from '../infrastructure/office-api.js';
 
 const lessons = {};       // empId -> short lesson strings
 const loadedAt = {};      // empId -> ms of last fetch
@@ -10,8 +11,8 @@ async function refresh(empId) {
   if (!empId || Date.now() - (loadedAt[empId] || 0) < TTL) return;
   loadedAt[empId] = Date.now();
   try {
-    const res = await fetch('employee-memory.json?id=' + encodeURIComponent(empId), { cache: 'no-store' });
-    if (res.ok) lessons[empId] = (await res.json()).items.map(m => m.content);
+    const res = await get('employee-memory.json?id=' + encodeURIComponent(empId));
+    if (res.ok) lessons[empId] = res.data.items.map(m => m.content);
   } catch {}
 }
 

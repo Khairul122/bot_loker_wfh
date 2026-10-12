@@ -6,6 +6,7 @@ import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from './routine.js';
 import { pick, rand, ROOF } from '../core/util.js';
 import { DIVS } from '../buildings/divisions.js';
+import { post } from '../infrastructure/office-api.js';
 
 // LLM Endpoint Configuration (Supports Supabase Edge Functions, Groq, Ollama, or OpenAI)
 const LLM_CONFIG = {
@@ -60,16 +61,12 @@ async function decideInstinct(character) {
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       try {
-        const res = await fetch(LLM_CONFIG.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(contextPayload),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (res.ok) decision = zoneDecision(await res.json());
+        const res = await post(LLM_CONFIG.endpoint, contextPayload, { signal: controller.signal });
+        if (res.ok) decision = zoneDecision(res.data);
       } catch {
         // Fallback to Autonomous Rule Engine if LLM server offline
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 

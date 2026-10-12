@@ -2,7 +2,6 @@
 import { leadsBy, r01, sum } from '../../data/stats.js';
 
 export default {
-  id: 'mira', name: 'Mira', role: 'Manajer Proyek Freelance 🧑‍💼', div: 'freelance',
   look: { skin: 0xe8b894, hair: 0x2b1d2f, shirt: 0x7c3aed, pants: 0x2f2a4a },
   perf: () => {
     const L = leadsBy(), sent = L.SUBMITTED || 0, total = sum(L), waiting = (L.INTERESTED || 0) + (L.APPROVED || 0);

@@ -7,6 +7,7 @@ import { deskSeats, seatVia } from '../buildings/floor.js';
 import { Char } from './char.js';
 import { LADDER } from './body.js';
 import { STAFF } from './staff/index.js';
+import { adjustMoodForEnergy } from '../domain/employee-state.js';
 
 export const staff = [];
 const used = {};
@@ -17,6 +18,7 @@ STAFF.forEach(def => {
   c.def = def; c.seat = { ...seat, level: lvl, via: seatVia(seat) }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
   c.inside = { level: lvl, via: c.seat.via, at: V(seat.x, seat.z) };
   c.state = 'work'; c.timer = rand(15, 50); c.boost = 0; c.boostUntil = 0;
+  c.energy = 78;
   c.speed = rand(2.2, 2.8);
   staff.push(c);
 });
@@ -29,7 +31,7 @@ function moodFor(perf) {
 }
 export function staffMood(c, now) {
   if (now < (c.sadUntil || 0)) return 'sedih';
-  let base = moodFor(c.perfNow);
+  let base = adjustMoodForEnergy(moodFor(c.perfNow), c.energy ?? 78, LADDER);
   // the owner's ratings of past reports (stored in the DB) lift or drag the mood a step
   const rt = store.desk.ratings[c.def.id];
   if (rt && base !== 'sedih') base = LADDER[clamp(LADDER.indexOf(base) + (rt.avg >= 4 ? 1 : rt.avg <= 2 ? -1 : 0), 0, 4)];

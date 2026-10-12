@@ -45,13 +45,12 @@ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event 
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
   keyMove(dt);
-  if (!reduceMotion) {
-    for (const f of [...animated]) f(t, dt);
-    for (const c of staff) updateStaff(c, dt, t);
-    updateMe(dt);
-    for (const c of chars) c.update(dt, t);
-    updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
-  }
+  if (!reduceMotion) for (const f of [...animated]) f(t, dt);
+  // Reduced motion pauses decorative loops, not navigation, work, or employee state.
+  for (const c of staff) updateStaff(c, dt, t);
+  updateMe(dt);
+  for (const c of chars) c.update(dt, t);
+  updatePong(dt); updateChatter(dt); updateVisits(dt); updateWorld(dt, t);
   updateLightPool(dt, store.fp ? camera.position : controls.target, night);
   if ((frameNo = (frameNo + 1) % 2) === 0 || store.fp) renderer.shadowMap.needsUpdate = true;
   adaptQuality(dt);

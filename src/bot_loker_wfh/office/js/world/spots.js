@@ -22,7 +22,7 @@ export const spots = [
   { kind: 'ping', level: 0, x: 32.3, z: 4, ry: Math.PI / 2, pose: 'play', obj: ping, emo: '🏓', joy: 4, energy: -2 },
   { kind: 'ping', level: 0, x: 35.7, z: 4, ry: -Math.PI / 2, pose: 'play', obj: ping, emo: '🏓', joy: 4, energy: -2 },
   { kind: 'slide', level: 0, x: 24.2, z: 7, ry: Math.PI / 2, pose: 'dance', obj: slide, emo: '🛝', joy: 4, energy: -1 },
-  { kind: 'kafe', level: 0, x: -12, z: 17.6, ry: Math.PI, pose: 'stand', obj: kiosk, emo: '☕', energy: 12 },
+  { kind: 'kafe', level: 0, x: -2, z: 13.6, ry: Math.PI, pose: 'stand', obj: kiosk, emo: '☕', energy: 12 },
   { kind: 'kopi', level: 0, x: 6.8, z: -0.6, ry: Math.PI, pose: 'stand', obj: null, emo: '☕', energy: 10 },
   { kind: 'hammock', level: ROOF, x: -3.9, z: 2.5, ry: Math.PI / 2, pose: 'lie', obj: hammock, emo: '😴', energy: 10 },
   { kind: 'parasol', level: ROOF, x: 4, z: 3.6, ry: Math.PI, pose: 'floor', obj: parasol, emo: '🌤️', energy: 6, joy: 2 },

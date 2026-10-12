@@ -1,6 +1,7 @@
 // ---------- freelance project board: list, interest, Cora's draft + revision, approve & submit ----------
 import { store } from '../core/store.js';
-import { $, el, ago, get, post, toast, OFFLINE } from './dom.js';
+import { $, el, ago, toast, OFFLINE } from './dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 import { loadPrefs, savePrefNow } from '../systems/prefs.js';
 
 const SOURCES = [['', '✨ Semua'], ['freelancer', '🌍 Freelancer'], ['projects.co.id', '🏠 Projects.co.id'], ['telegram', '🏠 Telegram']];
@@ -36,13 +37,10 @@ async function render() {
   if (current) return detail(current);
   if (!store.live) { list.replaceChildren(el('div', 'empty', OFFLINE)); return; }
   list.replaceChildren(el('div', 'empty', '⏳ Memuat…'));
-  let data;
-  try {
-    const url = `leads.json?view=${view}` + (source ? `&source=${encodeURIComponent(source)}` : '');
-    const r = await fetch(url, { cache: 'no-store' });
-    if (!r.ok) throw 0;
-    data = await r.json();
-  } catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const url = `leads.json?view=${view}` + (source ? `&source=${encodeURIComponent(source)}` : '');
+  const response = await get(url);
+  if (!response.ok) { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const data = response.data;
   browserFill = !!data.browser_fill;
   if (data.tab_sources) tabSources = data.tab_sources;
   if (!data.items.length) { list.replaceChildren(el('div', 'empty', 'Belum ada proyek')); return; }

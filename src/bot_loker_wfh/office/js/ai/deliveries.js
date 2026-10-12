@@ -9,7 +9,8 @@ import { DELIVER_AT } from '../buildings/rooms/owner.js';
 import { me } from '../characters/player.js';
 import { byId } from '../characters/team.js';
 import { say } from '../fx/bubbles.js';
-import { post, toast } from '../ui/dom.js';
+import { toast } from '../ui/dom.js';
+import { post } from '../infrastructure/office-api.js';
 import { loadStats } from '../systems/sync.js';
 import { goBack } from './routine.js';
 

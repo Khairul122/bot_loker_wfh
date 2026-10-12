@@ -13,7 +13,8 @@ import { goBack } from '../ai/routine.js';
 import { pingSpots, joinPong } from '../ai/pong.js';
 import { useSpot } from '../ai/owner-actions.js';
 import { loadStats } from '../systems/sync.js';
-import { $, post, toast, scoreColor, starsHtml, faceStyle, OFFLINE } from './dom.js';
+import { $, toast, scoreColor, starsHtml, faceStyle, OFFLINE } from './dom.js';
+import { post } from '../infrastructure/office-api.js';
 import { openMenu } from './menu.js';
 import { toggleInbox, draftMore } from './inbox.js';
 import { toggleReports } from './reports.js';
@@ -119,9 +120,8 @@ async function hunt(c) {
   hunting = c; if (chatWith) openCard(chatWith);
   c.showEmo('🔎'); say(c, `Bentar ya, aku cek ${h.site}… 🔎`, 120);
   Snd.play('click');
-  let res;
-  try { const r = await fetch('hunt/' + h.src, { method: 'POST' }); res = r.ok ? await r.json() : { error: r.status }; }
-  catch { res = { error: 'offline' }; }
+  const response = await post('hunt/' + h.src);
+  const res = response.ok ? response.data : { error: response.data?.error || response.status || 'offline' };
   hunting = null;
   const at = new THREE.Vector3(c.pos.x, c.y, c.pos.z);
   if (res.error) {

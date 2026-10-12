@@ -1,5 +1,5 @@
 // ---------- owner preferences (character look, sound, auto mode) kept in Supabase ----------
-import { get, post } from '../ui/dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 
 export async function loadPrefs() {
   const r = await get('office/prefs.json');

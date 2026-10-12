@@ -8,7 +8,8 @@ import { staff, byId } from '../characters/team.js';
 import { say } from '../fx/bubbles.js';
 import { loadStats } from '../systems/sync.js';
 import { recordExperience } from '../ai/reflection.js';
-import { $, el, post, toast, ago, starsHtml, faceStyle, OFFLINE } from './dom.js';
+import { $, el, toast, ago, starsHtml, faceStyle, OFFLINE } from './dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 import { startChat } from './card.js';
 
 let reportsOpen = false, reportsFor = '';
@@ -17,8 +18,9 @@ export function toggleReports(v = !reportsOpen, emp = reportsFor) { reportsOpen 
 async function renderProfile(emp) {
   const box = $('reportsProfile');
   if (!emp || !store.live) { box.replaceChildren(); return; }
-  let p;
-  try { p = await (await fetch('employee.json?id=' + encodeURIComponent(emp), { cache: 'no-store' })).json(); } catch { box.replaceChildren(); return; }
+  const profile = await get('employee.json?id=' + encodeURIComponent(emp));
+  if (!profile.ok) { box.replaceChildren(); return; }
+  const p = profile.data;
   if (reportsFor !== emp) return;
   const c = byId(emp), wrap = el('div', 'prof');
   const head = el('div', 'who'), face = el('div', 'face', c ? MOODS[c.mood].emo : '📊'); if (c) face.style.cssText = faceStyle(c);
@@ -35,6 +37,7 @@ async function renderProfile(emp) {
     periods.append(col);
   }
   wrap.append(periods);
+  if (p.managed_division) wrap.append(await managerTeam(p.managed_division, emp));
   if (p.history.length > 1) {
     wrap.append(el('h4', null, '📈 Tren skor laporan'));
     const n = p.history.length, X = i => 8 + i * (584 / (n - 1)), Y = s => 62 - s * 54;
@@ -52,6 +55,84 @@ async function renderProfile(emp) {
   row.append(req, talk); wrap.append(row);
   box.replaceChildren(wrap);
 }
+
+async function managerTeam(division, managerId) {
+  const section = el('section', 'division-team');
+  section.setAttribute('aria-label', `Tim ${division.name}`);
+  section.append(el('h4', null, `Tim ${division.name} · ${division.team.length} karyawan`));
+
+  const members = el('div', 'division-members');
+  for (const member of division.team) {
+    const item = el('article', 'division-member');
+    const heading = el('div', 'division-member-head');
+    heading.append(el('b', null, member.name));
+    if (member.employee === division.manager) heading.append(el('span', 'tag manager-tag', 'Manager'));
+    item.append(heading, el('small', null, member.role));
+
+    const score = document.createElement('progress');
+    score.max = 1;
+    score.value = Math.max(0, Math.min(1, Number(member.score) || 0));
+    score.setAttribute('aria-label', `Skor ${member.name}`);
+    item.append(score);
+    item.append(el('p', null, member.lines.join(' ')));
+    members.append(item);
+  }
+  section.append(members);
+
+  const heading = el('h4', null, 'Prioritas & penugasan internal');
+  const form = el('form', 'manager-task-form');
+  const title = document.createElement('input');
+  title.name = 'title'; title.required = true; title.minLength = 3; title.maxLength = 160;
+  title.placeholder = 'Contoh: cek kualitas ringkasan kandidat'; title.setAttribute('aria-label', 'Tugas internal');
+  const assignee = document.createElement('select'); assignee.name = 'assignee'; assignee.setAttribute('aria-label', 'Anggota tim');
+  for (const member of division.team) {
+    const option = document.createElement('option'); option.value = member.employee; option.textContent = member.name;
+    assignee.append(option);
+  }
+  const priority = document.createElement('select'); priority.name = 'priority'; priority.setAttribute('aria-label', 'Prioritas tugas');
+  for (const [value, label] of [['normal', 'Normal'], ['high', 'Tinggi'], ['low', 'Rendah']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; priority.append(option);
+  }
+  const submit = el('button', 'btn ok', 'Tugaskan'); submit.type = 'submit';
+  form.append(title, assignee, priority, submit);
+  const tasks = el('div', 'manager-tasks');
+  const renderTasks = async () => {
+    const response = await get(`manager/tasks.json?id=${encodeURIComponent(managerId)}`);
+    if (!response.ok) { tasks.replaceChildren(el('p', 'note', 'Daftar tugas belum dapat dimuat.')); return; }
+    tasks.replaceChildren(...(response.data.items.length ? response.data.items.map(task => {
+      const item = el('article', 'manager-task');
+      const top = el('div', 'manager-task-head');
+      top.append(el('b', null, task.title), el('span', 'tag', `${task.assignee_name} · ${task.priority}`));
+      item.append(top, el('small', null, ({ assigned: 'Ditugaskan', in_progress: 'Sedang dikerjakan', reviewed: 'Selesai ditinjau' })[task.status]));
+      if (task.review_note) item.append(el('p', 'note', task.review_note));
+      if (task.status !== 'reviewed') {
+        const actions = el('div', 'manager-task-actions');
+        if (task.status === 'assigned') {
+          const start = el('button', 'btn', 'Mulai'); start.type = 'button';
+          start.onclick = async () => { start.disabled = true; await post(`manager/tasks/${encodeURIComponent(task.id)}`, { manager: managerId, status: 'in_progress' }); await renderTasks(); };
+          actions.append(start);
+        }
+        const review = el('input'); review.maxLength = 500; review.placeholder = 'Catatan tinjauan (opsional)'; review.setAttribute('aria-label', `Catatan tinjauan ${task.title}`);
+        const finish = el('button', 'btn ok', 'Tinjau selesai'); finish.type = 'button';
+        finish.onclick = async () => { finish.disabled = true; const result = await post(`manager/tasks/${encodeURIComponent(task.id)}`, { manager: managerId, status: 'reviewed', review_note: review.value }); if (!result.ok) toast('Tugas belum berhasil ditinjau'); await renderTasks(); };
+        actions.append(review, finish); item.append(actions);
+      }
+      return item;
+    }) : [el('p', 'note', 'Belum ada tugas internal. Buat prioritas pertama untuk timmu.')])) ;
+  };
+  form.onsubmit = async event => {
+    event.preventDefault();
+    submit.disabled = true;
+    const response = await post('manager/tasks', { manager: managerId, assignee: assignee.value, title: title.value, priority: priority.value });
+    submit.disabled = false;
+    if (!response.ok) { toast('Tugas belum berhasil disimpan'); return; }
+    title.value = ''; await renderTasks();
+  };
+  section.append(heading, form, tasks);
+  await renderTasks();
+  return section;
+}
+
 $('bReports').onclick = () => toggleReports();
 $('reportsClose').onclick = () => toggleReports(false);
 $('reports').onclick = e => { if (e.target === $('reports')) toggleReports(false); };
@@ -71,9 +152,9 @@ async function renderReports(emp = reportsFor) {
   }));
   const list = $('reportsList');
   if (!store.live) { list.replaceChildren(el('div', 'empty', `🔌 ${OFFLINE} untuk laporan asli`)); return; }
-  let d;
-  try { d = await (await fetch('reports.json' + (emp ? '?employee=' + encodeURIComponent(emp) : ''), { cache: 'no-store' })).json(); }
-  catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const response = await get('reports.json' + (emp ? '?employee=' + encodeURIComponent(emp) : ''));
+  if (!response.ok) { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const d = response.data;
   if (reportsFor !== emp) return;
   $('reportsTg').textContent = d.telegram ? '📨 Laporan juga dikirim ke Telegram-mu' : '📨 Telegram belum diatur (.env)';
   list.replaceChildren(...(d.items.length ? d.items.map(reportCard) : [el('div', 'empty', '🌱 Belum ada laporan. Laporan pagi dibuat otomatis jam 08.00, atau minta sekarang.')]));

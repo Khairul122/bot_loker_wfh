@@ -5,6 +5,7 @@ import { MOODS } from '../characters/body.js';
 import { staff } from '../characters/team.js';
 import { $, el, ago, starsHtml, faceStyle, OFFLINE } from './dom.js';
 import { chatWith } from './card.js';
+import { get } from '../infrastructure/office-api.js';
 
 const RESULT_VIEW = { tegar: 'tracking', sari: 'screened', eli: 'screened', cora: 'drafts', bimo: 'bid', lulu: 'drafts', faris: 'applied', subi: 'applied', tara: 'tracking', ivan: 'tracking' };
 const viewFor = c => c.def.hunt ? `view=${c.def.hunt.what === 'lowongan' ? 'jobs' : 'leads'}&source=${encodeURIComponent(c.def.hunt.src)}` : `view=${RESULT_VIEW[c.def.id]}`;
@@ -42,9 +43,9 @@ async function showResults(c) {
   const list = $('resultsList');
   if (!store.live) { list.replaceChildren(el('div', 'empty', `🔌 ${OFFLINE} untuk melihat hasil kerja asli`)); return; }
   list.replaceChildren(el('div', 'empty', '⏳ Memuat…'));
-  let items = [];
-  try { items = (await (await fetch('results.json?' + viewFor(c), { cache: 'no-store' })).json()).items; }
-  catch { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const response = await get('results.json?' + viewFor(c));
+  if (!response.ok) { list.replaceChildren(el('div', 'empty', 'Gagal memuat, coba lagi')); return; }
+  const items = response.data.items;
   if (resultsFor !== c) return;
   const view = viewFor(c);
   list.replaceChildren(...(items.length ? items.map(i => resultCard(i, view)) : [el('div', 'empty', `🌱 ${c.name} belum punya hasil kerja. ${c.def.hunt ? 'Suruh dia mencari lewat kartunya.' : ''}`)]));

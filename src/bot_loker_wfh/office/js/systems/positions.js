@@ -2,7 +2,7 @@
 import { FH, rand } from '../core/util.js';
 import { me } from '../characters/player.js';
 import { staff } from '../characters/team.js';
-import { get } from '../ui/dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 
 const SAVE_EVERY_MS = 2000;
 const r2 = n => Math.round(n * 100) / 100;
@@ -44,7 +44,7 @@ function save({ beacon = false } = {}) {
   if (body === lastSent) return;
   lastSent = body;
   if (beacon && navigator.sendBeacon) navigator.sendBeacon('office/character-state', new Blob([body], { type: 'application/json' }));
-  else fetch('office/character-state', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+  else post('office/character-state', JSON.parse(body), { keepalive: true });
 }
 
 export function startPositionSync() {

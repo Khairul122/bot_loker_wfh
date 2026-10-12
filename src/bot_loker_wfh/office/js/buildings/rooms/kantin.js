@@ -1,6 +1,5 @@
 // level 7: canteen (buffet counter, three tables) + toilet room with two stalls and a sink
 import * as THREE from 'three';
-import { scene } from '../../core/engine.js';
 import { gradient, box, cyl, sph, group, sign, tag, emojiTex } from '../../core/factory.js';
 import { FH, V } from '../../core/util.js';
 import { chair, plant } from '../../world/props.js';
@@ -35,7 +34,7 @@ export default function build(g) {
       const x = tx + sx, z = tz + sz * 0.9;
       tag(chair(x, z, sz > 0 ? Math.PI : 0, g, 0xe0844a), { kind: 'spot', kindName: 'kantin' });
       const plate = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('🍛', false), depthWrite: false }));
-      plate.scale.setScalar(0.42); plate.position.set(x, KANTIN * FH + 0.95, tz + sz * 0.3); plate.visible = false; scene.add(plate);
+      plate.scale.setScalar(0.42); plate.position.set(x, 0.95, tz + sz * 0.3); plate.visible = false; g.add(plate);
       roomSpots.push({ kind: 'makan', level: KANTIN, x, z, ry: sz > 0 ? Math.PI : 0, pose: 'eat', table: ti, plate, emo: '😋' });
     }
   });

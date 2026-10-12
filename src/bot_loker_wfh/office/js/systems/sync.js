@@ -9,6 +9,7 @@ import { scheduleDeliveries } from '../ai/deliveries.js';
 import { $, toast } from '../ui/dom.js';
 import { perfOpen, renderPerf } from '../ui/perf.js';
 import { reactToWork, renderAuto, renderBadge } from '../ui/inbox.js';
+import { get } from '../infrastructure/office-api.js';
 
 export function refreshPerf() {
   const d = derive();
@@ -38,9 +39,9 @@ export function applyStats(data) {
 }
 export async function loadStats() {
   try {
-    const r = await fetch('stats.json', { cache: 'no-store' });
-    if (!r.ok) throw 0;
-    applyStats(await r.json());
+    const response = await get('stats.json');
+    if (!response.ok) throw new Error('stats_unavailable');
+    applyStats(response.data);
   } catch { store.live = false; store.S = DEMO; refreshPanels(); }
 }
 // poll faster while the team works on its own, so reactions show up promptly

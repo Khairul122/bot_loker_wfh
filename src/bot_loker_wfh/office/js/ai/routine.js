@@ -1,7 +1,6 @@
 // ---------- staff AI: work, breaks, toilet, commute home at night ----------
 import * as THREE from 'three';
 import { V, rand, pick, today } from '../core/util.js';
-import { OWNER } from '../buildings/divisions.js';
 import { stalls } from '../buildings/rooms/kantin.js';
 import { spots } from '../world/spots.js';
 import { me } from '../characters/player.js';
@@ -10,9 +9,10 @@ import { say } from '../fx/bubbles.js';
 import { night } from '../systems/night.js';
 import { goEat } from './dining.js';
 import { triggerLLMInstinct } from './llm_instinct.js';
+import { updateEnergy } from '../domain/employee-state.js';
 
 // house furniture belongs to its occupant; the owner's room is not a lounge for staff
-export function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && s.level !== OWNER && filter(s)); return list.length ? pick(list) : null; }
+export function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && !s.ownerOnly && filter(s)); return list.length ? pick(list) : null; }
 export function sendTo(c, spot, onSit) {
   const target = spot.swing ? (() => { const w = new THREE.Vector3(); spot.swing.getWorldPosition(w); return V(w.x, w.z + 0.9); })() : V(spot.x, spot.z);
   c.goTo(spot.level, target.x, target.z, () => {
@@ -25,6 +25,7 @@ export function sendTo(c, spot, onSit) {
   spot.by = c;
 }
 export function updateStaff(c, dt, now) {
+  c.energy = updateEnergy(c.energy, c.state, dt);
   const m = c.state === 'sleep' ? 'ngantuk' : staffMood(c, now);
   if (m !== c.mood) c.setMood(m, c.state === 'sleep' ? '💤' : undefined);
   if (c.state === 'chat' || c.state === 'report' || c.state === 'visit') return;

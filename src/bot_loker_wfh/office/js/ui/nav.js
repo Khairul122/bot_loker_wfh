@@ -1,7 +1,7 @@
 // ---------- "go to" place list ----------
 import { store } from '../core/store.js';
 import { ROOF } from '../core/util.js';
-import { DIVS, OWNER } from '../buildings/divisions.js';
+import { DIVS } from '../buildings/divisions.js';
 import { me } from '../characters/player.js';
 import { useSpot, sitOwner, goHouse } from '../ai/owner-actions.js';
 import { $ } from './dom.js';
@@ -15,16 +15,20 @@ const PLACES = [
   { icon: '🏠', name: 'Rumahku', go: () => goHouse(me.home) },
   { icon: '🏘️', name: 'Komplek Rumah', go: () => me.goTo(0, 0, -16.5) },
   { hr: 1 },
-  ...DIVS.map((d, i) => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), go: () => i === OWNER ? sitOwner(false) : me.goTo(i, 2, 4) })),
+  ...DIVS.map(d => ({ icon: d.icon, name: d.name.replace('Divisi ', ''), go: () => me.goTo(d.floor, 2, 4) })),
+  { icon: '👑', name: 'Ruang Owner', go: () => sitOwner(false) },
+  { icon: '💬', name: 'Ruang Rapat', go: () => useSpot('rapat') },
+  { icon: '🍜', name: 'Kantin', go: () => useSpot('kantin') },
   { icon: '🌿', name: 'Taman Atap', go: () => me.goTo(ROOF, 0, 1) },
 ];
 const narrow = () => innerWidth <= 760;
 function setNav(open) { $('nav').classList.toggle('open', open); $('bNav').setAttribute('aria-expanded', open); }
 setNav(!narrow());
+$('bOver').classList.toggle('on', store.overview);
 $('bNav').onclick = () => setNav(!$('nav').classList.contains('open'));
 PLACES.forEach(p => {
   if (p.hr) { $('nav').appendChild(document.createElement('hr')); return; }
   const b = document.createElement('button'); b.innerHTML = `<i>${p.icon}</i><span>${p.name}</span>`; b.title = p.name;
   b.onclick = () => { endChat(); store.overview = false; p.go(); if (narrow()) setNav(false); }; $('nav').appendChild(b);
 });
-$('bOver').onclick = () => { store.overview = !store.overview; endChat(); };
+$('bOver').onclick = () => { store.overview = !store.overview; $('bOver').classList.toggle('on', store.overview); endChat(); };

@@ -1,6 +1,7 @@
 // ---------- Settings Panel: Hermes Agent, BrowserMCP, Form Engine ----------
 import { store } from '../core/store.js';
-import { $, el, get, post, toast, closeFlyouts } from './dom.js';
+import { $, el, toast, closeFlyouts } from './dom.js';
+import { get, post } from '../infrastructure/office-api.js';
 
 const SETTINGS_TABS = [
   { id: 'llm', label: '🔀 Hermes Agent' },
@@ -25,9 +26,9 @@ export async function initSettings() {
 
 async function loadSettings() {
   try {
-    const res = await fetch('settings.json', { cache: 'no-store' });
-    if (res.ok) {
-      const raw = await res.json();
+    const response = await get('settings.json');
+    if (response.ok) {
+      const raw = response.data;
       settingsMeta = raw;
       settingsData = {};
       for (const [key, val] of Object.entries(raw)) {
