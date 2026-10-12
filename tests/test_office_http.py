@@ -190,18 +190,18 @@ class SettingsHttpTest(unittest.TestCase):
         self.assertEqual(status, 400)
 
     def test_batch_post_stores_every_value_in_one_request(self):
-        status, data = self.call("settings", {"values": {"llm_model_draft": "A", "form_ai_answers": "off", "form_max_actions": "42"}})
+        status, data = self.call("settings", {"values": {"hermes_model_draft": "A", "form_ai_answers": "off", "form_max_actions": "42"}})
         self.assertEqual(status, 200)
         with database.connect() as connection:
             stored = dict(connection.execute("SELECT key, value FROM app_settings").fetchall())
-        self.assertEqual((stored["llm_model_draft"], stored["form_ai_answers"], stored["form_max_actions"]), ("A", "off", "42"))
+        self.assertEqual((stored["hermes_model_draft"], stored["form_ai_answers"], stored["form_max_actions"]), ("A", "off", "42"))
         self.assertEqual(data["form_ai_answers"]["value"], "off")
 
     def test_batch_with_one_bad_value_stores_nothing(self):
-        status, data = self.call("settings", {"values": {"llm_model_draft": "B", "form_max_actions": "abc"}})
+        status, data = self.call("settings", {"values": {"hermes_model_draft": "B", "form_max_actions": "abc"}})
         self.assertEqual((status, data["key"]), (400, "form_max_actions"))
         with database.connect() as connection:
-            row = connection.execute("SELECT 1 FROM app_settings WHERE key = 'llm_model_draft'").fetchone()
+            row = connection.execute("SELECT 1 FROM app_settings WHERE key = 'hermes_model_draft'").fetchone()
         self.assertIsNone(row)
 
     def test_owner_prefs_roundtrip(self):
