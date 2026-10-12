@@ -118,7 +118,7 @@ class EmployeeActivityLogTest(unittest.TestCase):
         work.run_cycle()
 
         drafts = [record for record in self.records() if record["task"] == "draft"]
-        self.assertEqual((drafts[0]["employee"], drafts[0]["count"]), ("cora", 1))
+        self.assertEqual((drafts[0]["employee"], drafts[0]["count"]), ("leva", 1))
         self.assertNotIn("Dear Acme", self.stream.getvalue())
 
     def test_owner_decision_is_logged_by_tegar_with_the_application_id(self):

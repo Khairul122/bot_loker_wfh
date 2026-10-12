@@ -21,6 +21,7 @@ def _employee_sources(employee_id: str) -> list[Path]:
         raise KeyError(employee_id)
     emp_dir = (SKILLS_DIR / f"loker-employee-{employee_id}").resolve()
     single_file = (SKILLS_DIR / f"loker-employee-{employee_id}.md").resolve()
+    compatibility_file = (SKILLS_DIR / f"{employee_id}.md").resolve()
 
     if emp_dir.is_dir():
         files = sorted(emp_dir.glob("*.md"))
@@ -28,6 +29,8 @@ def _employee_sources(employee_id: str) -> list[Path]:
             return files
     if single_file.is_file():
         return [single_file]
+    if compatibility_file.is_file():
+        return [compatibility_file]
     raise KeyError(employee_id)
 
 

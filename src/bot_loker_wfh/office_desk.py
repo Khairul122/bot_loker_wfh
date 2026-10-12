@@ -525,10 +525,16 @@ def instinct(connection: Connection, llm: Callable[[str], str] | None, employee:
         return None
     clean = lambda v, n: " ".join(str(v or "").split())[:n]  # noqa: E731
     mates = ", ".join(clean(m, 30) for m in list(ctx.get("nearbyColleagues") or [])[:5]) or "tidak ada"
+    recent = measure(connection, employee, 24)
+    pipeline = "\n".join(
+        ["Metrik pipeline 24 jam: " + ", ".join(f"{label} {value}" for _, label, value in recent["metrics"]),
+         *recent["lines"]]
+    )[:2500]
     prompt = (
         f"Kamu {employee.title()}, {ROLES[employee]}, karyawan virtual di kantor owner. Kamu sedang punya waktu luang.\n"
         f"Suasana hati: {clean(ctx.get('mood'), 20)}. Waktu: {clean(ctx.get('timeOfDay'), 10)}. "
         f"Posisi: {clean(ctx.get('currentZone'), 40)}. Rekan di dekatmu: {mates}.\n"
+        f"Tinjau data pipeline aktual berikut dan suarakan satu saran atau alert yang didukung bukti; jangan mengubah data/status apa pun.\n{pipeline}\n"
         f"Pilih SATU tempat dari: {', '.join(INSTINCT_ZONES)} (stay = tetap bekerja di mejamu). "
         "Pertimbangkan pelajaran dan feedback owner: kalau laporanmu sering dinilai rendah, pilih stay untuk memperbaikinya.\n"
         'Balas HANYA JSON: {"zone": "<pilihan>", "thought": "<isi hati, maks 12 kata, Bahasa Indonesia santai>"}'
