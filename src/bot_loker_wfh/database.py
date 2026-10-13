@@ -91,6 +91,29 @@ def safe_error_details(error: BaseException) -> str:
     return f"{details} sqlstate={sqlstate}" if sqlstate else details
 
 
+def connection_guidance(error: BaseException) -> str:
+    """Return safe next steps for a failed database connection."""
+    kind = getattr(error, "failure_kind", None) or database_error_kind(error)
+    if kind == "database_url_missing":
+        return "Atur SUPABASE_DB_URL di .env memakai URI Session pooler dari Supabase Dashboard > Connect."
+    if kind == "dns_resolution_failed":
+        return (
+            "Hostname database tidak ditemukan oleh DNS. Periksa kembali URI Session pooler "
+            "di Supabase Dashboard > Connect, lalu periksa DNS, VPN, dan koneksi jaringan."
+        )
+    if kind in {"connection_timeout", "network_unreachable", "connection_reset"}:
+        return "Periksa koneksi jaringan, VPN, firewall, dan akses ke host database."
+    if kind == "connection_refused":
+        return "Host terjangkau tetapi menolak koneksi; periksa host dan port pada URI Session pooler."
+    if kind == "authentication_failed":
+        return "Periksa username dan password pada URI Session pooler di Supabase Dashboard > Connect."
+    if kind == "database_not_found":
+        return "Periksa nama database pada URI Session pooler di Supabase Dashboard > Connect."
+    if kind == "tls_failure":
+        return "Periksa konfigurasi SSL/TLS dan sertifikat untuk koneksi database."
+    return "Periksa URI Session pooler dan ketersediaan database di Supabase Dashboard > Connect."
+
+
 def database_url() -> str:
     url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL", "")
     if not url.startswith(("postgresql://", "postgres://")):
@@ -272,15 +295,15 @@ def connect(schema: str | None = None) -> Connection:
     options = f"-c search_path={schema}" if schema != "public" else None
     retryable = {
         "connection_failure", "connection_timeout", "connection_refused",
-        "connection_reset", "network_unreachable", "dns_resolution_failed",
+        "connection_reset", "network_unreachable",
     }
-    for attempt in (1, 2, 3):  # retry transient pooler and network failures briefly
+    for attempt in (1, 2):  # retry transient network failures once
         try:
-            raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None, autocommit=True)
+            raw = psycopg.connect(database_url(), options=options, connect_timeout=5, prepare_threshold=None, autocommit=True)
             break
         except psycopg.OperationalError as error:
             failure_kind = database_error_kind(error)
-            if attempt == 3 or failure_kind not in retryable:
+            if attempt == 2 or failure_kind not in retryable:
                 raise DatabaseUnavailable(
                     failure_kind, type(error).__name__, getattr(error, "sqlstate", None), attempt
                 ) from None

@@ -60,6 +60,8 @@ class HermesAgentClient:
         max_tokens: int = 800,
         temperature: float = 0.4,
         timeout: float = 60.0,
+        api_provider: str | None = None,
+        upstream_model: str | None = None,
     ) -> None:
         normalized_url = base_url.strip().rstrip("/")
         _validate_hermes_base_url(normalized_url)
@@ -70,6 +72,8 @@ class HermesAgentClient:
         self.timeout = timeout
         self.name = "hermes"
         self.api_key = (api_key or "").strip()
+        self.api_provider = (api_provider or "").strip()
+        self.upstream_model = (upstream_model or "").strip()
         self.server_url = normalized_url[:-3]
 
     def complete(
@@ -89,11 +93,13 @@ class HermesAgentClient:
         if system_prompt:
             request_messages.insert(0, {"role": "system", "content": system_prompt})
         payload: dict[str, Any] = {
-            "model": target_model,
+            "model": self.upstream_model or target_model,
             "messages": request_messages,
             "max_tokens": self.max_tokens,
             "temperature": self.temperature,
         }
+        if self.api_provider:
+            payload["provider"] = self.api_provider
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         headers = {
@@ -520,7 +526,7 @@ class LLMRouter:
     def __call__(self, prompt: str) -> str:
         """Plain prompt -> text, so callers can treat the router like a single provider."""
         return self.for_task(
-            "draft", persona="leva", session_key="bot-loker-wfh:employee:leva"
+            "draft", persona="leva", session_key="bot-loker-wfh:v2:employee:leva"
         )(prompt)
 
     def for_task(
@@ -627,6 +633,8 @@ def create_llm_from_settings(settings: Any, record_calls: bool = False) -> LLMRo
         getattr(settings, "hermes_api_key", None),
         draft_model,
         timeout=getattr(settings, "llm_timeout_seconds", 60.0),
+        api_provider=getattr(settings, "hermes_api_provider", "") or None,
+        upstream_model=getattr(settings, "hermes_api_model", "") or None,
     )
     router = LLMRouter(
         [(provider, draft_model)],

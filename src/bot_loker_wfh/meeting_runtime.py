@@ -162,7 +162,7 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
                 persona=emp,
                 memory_context=lessons,
                 run_id=meeting_id,
-                session_key=f"bot-loker-wfh:employee:{emp}",
+                session_key=f"bot-loker-wfh:v2:employee:{emp}",
                 session_id=f"loker-meeting-{meeting_id}-{emp}",
             ).text.strip() if llm else ""
             if not llm:
@@ -199,7 +199,7 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             [{"role": "user", "content": decision_prompt}],
             persona=participants[0] if participants else "tegar",
             run_id=meeting_id,
-            session_key=f"bot-loker-wfh:employee:{participants[0] if participants else 'tegar'}",
+            session_key=f"bot-loker-wfh:v2:employee:{participants[0] if participants else 'tegar'}",
             session_id=f"loker-meeting-{meeting_id}-decision",
         ).text.strip() if llm else ""
         if not llm:

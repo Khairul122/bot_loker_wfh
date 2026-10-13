@@ -24,6 +24,8 @@ class Settings:
     llm_provider: str = "hermes"
     hermes_base_url: str = "http://127.0.0.1:8642/v1"
     hermes_api_key: str | None = None
+    hermes_api_provider: str = ""
+    hermes_api_model: str = ""
     hermes_model_draft: str = "loker-draft"
     hermes_model_form: str = "loker-form"
     hermes_model_answer: str = "loker-answer"
@@ -73,6 +75,8 @@ class Settings:
             ),
             hermes_base_url=source.get("HERMES_BASE_URL", "http://127.0.0.1:8642/v1").strip(),
             hermes_api_key=source.get("HERMES_API_KEY") or None,
+            hermes_api_provider=source.get("HERMES_API_PROVIDER", "").strip(),
+            hermes_api_model=source.get("HERMES_API_MODEL", "").strip(),
             hermes_model_draft=source.get("HERMES_MODEL_DRAFT", "loker-draft").strip() or "loker-draft",
             hermes_model_form=source.get("HERMES_MODEL_FORM", "loker-form").strip() or "loker-form",
             hermes_model_answer=source.get("HERMES_MODEL_ANSWER", "loker-answer").strip() or "loker-answer",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 import threading
 import uuid
 from collections.abc import Sequence
@@ -738,5 +739,14 @@ def _run_bot(settings: Settings) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        exit_code = main()
+    except database.DatabaseUnavailable as error:
+        print(f"Gagal terhubung ke database: {database.safe_error_details(error)}", file=sys.stderr)
+        print(database.connection_guidance(error), file=sys.stderr)
+        raise SystemExit(1) from None
+    except KeyboardInterrupt:
+        print("Proses dibatalkan.", file=sys.stderr)
+        raise SystemExit(130) from None
+    raise SystemExit(exit_code)
 

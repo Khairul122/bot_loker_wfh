@@ -496,12 +496,12 @@ def instructed(llm: Callable[[str], str] | None, connection: Connection, employe
     if hasattr(llm, "for_task"):
         task_llm = llm.for_task(
             "draft", persona=employee, memory_context=memory,
-            session_key=f"bot-loker-wfh:employee:{employee}"
+            session_key=f"bot-loker-wfh:v2:employee:{employee}"
         )
     elif hasattr(llm, "with_context"):
         task_llm = llm.with_context(
             persona=employee, memory_context=memory,
-            session_key=f"bot-loker-wfh:employee:{employee}"
+            session_key=f"bot-loker-wfh:v2:employee:{employee}"
         )
     return _Instructed(task_llm, text, lessons, connection, employee)
 
@@ -527,7 +527,7 @@ class _Instructed:
             values = {
                 "persona": employee,
                 "memory_context": "\n".join(part for part in (text, lessons) if part),
-                "session_key": f"bot-loker-wfh:employee:{employee}",
+                "session_key": f"bot-loker-wfh:v2:employee:{employee}",
             }
             values.update(context)
             runner = runner.with_context(**values)
@@ -588,7 +588,7 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
                 employee_llm = llm.with_context(
                     persona=employee,
                     memory_context=memory,
-                    session_key=f"bot-loker-wfh:employee:{employee}",
+                    session_key=f"bot-loker-wfh:v2:employee:{employee}",
                     session_id=f"loker-owner-chat-{employee}",
                     system_prompt="Answer only from the supplied application facts; these override recalled conversation details.",
                 )

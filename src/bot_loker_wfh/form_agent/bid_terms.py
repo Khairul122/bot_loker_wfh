@@ -130,7 +130,7 @@ def choose_bid_terms(
             terms_llm = llm
             if hasattr(llm, "with_context"):
                 terms_llm = llm.with_context(
-                    persona="lido", session_key="bot-loker-wfh:employee:lido",
+                    persona="lido", session_key="bot-loker-wfh:v2:employee:lido",
                     system_prompt="Choose only project scope, duration, weekly hours and milestones. Never decide or submit a bid.",
                 )
             data = json.loads(str(terms_llm(prompt) or ""))
