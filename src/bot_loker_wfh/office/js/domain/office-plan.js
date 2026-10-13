@@ -3,13 +3,13 @@
 import { inRect } from './navgrid.js';
 export const OFFICE = Object.freeze({ minX: -19, maxX: 19, minZ: -14, maxZ: 18, height: 3.2, wall: 0.3 });
 
-const room = (id, name, icon, x0, x1, z0, z1, extra = {}) => Object.freeze({ id, name, icon, x0, x1, z0, z1, ...extra });
+export const room = (id, name, icon, x0, x1, z0, z1, extra = {}) => Object.freeze({ id, name, icon, x0, x1, z0, z1, ...extra });
 export const ROOMS = Object.freeze({
   owner: room('owner', 'Ruang Owner', '👑', -19, -7, -14, -6, { ownerOnly: true }),
   meeting: room('meeting', 'Ruang Rapat', '💬', -7, 5, -14, -6),
   toilet: room('toilet', 'Toilet', '🚻', 5, 10, -14, -6),
   focus: room('focus', 'Ruang Fokus', '📚', 10, 19, -14, -6),
-  work: room('work', 'Ruang Kerja', '💼', -19, 19, -6, 8),
+  work: room('work', 'Ruang Kerja', '💼', -19, 19, -6, 8, { hall: true }),
   kantin: room('kantin', 'Kantin', '🍜', -19, -6, 8, 18),
   lobby: room('lobby', 'Lobi', '🛎️', -6, 6, 8, 18),
   lounge: room('lounge', 'Ruang Santai', '🛋️', 6, 19, 8, 18),
@@ -17,7 +17,7 @@ export const ROOMS = Object.freeze({
 
 // axis 'x': the door sits in a wall that runs along x (a wall at constant z); 'z' the other way.
 // `to` lists the two spaces the door joins ('out' is the campus).
-const door = (id, x, z, axis, width, to, style = 'swing') => Object.freeze({ id, x, z, axis, width, to, style });
+export const door = (id, x, z, axis, width, to, style = 'swing') => Object.freeze({ id, x, z, axis, width, to, style });
 export const DOORS = Object.freeze([
   door('main', 0, 18, 'x', 2.4, ['lobby', 'out'], 'slide'),
   door('west', -19, 0.6, 'z', 2, ['work', 'out']),
@@ -32,7 +32,7 @@ export const DOORS = Object.freeze([
 ]);
 
 // wall centre lines; exterior ones carry windows, `glass` ones are see-through partitions
-const line = (x0, z0, x1, z1, kind) => Object.freeze({ x0, z0, x1, z1, kind });
+export const line = (x0, z0, x1, z1, kind, color) => Object.freeze({ x0, z0, x1, z1, kind, color });
 const { minX, maxX, minZ, maxZ } = OFFICE;
 export const WALL_LINES = Object.freeze([
   line(minX, minZ, maxX, minZ, 'exterior'),
@@ -73,8 +73,9 @@ export function wallPieces(lines = WALL_LINES, doors = DOORS, thickness = OFFICE
   const pieces = [];
   for (const l of lines) {
     const alongX = l.z0 === l.z1;
-    const a = Math.min(alongX ? l.x0 : l.z0, alongX ? l.x1 : l.z1) - (l.kind === 'interior' || l.kind === 'glass' ? 0 : half);
-    const b = Math.max(alongX ? l.x0 : l.z0, alongX ? l.x1 : l.z1) + (l.kind === 'interior' || l.kind === 'glass' ? 0 : half);
+    const inner = l.kind === 'interior' || l.kind === 'glass';
+    const a = Math.min(alongX ? l.x0 : l.z0, alongX ? l.x1 : l.z1) - (inner ? 0 : half);
+    const b = Math.max(alongX ? l.x0 : l.z0, alongX ? l.x1 : l.z1) + (inner ? 0 : half);
     const gaps = doors.filter(d => onLine(d, l))
       .map(d => [(alongX ? d.x : d.z) - d.width / 2, (alongX ? d.x : d.z) + d.width / 2, d])
       .sort((p, q) => p[0] - q[0]);
@@ -82,7 +83,7 @@ export function wallPieces(lines = WALL_LINES, doors = DOORS, thickness = OFFICE
     const cut = (s, e, gapDoor) => {
       if (e - s < 0.01) return;
       const rect = alongX ? [s, e, l.z0 - half, l.z0 + half] : [l.x0 - half, l.x0 + half, s, e];
-      pieces.push({ rect, kind: l.kind, alongX, door: gapDoor || null });
+      pieces.push({ rect, kind: l.kind, color: l.color, alongX, door: gapDoor || null });
     };
     for (const [s, e, d] of gaps) { cut(from, s); cut(s, e, d); from = e; }
     cut(from, b);

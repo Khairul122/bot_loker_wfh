@@ -15,7 +15,7 @@ const PLACES = [
   { icon: '☕', name: 'Kafe Santai', go: () => useSpot('kafe') },
   { hr: 1 },
   { icon: '🏠', name: 'Rumahku', go: () => goHouse(me.home) },
-  { icon: '🏘️', name: 'Komplek Rumah', go: () => me.goTo(0, 0, -16.5) },
+  { icon: '🏘️', name: 'Rumah Susun', go: () => me.goTo(0, 0, -23) },
   { hr: 1 },
   ...DIVS.map(d => ({
     icon: d.icon,
@@ -59,3 +59,15 @@ $('bOver').onclick = () => {
   $('bOver').classList.toggle('on', overview);
   endChat();
 };
+
+// toolbar buttons are icons only: a click shows the name under the button for a moment
+const toolName = document.createElement('div'); toolName.id = 'toolName'; toolName.setAttribute('aria-hidden', 'true'); document.body.append(toolName);
+let toolNameTimer = 0;
+$('tools').addEventListener('click', e => {
+  const b = e.target.closest('.tbtn[data-name]'); if (!b) return;
+  const r = b.getBoundingClientRect();
+  toolName.textContent = b.dataset.name;
+  toolName.style.left = r.left + r.width / 2 + 'px'; toolName.style.top = r.bottom + 6 + 'px';
+  toolName.classList.add('show');
+  clearTimeout(toolNameTimer); toolNameTimer = setTimeout(() => toolName.classList.remove('show'), 1400);
+});

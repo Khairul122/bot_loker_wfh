@@ -43,7 +43,7 @@ export function interact(h) {
   me.goTo(0, x, z);
   burst(new THREE.Vector3(x, -1.8, z), ['📍'], 1);
 }
-const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', beanbag: 'Duduk di bean bag', baca: 'Baca buku', nap: 'Tidur siang', foosball: 'Main foosball', arcade: 'Main game arcade', minum: 'Ambil air minum', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };
+const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', beanbag: 'Duduk di bean bag', baca: 'Baca buku', nap: 'Tidur siang', foosball: 'Main foosball', arcade: 'Main game arcade', minum: 'Ambil air minum', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', cuci: 'Cuci baju', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };
 renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
 let lastHover = 0;
 renderer.domElement.addEventListener('pointermove', e => {
@@ -58,8 +58,8 @@ renderer.domElement.addEventListener('pointermove', e => {
   const h = hitAt(e); const ud = h?.object.userData || {};
   const tip = $('tip');
   if (ud.kind === 'char') { tip.style.display = 'block'; tip.textContent = ud.char === me ? myLook.name : `${ud.char.name} · ${ud.char.def.role}`; }
-  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = (TIP[ud.kindName] || 'Main') + (ud.house ? ` · rumah ${ud.house.name}` : ''); }
-  else if (ud.kind === 'house') { tip.style.display = 'block'; tip.textContent = `🏠 Rumah ${ud.house.name} · masuk`; }
+  else if (ud.kind === 'spot') { tip.style.display = 'block'; tip.textContent = (TIP[ud.kindName] || 'Main') + (ud.house ? ` · unit ${ud.house.name}` : ''); }
+  else if (ud.kind === 'house') { tip.style.display = 'block'; tip.textContent = `🏠 Unit ${ud.house.name} · masuk`; }
   else tip.style.display = 'none';
   tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
   renderer.domElement.style.cursor = ud.kind ? 'pointer' : 'default';

@@ -681,3 +681,10 @@ body.night .manager-tag{background:#574b32;color:#f4dfaa}
 #card .acts button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;font-size:18px;background:transparent;justify-content:center}
 #card .acts button:hover{background:var(--paper-2)}
 #card .acts small{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+
+/* toolbar: icons only; a click shows the button's name for a moment (ui/nav.js) */
+#tools .tbtn span:not(.badge){display:none}
+#tools .tbtn{padding:0;width:40px;justify-content:center}
+#tools .badge{position:absolute;top:1px;right:0;min-width:16px;height:16px;padding:0 4px;font-size:9px}
+#toolName{position:fixed;z-index:30;padding:5px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:800;font-size:12px;pointer-events:none;white-space:nowrap;transform:translateX(-50%);opacity:0;transition:opacity .15s}
+#toolName.show{opacity:1}

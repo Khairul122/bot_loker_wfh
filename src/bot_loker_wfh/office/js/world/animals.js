@@ -14,7 +14,7 @@ let waterRippleTimer = 0;
 
 // Territory bounds
 const TERRITORIES = {
-  taman: { minX: -36, maxX: 36, minZ: -35, maxZ: -18 },
+  taman: { minX: -24, maxX: 24, minZ: -41, maxZ: -35 }, // behind the rumah susun
   rumah: { minX: -28, maxX: 28, minZ: -17.6, maxZ: -15.4 }, // the street between the office and the homes
 };
 
@@ -188,17 +188,17 @@ function createDuck(x, z, variant = 'mallard') {
 // ---------- Initialize Wildlife ----------
 export async function initAnimals() {
   const population = [
-    { id: 'deer', inst: createDeer(14, -24, 'male'), area: 'taman', pos: [14, 0, -24], sound: 'Snort~ 🌿' },
-    { id: 'deer', inst: createDeer(-18, -26, 'female'), area: 'taman', pos: [-18, 0, -26], sound: 'Squeak~ 🌿' },
-    { id: 'rabbit', inst: createRabbit(-12, -22, 'white'), area: 'taman', pos: [-12, 0, -22], sound: 'Wiggle~ 🥕' },
-    { id: 'rabbit', inst: createRabbit(8, -25, 'brown'), area: 'taman', pos: [8, 0, -25], sound: 'Hop hop! 🥕' },
-    { id: 'rabbit', inst: createRabbit(-22, -20, 'gray'), area: 'taman', pos: [-22, 0, -20], sound: 'Sniff~ 🥕' },
+    { id: 'deer', inst: createDeer(14, -38, 'male'), area: 'taman', pos: [14, 0, -38], sound: 'Snort~ 🌿' },
+    { id: 'deer', inst: createDeer(-14, -38, 'female'), area: 'taman', pos: [-14, 0, -38], sound: 'Squeak~ 🌿' },
+    { id: 'rabbit', inst: createRabbit(-6, -40, 'white'), area: 'taman', pos: [-6, 0, -40], sound: 'Wiggle~ 🥕' },
+    { id: 'rabbit', inst: createRabbit(8, -36, 'brown'), area: 'taman', pos: [8, 0, -36], sound: 'Hop hop! 🥕' },
+    { id: 'rabbit', inst: createRabbit(-20, -36, 'gray'), area: 'taman', pos: [-20, 0, -36], sound: 'Sniff~ 🥕' },
     { id: 'bird', inst: createBird(0, 16, -18, 'cyan'), area: 'sky', pos: [0, 16, -18], sound: 'Chirp! 🎵' },
     { id: 'bird', inst: createBird(-10, 15, -10, 'scarlet'), area: 'sky', pos: [-10, 15, -10], sound: 'Tweet! 🎶' },
-    { id: 'cat', inst: createCat(-6, -14, 'orange'), area: 'rumah', pos: [-6, 0, -14], sound: 'Meow~ 🐱' },
-    { id: 'cat', inst: createCat(10, -12, 'tuxedo'), area: 'rumah', pos: [10, 0, -12], sound: 'Purr~ 🐾' },
-    { id: 'dog', inst: createDog(6, -14, 'beagle'), area: 'rumah', pos: [6, 0, -14], sound: 'Guk guk! 🐕' },
-    { id: 'dog', inst: createDog(-14, -12, 'golden'), area: 'rumah', pos: [-14, 0, -12], sound: 'Woof woof! 🐾' },
+    { id: 'cat', inst: createCat(-6, -16.5, 'orange'), area: 'rumah', pos: [-6, 0, -16.5], sound: 'Meow~ 🐱' },
+    { id: 'cat', inst: createCat(10, -17, 'tuxedo'), area: 'rumah', pos: [10, 0, -17], sound: 'Purr~ 🐾' },
+    { id: 'dog', inst: createDog(6, -16, 'beagle'), area: 'rumah', pos: [6, 0, -16], sound: 'Guk guk! 🐕' },
+    { id: 'dog', inst: createDog(-14, -17, 'golden'), area: 'rumah', pos: [-14, 0, -17], sound: 'Woof woof! 🐾' },
     // Bebek Kolam (3 ekor: Mallard, Pekin White, & Duckling)
     { id: 'duck', inst: createDuck(-30, -6, 'mallard'), area: 'pond', pos: [-30, 0.1, -6], sound: 'Kwek kwek! 🦆', offset: 0 },
     { id: 'duck', inst: createDuck(-28, -5, 'white'), area: 'pond', pos: [-28, 0.1, -5], sound: 'Quack~ 🦆', offset: 2.2 },

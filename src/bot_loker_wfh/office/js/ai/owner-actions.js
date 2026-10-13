@@ -26,7 +26,7 @@ export function sitOwner(openPanel = true) {
 // houses: walk in through the door
 export function goHouse(h) { me.goTo(0, h.x + 0.4, h.z + 0.6); }
 
-const SAY = { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di teras… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️', beanbag: 'Tenggelam di bean bag 😌', baca: 'Baca buku sebentar 📚', nap: 'Tidur siang 15 menit… 😴', foosball: 'Gol! ⚽', arcade: 'Satu ronde lagi 🕹️', minum: 'Minum dulu biar segar 💧', toilet: 'Permisi… 🚻', wastafel: 'Cuci tangan dulu 🧼', kasur: 'Rebahan dulu… 😴', tv: 'Nonton TV ah 📺', kulkas: 'Ambil minum dingin 🥤' };
+const SAY = { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di teras… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️', beanbag: 'Tenggelam di bean bag 😌', baca: 'Baca buku sebentar 📚', nap: 'Tidur siang 15 menit… 😴', foosball: 'Gol! ⚽', arcade: 'Satu ronde lagi 🕹️', minum: 'Minum dulu biar segar 💧', cuci: 'Nyuci baju dulu 🧺', toilet: 'Permisi… 🚻', wastafel: 'Cuci tangan dulu 🧼', kasur: 'Rebahan dulu… 😴', tv: 'Nonton TV ah 📺', kulkas: 'Ambil minum dingin 🥤' };
 export function useSpot(kindName, house) {
   endChat();
   if (kindName === 'hoop') return goShoot();

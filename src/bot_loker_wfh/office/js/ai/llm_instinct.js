@@ -6,6 +6,7 @@ import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from './routine.js';
 import { pick, rand } from '../core/util.js';
 import { roomAt } from '../domain/office-plan.js';
+import { inRusun } from '../domain/rusun-plan.js';
 import { DIVS } from '../buildings/divisions.js';
 import { post } from '../infrastructure/office-api.js';
 
@@ -192,6 +193,7 @@ function getLocationLabel(x, z) {
   if (dPond < 6) return 'Kolam Bebek';
   const room = roomAt({ x, z });
   if (room) return room.name;
+  if (inRusun({ x, z })) return 'Rumah Susun';
   if (z < -18) return 'Taman Terbuka';
   return 'Area Outdoor';
 }

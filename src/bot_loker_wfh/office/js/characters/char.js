@@ -79,7 +79,8 @@ export class Char {
     let bodyY = 0, legA = 0, armL = 0, armR = 0, armLz = 0, armRz = 0, headX = 0, headZ = 0, bodyRx = 0, rootY = this.y, extraRy = 0;
     if (walking) { legA = s * 0.6; armL = -s * 0.5; armR = s * 0.5; bodyY = Math.abs(s) * 0.05; }
     else if (this.pose === 'sit' || this.pose === 'work') {
-      bodyY = -0.18; legA = -1.45; P.legs.forEach(l => l.rotation.x = legA);
+      bodyY = this.pose === 'sit' && this.spot?.kind === 'sofa' ? -0.02 : -0.18;
+      legA = -1.45; P.legs.forEach(l => l.rotation.x = legA);
       if (this.pose === 'work' && this.mood !== 'ngantuk') { armL = -1.1 + Math.sin(this.t * 14) * 0.1; armR = -1.1 + Math.sin(this.t * 14 + 1.5) * 0.1; }
       else { armL = armR = -0.3; }
     } else if (this.pose === 'floor') { bodyY = -0.6; legA = -1.5; armL = armR = 0.3; }
