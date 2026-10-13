@@ -527,14 +527,18 @@ class OfficeWork:
                             result = run_auto_bids(
                                 connection, self.freelancer_bid, self._tell, self.freelancer_reconcile,
                             )
-                            self.last = {"source": "auto_bid", "sent": result.get("sent", 0), "at": self.clock()}
-                            if result.get("sent") or result.get("already_submitted"):
-                                self.log_work(
-                                    "faris", "auto_bid", sent=result.get("sent", 0),
-                                    already_submitted=result.get("already_submitted", 0),
-                                )
-                            elif result.get("skipped") not in (None, "no_candidates", "disabled"):
-                                self.log_work("faris", "auto_bid", status="skipped", reason=result["skipped"])
+                            sent = result.get("sent", 0)
+                            already_submitted = result.get("already_submitted", 0)
+                            skipped = result.get("skipped")
+                            self.last = {
+                                "source": "auto_bid", "sent": sent,
+                                "already_submitted": already_submitted, "skipped": skipped,
+                                "at": self.clock(),
+                            }
+                            if sent or already_submitted:
+                                self.log_work("faris", "auto_bid", count=sent + already_submitted, mode="sent")
+                            elif skipped not in (None, "no_candidates", "disabled"):
+                                self.log_work("faris", "auto_bid", status="skipped", mode=skipped)
                         except Exception as error:
                             self.last = {"source": "auto_bid", "error": True, "at": self.clock()}
                             self.log_failure("faris", "auto_bid", error)
