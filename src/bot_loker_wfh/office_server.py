@@ -944,12 +944,15 @@ class _Handler(SimpleHTTPRequestHandler):
                 "ok": bool(ready),
                 "status": readiness.get("status", "unknown"),
                 "version": readiness.get("version", ""),
+                "provider": settings.hermes_api_provider or "profile default",
+                "upstream_model": settings.hermes_api_model or "",
                 "toolsets": sorted(actual),
                 "models": readiness.get("models", []),
                 "error": None if ready else "Periksa gateway, model aliases, dan allowlist skills/memory/delegation",
             }
         except (ValueError, OSError, RuntimeError):
-            return {"ok": False, "status": "misconfigured", "toolsets": [], "error": "Hermes configuration is invalid"}
+            return {"ok": False, "status": "misconfigured", "provider": "unknown", "upstream_model": "",
+                    "toolsets": [], "error": "Hermes configuration is invalid"}
 
     def _list_hermes_models(self):
         """List model aliases advertised by Hermes; provider inventory stays in Hermes."""

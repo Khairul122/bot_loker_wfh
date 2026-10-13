@@ -61,6 +61,31 @@ class OfficeHttpTest(unittest.TestCase):
         self.assertIn("#", data["markdown"])
         self.assertEqual(self.call("employee-skills?id=../reno")[0], 404)
 
+    def test_llm_readiness_reports_configured_upstream_route(self):
+        from types import SimpleNamespace
+
+        settings = SimpleNamespace(
+            hermes_base_url="http://127.0.0.1:8642/v1",
+            hermes_api_key="secret-not-returned",
+            hermes_model_draft="loker-draft",
+            hermes_model_form="loker-form",
+            hermes_model_answer="loker-answer",
+            hermes_api_provider="custom:9router-local",
+            hermes_api_model="LokerHouse",
+            llm_timeout_seconds=30,
+        )
+        readiness = {
+            "ok": True, "status": "ready", "version": "0.21.7",
+            "toolsets": ["skills", "memory", "delegation"], "models": ["loker-answer"],
+        }
+        with mock.patch("bot_loker_wfh.config.Settings.from_environment", return_value=settings), \
+             mock.patch("bot_loker_wfh.llm.HermesAgentClient.check_readiness", return_value=readiness):
+            status, data = self.call("llm/test")
+
+        self.assertEqual(status, 200)
+        self.assertEqual((data["provider"], data["upstream_model"]), ("custom:9router-local", "LokerHouse"))
+        self.assertNotIn("secret-not-returned", json.dumps(data))
+
     def test_post_rejects_dns_rebinding_origin_and_host(self):
         status, data = self.call(
             "settings",

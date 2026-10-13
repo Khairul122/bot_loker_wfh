@@ -13,20 +13,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from bot_loker_wfh.company import EMPLOYEES
 from bot_loker_wfh.llm_calls import LLMCallRecorder
 
 HERMES_REQUIRED_TOOLSETS = frozenset({"skills", "memory", "delegation"})
 HERMES_REQUIRED_TOOLS = frozenset({"skills_list", "skill_view", "memory", "delegate_task"})
 HERMES_REQUIRED_SKILLS = frozenset(
-    {
-        "loker-employee-tegar", "loker-employee-tara", "loker-employee-tama",
-        "loker-employee-subi", "loker-employee-sari", "loker-employee-rima",
-        "loker-employee-reno", "loker-employee-kalia", "loker-employee-eli",
-        "loker-employee-nara", "loker-employee-ivan", "loker-employee-mira",
-        "loker-employee-dela", "loker-employee-gery", "loker-employee-cora",
-        "loker-employee-lulu", "loker-employee-bimo", "loker-employee-faris",
-        "loker-employee-lido", "loker-employee-leva",
-    }
+    f"loker-employee-{employee['id']}" for employee in EMPLOYEES
 )
 
 
@@ -133,8 +126,11 @@ class HermesAgentClient:
             raise
         usage = result.get("usage", {}) if isinstance(result.get("usage"), dict) else {}
         runtime = result.get("runtime", {}) if isinstance(result.get("runtime"), dict) else {}
-        served_model = runtime.get("model") or target_model
-        served_provider = runtime.get("provider") or "hermes"
+        # Hermes may omit runtime metadata from its OpenAI-compatible response. In
+        # that case report the explicitly requested upstream route, not the local
+        # Hermes alias, so office logs reflect the provider that was configured.
+        served_model = runtime.get("model") or self.upstream_model or result.get("model") or target_model
+        served_provider = self.api_provider or runtime.get("provider") or "hermes"
         return LLMResult(
             text=content.strip(),
             provider=str(served_provider),
@@ -493,8 +489,8 @@ class LLMRouter:
                     if self.recorder:
                         self.recorder.record_call(
                             task=task,
-                            provider=provider_name,
-                            model=requested_model,
+                            provider=getattr(provider, "api_provider", None) or provider_name,
+                            model=getattr(provider, "upstream_model", None) or requested_model,
                             status="error",
                             attempt=attempt,
                             run_id=run_id,
@@ -510,8 +506,8 @@ class LLMRouter:
                     if self.recorder:
                         self.recorder.record_call(
                             task=task,
-                            provider=provider_name,
-                            model=requested_model,
+                            provider=getattr(provider, "api_provider", None) or provider_name,
+                            model=getattr(provider, "upstream_model", None) or requested_model,
                             status="error",
                             attempt=attempt,
                             run_id=run_id,
@@ -526,7 +522,7 @@ class LLMRouter:
     def __call__(self, prompt: str) -> str:
         """Plain prompt -> text, so callers can treat the router like a single provider."""
         return self.for_task(
-            "draft", persona="leva", session_key="bot-loker-wfh:v2:employee:leva"
+            "draft", persona="leva", session_key="bot-loker-wfh:v3:employee:leva"
         )(prompt)
 
     def for_task(

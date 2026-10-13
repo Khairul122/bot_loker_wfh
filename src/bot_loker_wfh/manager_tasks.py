@@ -147,8 +147,8 @@ def division_brief(connection: Connection, manager: str, llm) -> dict:
     context = {
         "persona": manager,
         "memory_context": memory,
-        "session_key": f"loker:manager:{division['id']}",
-        "session_id": f"loker-manager-brief-{division['id']}",
+        "session_key": f"bot-loker-wfh:v3:employee:{manager}",
+        "session_id": f"loker-manager-brief-{manager}",
         "system_prompt": (
             f"You are the accountable manager for the {division['name']} division. "
             "Review team performance, set internal priorities, and propose bounded assignments. "

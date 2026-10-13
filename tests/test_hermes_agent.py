@@ -52,6 +52,33 @@ class HermesClientTest(unittest.TestCase):
         self.assertEqual(result.text, "Draft ready")
         self.assertEqual((result.prompt_tokens, result.completion_tokens), (12, 4))
 
+    def test_explicit_custom_route_is_reported_when_runtime_metadata_is_omitted(self):
+        client = HermesAgentClient(
+            "http://127.0.0.1:8642/p/loker-wfh/v1",
+            "test-token",
+            "loker-answer",
+            api_provider="custom:9router-local",
+            upstream_model="LokerHouse",
+        )
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "model": "loker-wfh",
+            "choices": [{"message": {"content": "Skill berhasil dimuat."}}],
+        }).encode()
+        response.__enter__.return_value = response
+
+        with patch("bot_loker_wfh.llm.urlopen", return_value=response) as request_call:
+            result = client.complete(
+                [{"role": "user", "content": "Load Cora's employee skill."}],
+                model="loker-answer",
+                session_key="bot-loker-wfh:v3:employee:cora",
+            )
+
+        payload = json.loads(request_call.call_args.args[0].data)
+        self.assertEqual(payload["provider"], "custom:9router-local")
+        self.assertEqual(payload["model"], "LokerHouse")
+        self.assertEqual((result.provider, result.model), ("custom:9router-local", "LokerHouse"))
+
     def test_missing_key_fails_closed_without_network(self):
         with patch("bot_loker_wfh.llm.urlopen") as request_call:
             with self.assertRaises(LLMError) as raised:
@@ -123,6 +150,14 @@ class HermesClientTest(unittest.TestCase):
             readiness = client.check_readiness()
         self.assertFalse(readiness["ok"])
         self.assertEqual(len(readiness["missing_skills"]), len(HERMES_REQUIRED_SKILLS) - 1)
+
+    def test_required_skills_cover_the_employee_catalog(self):
+        from bot_loker_wfh.company import EMPLOYEES
+
+        self.assertEqual(
+            HERMES_REQUIRED_SKILLS,
+            {f"loker-employee-{employee['id']}" for employee in EMPLOYEES},
+        )
 
     def test_readiness_without_key_makes_no_request(self):
         client = self.client("")
@@ -216,6 +251,25 @@ class HermesRouterTest(unittest.TestCase):
             router.complete("draft", [{"role": "user", "content": "x"}])
         self.assertEqual(recorder.record_call.call_args.kwargs["status"], "error")
         self.assertEqual(recorder.record_call.call_args.kwargs["error_code"], "network_error")
+
+    def test_router_records_requested_custom_route_when_completion_fails(self):
+        recorder = MagicMock()
+        provider = HermesAgentClient(
+            "http://127.0.0.1:8642/p/loker-wfh/v1",
+            "test-token",
+            "loker-answer",
+            api_provider="custom:9router-local",
+            upstream_model="LokerHouse",
+        )
+        with patch.object(provider, "complete", side_effect=LLMError("rate_limited")):
+            router = LLMRouter([(provider, "loker-answer")], recorder=recorder)
+            with self.assertRaises(LLMError):
+                router.complete("answer", [{"role": "user", "content": "test"}])
+
+        recorded = recorder.record_call.call_args.kwargs
+        self.assertEqual(recorded["provider"], "custom:9router-local")
+        self.assertEqual(recorded["model"], "LokerHouse")
+        self.assertEqual(recorded["status"], "error")
 
     def test_template_fallback_does_not_use_network(self):
         provider = MagicMock()

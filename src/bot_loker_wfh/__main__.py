@@ -267,9 +267,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         llm = create_llm_from_settings(settings, record_calls=True)
         with database.session() as connection:
             portfolio = load_portfolio(connection)
+            cora_llm = office_desk.instructed(llm, connection, "cora")
             try:
-                proposal = draft_proposal(connection, args.lead_id, profile, llm, portfolio=portfolio)
-                comment = draft_comment(connection, args.lead_id, llm, portfolio=portfolio)
+                proposal = draft_proposal(connection, args.lead_id, profile, cora_llm, portfolio=portfolio)
+                comment = draft_comment(connection, args.lead_id, cora_llm, portfolio=portfolio)
             except KeyError:
                 print(f"lead not found id={args.lead_id}")
                 return 1
@@ -717,7 +718,9 @@ def _run_bot(settings: Settings) -> int:
         connection,
         client=TelegramClient(settings.telegram_bot_token),
         allowed_chat_ids=settings.telegram_allowed_chat_ids,
-        draft_service=DraftService(connection, profile, llm=llm),
+        draft_service=DraftService(
+            connection, profile, llm=office_desk.instructed(llm, connection, "leva")
+        ),
         form_assist_enabled=settings.form_assist_enabled,
         lead_service=_lead_service(connection, profile, settings),
         pipeline=JobPipeline(connection, profile),

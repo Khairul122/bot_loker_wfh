@@ -72,7 +72,7 @@ def test_hermes_manager_brief_uses_manager_memory_and_only_recommends_own_team(c
     context = router.for_task.call_args.kwargs
     assert router.for_task.call_args.args == ("manager",)
     assert context["persona"] == "mira"
-    assert context["session_key"] == "loker:manager:freelance"
+    assert context["session_key"] == "bot-loker-wfh:v3:employee:mira"
     assert "accountable manager" in context["system_prompt"]
     prompt = runner.call_args.args[0]
     assert '"division": "Proyek Freelance"' in prompt

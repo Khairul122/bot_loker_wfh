@@ -336,7 +336,12 @@ class FormAgent:
             print("Field terbaca: " + "; ".join(f"{f.label[:40]} [{f.field_class}]" for f in fields), flush=True)
 
             # 5. Rencanakan
-            planner = FormPlanner(self.router, answers_store, ai_answers=self.ai_answers)
+            planner = FormPlanner(
+                self.router,
+                answers_store,
+                ai_answers=self.ai_answers,
+                persona="bimo" if lead_id else "faris",
+            )
             resolver = ValueResolver.from_files(
                 self.applicant_path, self.answers_path, cover_letter
             )

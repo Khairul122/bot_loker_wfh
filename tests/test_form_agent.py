@@ -154,6 +154,27 @@ class TestFormAgent(unittest.TestCase):
 
         self.assertIn("Python developer with 5 years experience", user_msg)
         self.assertNotIn("Cover Letter", user_msg)
+        self.assertEqual(router.complete.call_args.kwargs["persona"], "faris")
+        self.assertEqual(
+            router.complete.call_args.kwargs["session_key"],
+            "bot-loker-wfh:v3:employee:faris",
+        )
+
+    def test_lead_form_planner_uses_bid_executor_persona(self):
+        from unittest.mock import MagicMock
+        from bot_loker_wfh.form_agent.planner import FormPlanner
+
+        router = MagicMock()
+        router.complete.return_value = MagicMock(text="Sample answer")
+        planner = FormPlanner(router, None, persona="bimo")
+
+        planner.generate_answer("Describe your proposal")
+
+        self.assertEqual(router.complete.call_args.kwargs["persona"], "bimo")
+        self.assertEqual(
+            router.complete.call_args.kwargs["session_key"],
+            "bot-loker-wfh:v3:employee:bimo",
+        )
 
     def test_ai_answers_off_returns_needs_user_without_calling_router(self):
         from unittest.mock import MagicMock

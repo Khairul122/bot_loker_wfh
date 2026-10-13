@@ -180,6 +180,46 @@ class DeskTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             desk.ask(self.connection, None, "reno", "   ")
 
+    def test_employee_chat_passes_persona_session_and_learnings_to_ai(self):
+        from bot_loker_wfh.employee_memory import remember
+
+        contexts = []
+        prompts = []
+
+        class ContextLLM:
+            def with_context(self, **context):
+                contexts.append(context)
+                return lambda prompt: prompts.append(prompt) or "Aku akan menerapkan koreksi itu."
+
+        desk.set_instruction(self.connection, "reno", "Utamakan lowongan remote penuh waktu")
+        remember(self.connection, "reno", "Jangan kirim lamaran tanpa persetujuan owner", kind="preference")
+        answer = desk.ask(self.connection, ContextLLM(), "reno", "Apa yang kamu pelajari?")
+
+        self.assertEqual(answer, {"answer": "Aku akan menerapkan koreksi itu.", "ai": True})
+        self.assertEqual(contexts[0]["persona"], "reno")
+        self.assertEqual(contexts[0]["session_key"], "bot-loker-wfh:v3:employee:reno")
+        self.assertIn("Utamakan lowongan remote penuh waktu", contexts[0]["memory_context"])
+        self.assertIn("Jangan kirim lamaran tanpa persetujuan owner", contexts[0]["memory_context"])
+        self.assertIn("fakta di bawah", prompts[0])
+
+    def test_all_employee_chats_use_distinct_personas_and_sessions(self):
+        contexts = []
+
+        class ContextLLM:
+            def with_context(self, **context):
+                contexts.append(context)
+                return lambda prompt: "Siap."
+
+        for employee in desk.EMPLOYEES:
+            self.assertTrue(desk.ask(self.connection, ContextLLM(), employee, "Apa fokusmu?")["ai"])
+
+        self.assertEqual(len(contexts), len(desk.EMPLOYEES))
+        self.assertEqual({item["persona"] for item in contexts}, set(desk.EMPLOYEES))
+        self.assertEqual(
+            {item["session_key"] for item in contexts},
+            {f"bot-loker-wfh:v3:employee:{employee}" for employee in desk.EMPLOYEES},
+        )
+
 
 class OfficeWorkDeskTest(unittest.TestCase):
     def setUp(self):

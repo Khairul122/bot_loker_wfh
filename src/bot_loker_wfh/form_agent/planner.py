@@ -46,10 +46,12 @@ class FormPlanner:
         answers_store: AnswersStore | None = None,
         *,
         ai_answers: bool = True,
+        persona: str = "faris",
     ):
         self.router = router
         self.answers_store = answers_store or AnswersStore([])
         self.ai_answers = ai_answers
+        self.persona = persona
 
     def plan(
         self,
@@ -98,8 +100,8 @@ class FormPlanner:
 
         try:
             res = self.router.complete(
-                "form", messages, json_mode=True, persona="leva",
-                session_key="bot-loker-wfh:v2:employee:leva",
+                "form", messages, json_mode=True, persona=self.persona,
+                session_key=f"bot-loker-wfh:v3:employee:{self.persona}",
             )
             data = json.loads(res.text)
             raw_actions = data.get("actions", [])
@@ -147,8 +149,8 @@ class FormPlanner:
         ]
         try:
             res = self.router.complete(
-                "answer", messages, json_mode=False, persona="leva",
-                session_key="bot-loker-wfh:v2:employee:leva",
+                "answer", messages, json_mode=False, persona=self.persona,
+                session_key=f"bot-loker-wfh:v3:employee:{self.persona}",
             )
             ans = res.text.strip()
             if "NEEDS_USER" in ans:

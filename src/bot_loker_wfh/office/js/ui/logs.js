@@ -145,7 +145,8 @@ function renderAIStatus(result) {
   }
   const readiness = result.data || {};
   if (readiness.ok) {
-    aiState.textContent = 'Hermes siap · alias rapat loker-answer tersedia (upstream mengikuti route profile).';
+    const route = [readiness.provider, readiness.upstream_model].filter(Boolean).join(' / ');
+    aiState.textContent = `Hermes siap${route ? ` · ${route}` : ''} · alias rapat loker-answer tersedia.`;
     return;
   }
   const missingModels = readiness.missing_models || [];
