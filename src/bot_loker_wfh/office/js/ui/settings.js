@@ -201,14 +201,24 @@ function renderLLMPanel() {
 
 function renderFreelancePanel() {
   const container = el('div');
+  const s = settingsData || {};
+  const valueOf = key => s[key]?.value ?? s[key];
   container.append(
-    el('h4', '', 'Draf otomatis, pengiriman dengan persetujuan owner'),
-    el('p', 'settings-note', 'Saat mode kerja otomatis aktif, karyawan dapat mencari proyek dan menyiapkan draf proposal. Draf menunggu di Papan Proyek; proposal eksternal hanya dikirim setelah owner meninjau dan menyetujuinya.'),
+    el('h4', '', 'Bid otomatis Freelancer.com'),
+    el('p', 'settings-note', 'Saat aktif, proposal dan harga yang sudah disiapkan AI dikirim melalui API resmi tanpa persetujuan per proyek. Aktifkan hanya jika kamu menyetujui pengiriman otomatis atas nama akun Freelancer.'),
+    createSelect('auto_bid_enabled', 'Kirim bid otomatis', [
+      { value: '0', label: 'Mati' },
+      { value: '1', label: 'Aktif' },
+    ], valueOf('auto_bid_enabled') ?? '0'),
+    createNumberInput('auto_bid_max_per_day', 'Batas bid per 24 jam', valueOf('auto_bid_max_per_day') ?? 5, 1, 50),
+    createNumberInput('auto_bid_min_score', 'Skor kecocokan minimum', valueOf('auto_bid_min_score') ?? 0.7, 0, 1, 0.05),
+    createNumberInput('auto_bid_max_competitors', 'Bid pesaing maksimum', valueOf('auto_bid_max_competitors') ?? 40, 1, 500),
+    createNumberInput('auto_bid_max_age_hours', 'Usia proyek maksimum (jam)', valueOf('auto_bid_max_age_hours') ?? 24, 1, 720),
     el('hr', '', ''),
     createList([
-      'Pencarian dan analisis berjalan otomatis sesuai jadwal kantor.',
-      'Setiap draf dapat ditinjau dan diedit sebelum dikirim.',
-      'Persetujuan owner menjadi langkah wajib untuk setiap pengiriman eksternal.',
+      'Hanya Freelancer.com; proyek hourly, harga tidak terbaca, dan budget USD/EUR/GBP/AUD/CAD/NZD/SGD/CHF ≥ 2.500 dilewati.',
+      'Proyek harus lolos skor, umur, jumlah pesaing, proposal minimal 100 karakter, harga, serta batas bid harian.',
+      'Kesalahan proyek tidak dikirim ulang otomatis; masalah token atau kuota mematikan auto-bid dan memberi tahu owner.',
     ]),
   );
   return container;

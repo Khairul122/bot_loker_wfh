@@ -1,7 +1,8 @@
 """Owner workflow behind the 3D office: the auto-work cycle and the approval inbox.
 
-Nothing is ever sent without the owner: the cycle only searches, scores and drafts.
-Applying starts after an explicit approval, and the form filler stops before submit.
+The cycle searches, scores, and drafts. When the owner enables Freelancer auto-bidding,
+eligible fixed-price proposals are sent through the official API under the configured limits.
+Other external applications still use their existing approval and form-assist rules.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from .freelancer_api import FreelancerError
+from .auto_bid import run_auto_bids
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
     approve_lead, edit_bid_terms, get_bid_terms, lead_counts, list_leads, save_proposal, set_lead_status, undrafted_leads,
@@ -518,6 +520,24 @@ class OfficeWork:
                         except Exception as error:
                             self.last = {"source": "proposal", "error": True, "at": self.clock()}
                             self.log_failure("cora", "proposal", error)
+                if self.auto and self.freelancer_bid is not None:
+                    self.busy = "auto_bid"
+                    with self.lock:
+                        try:
+                            result = run_auto_bids(
+                                connection, self.freelancer_bid, self._tell, self.freelancer_reconcile,
+                            )
+                            self.last = {"source": "auto_bid", "sent": result.get("sent", 0), "at": self.clock()}
+                            if result.get("sent") or result.get("already_submitted"):
+                                self.log_work(
+                                    "faris", "auto_bid", sent=result.get("sent", 0),
+                                    already_submitted=result.get("already_submitted", 0),
+                                )
+                            elif result.get("skipped") not in (None, "no_candidates", "disabled"):
+                                self.log_work("faris", "auto_bid", status="skipped", reason=result["skipped"])
+                        except Exception as error:
+                            self.last = {"source": "auto_bid", "error": True, "at": self.clock()}
+                            self.log_failure("faris", "auto_bid", error)
         finally:
             self.busy = None
 

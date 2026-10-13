@@ -25,7 +25,7 @@ class OfficeHttpTest(unittest.TestCase):
         apply_schema(connection)
         connection.close()
         work = OfficeWork(hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
-                          interval_seconds=3600, lock=threading.Lock())
+                          interval_seconds=3600, lock=threading.Lock(), freelancer_bid=lambda c, lead: "sent")
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_Handler, work=work))
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}/"
@@ -236,7 +236,7 @@ class SettingsHttpTest(unittest.TestCase):
         with database.connect() as connection:
             apply_schema(connection)
         work = OfficeWork(hunters={}, draft_service_for=lambda c: None, form_assist_enabled=False,
-                          interval_seconds=3600, lock=threading.Lock())
+                          interval_seconds=3600, lock=threading.Lock(), freelancer_bid=lambda c, lead: "sent")
         self.db = db
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), partial(_Handler, work=work))
         self.server.daemon_threads = True
@@ -366,9 +366,12 @@ class SettingsHttpTest(unittest.TestCase):
 
     def test_auto_bid_settings_default_off_roundtrip_and_validation(self):
         self.assertEqual(self.call("settings.json")[1]["auto_bid_enabled"]["value"], "0")
-        status, data = self.call("settings", {"values": {"auto_bid_enabled": "1", "auto_bid_max_per_day": "3"}})
-        self.assertEqual((status, data), (409, {"error": "owner_approval_required"}))
-        self.assertEqual(self.call("settings.json")[1]["auto_bid_enabled"]["value"], "0")
+        with mock.patch.object(OfficeWork, "set_auto") as enable_auto:
+            status, data = self.call("settings", {"values": {"auto_bid_enabled": "1", "auto_bid_max_per_day": "3"}})
+        enable_auto.assert_called_once_with(True)
+        self.assertEqual(status, 200)
+        self.assertEqual(data["auto_bid_enabled"]["value"], "1")
+        self.assertEqual(data["auto_bid_max_per_day"]["value"], "3")
         self.assertEqual(self.call("settings", {"key": "auto_bid_enabled", "value": "2"})[0], 400)
         self.assertEqual(self.call("settings", {"key": "auto_bid_max_per_day", "value": "500"})[0], 400)
 

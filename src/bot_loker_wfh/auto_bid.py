@@ -6,9 +6,9 @@ Everything is bounded by settings the owner controls (all stored in Supabase `ap
   auto_bid_min_score      minimum relevance score of the project
   auto_bid_max_competitors  skip projects that already have more bids than this
   auto_bid_max_age_hours  only fresh projects (an early bid wins)
-Only Freelancer.com (official API) is automatic. The first refusal from the platform stops the
-run, and a refused project is never retried by itself; a token/quota problem switches auto-bid off
-and tells the owner.
+Only Freelancer.com (official API) is automatic. Bids use the saved proposal and terms, and each
+lead is atomically claimed before submission. A failed lead is not retried automatically; repeated
+refusals are bounded, and account/token failures switch auto-bid off and alert the owner.
 """
 
 from __future__ import annotations
@@ -128,5 +128,77 @@ def run_auto_bids(
     connection: Connection, place: Callable[[Connection, str], Any] | None, notify: Callable[[str], None] | None = None,
     reconcile: Callable[[Connection], int] | None = None,
 ) -> dict[str, Any]:
-    """Legacy guard: automatic external bids are disabled; owner approval is required."""
-    return {"sent": 0, "skipped": "owner_approval_required"}
+    """Send eligible Freelancer drafts while auto-bid is enabled and within its daily cap."""
+    cfg = config(connection)
+    if not cfg["enabled"]:
+        return {"sent": 0, "skipped": "disabled"}
+    if place is None:
+        return {"sent": 0, "skipped": "freelancer_api_not_configured"}
+
+    try:
+        reconciled = reconcile(connection) if reconcile is not None else 0
+    except Exception:
+        return {"sent": 0, "skipped": "reconciliation_failed"}
+
+    remaining = max(0, int(cfg["per_day"]) - sent_last_24h(connection))
+    if not remaining:
+        return {"sent": 0, "skipped": "daily_limit", "reconciled": reconciled}
+    selected = candidates(connection, cfg, remaining)
+    if not selected:
+        return {"sent": 0, "skipped": "no_candidates", "reconciled": reconciled}
+
+    sent = 0
+    already_sent = 0
+    failures = 0
+    for lead_id, _title in selected:
+        # Respect a concurrent owner pause and the rolling cap between submissions.
+        cfg = config(connection)
+        if not cfg["enabled"]:
+            return {"sent": sent, "skipped": "disabled_during_run", "reconciled": reconciled}
+        if sent_last_24h(connection) >= int(cfg["per_day"]):
+            return {"sent": sent, "skipped": "daily_limit", "reconciled": reconciled}
+
+        try:
+            approve_lead(connection, lead_id, auto=True)
+            outcome = place(connection, lead_id)
+        except LeadClaimLost:
+            continue
+        except Exception as error:
+            row = connection.execute("SELECT status FROM leads WHERE id = ?", (lead_id,)).fetchone()
+            if row and row[0] == "SUBMITTED":
+                # The API may have succeeded just before a local reporting failure.
+                sent += 1
+                if notify:
+                    notify(bid_success_text(connection, lead_id, auto=True))
+                continue
+
+            reason = str(error) if isinstance(error, (FreelancerError, ValueError)) else "bid gagal dikirim; periksa koneksi dan log"
+            connection.execute(
+                "UPDATE leads SET status = CASE WHEN status = 'APPROVED' THEN 'INTERESTED' ELSE status END, "
+                "bid_auto = 0, bid_error = ? WHERE id = ? AND status <> 'SUBMITTED'",
+                (reason[:500], lead_id),
+            )
+            connection.commit()
+            if notify:
+                notify(bid_failure_text(connection, lead_id, reason))
+            failures += 1
+            if any(marker in reason.lower() for marker in FATAL):
+                set_setting(connection, "auto_bid_enabled", "0")
+                if notify:
+                    notify("⏸️ Auto-bid dimatikan karena masalah akun/token Freelancer. Perbaiki akses, lalu aktifkan kembali di Pengaturan Freelance.")
+                return {"sent": sent, "skipped": "account_error", "reconciled": reconciled}
+            if failures >= MAX_FAILURES_PER_PASS:
+                break
+            continue
+
+        if outcome == "already":
+            # The account already bid manually; record the platform state without counting it as auto.
+            connection.execute("UPDATE leads SET bid_auto = 0 WHERE id = ?", (lead_id,))
+            connection.commit()
+            already_sent += 1
+        else:
+            sent += 1
+        if notify:
+            notify(bid_success_text(connection, lead_id, auto=(outcome != "already")))
+
+    return {"sent": sent, "already_submitted": already_sent, "reconciled": reconciled}

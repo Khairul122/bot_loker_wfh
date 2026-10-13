@@ -1,8 +1,8 @@
-"""Place an approved bid on Freelancer.com through its official API (no browser involved).
+"""Place a claimed bid on Freelancer.com through its official API (no browser involved).
 
-The token comes from FREELANCER_ACCESS_TOKEN in `.env`. Price, deadline and proposal are the
-owner-approved values stored on the lead; the platform's own error text is passed on (it never
-contains the token), so a rejected bid tells the owner exactly why.
+The token comes from FREELANCER_ACCESS_TOKEN in `.env`. Price, deadline, and proposal are the
+validated values stored on the lead; the platform's own error text is passed on (it never contains
+the token), so a rejected bid tells the owner what needs attention.
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ def _mark_submitted(connection: Connection, lead_id: str) -> None:
 
 
 def place_freelancer_bid(connection: Connection, lead_id: str, *, token: str, opener: Callable[..., Any] = urlopen) -> str:
-    """Send the approved bid and mark the lead SUBMITTED. Returns "sent", or "already" when the
+    """Send the claimed bid and mark the lead SUBMITTED. Returns "sent", or "already" when the
     account already had a bid on the project. Raises FreelancerError with a clear reason."""
     row = connection.execute(
         "SELECT source, external_id, proposal, status, budget FROM leads WHERE id = ?", (lead_id,)

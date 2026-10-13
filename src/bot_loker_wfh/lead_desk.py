@@ -360,8 +360,8 @@ def submit_allowed(url: str) -> bool:
     return parsed.scheme == "https" and any(host == h or host.endswith("." + h) for h in SUBMIT_HOSTS)
 
 
-def approve_lead(connection: Connection, lead_id: str) -> dict:
-    """The owner approved the proposal and bid terms: mark the lead APPROVED for the form filler."""
+def approve_lead(connection: Connection, lead_id: str, *, auto: bool = False) -> dict:
+    """Validate and claim a lead before sending its proposal through an approved path."""
     row = connection.execute("SELECT url, proposal, status FROM leads WHERE id = ?", (lead_id,)).fetchone()
     if row is None:
         raise KeyError(lead_id)
@@ -384,9 +384,9 @@ def approve_lead(connection: Connection, lead_id: str) -> dict:
         raise ValueError("isi harga penawaran dulu (kolom Harga di Ajuan bid)")
     # one atomic claim: a second process, a double click or the auto pass loses here and never sends twice
     claimed = connection.execute(
-        "UPDATE leads SET status = 'APPROVED', bid_claimed_at = utc_now_iso() "
+        "UPDATE leads SET status = 'APPROVED', bid_claimed_at = utc_now_iso(), bid_auto = ? "
         "WHERE id = ? AND status IN ('NEW', 'INTERESTED') AND bid_submitted_at IS NULL",
-        (lead_id,),
+        (1 if auto else 0, lead_id),
     ).rowcount
     connection.commit()
     if claimed != 1:

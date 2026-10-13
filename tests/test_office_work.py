@@ -2,6 +2,7 @@ from bot_loker_wfh import database
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from bot_loker_wfh.database import apply_schema
@@ -135,6 +136,36 @@ class OfficeWorkTest(unittest.TestCase):
         self.assertEqual(work.last["matched"], 1)
         self.assertIsNone(work.busy)
         self.assertEqual(self.status("app-j"), "PENDING_APPROVAL")
+
+class OfficeAutoBidWiringTest(unittest.TestCase):
+    def test_cycle_invokes_auto_bid_service_when_auto_work_is_running(self):
+        class EmptyResult:
+            def fetchall(self):
+                return []
+
+            def fetchone(self):
+                return None
+
+        class EmptyConnection:
+            def execute(self, *_args, **_kwargs):
+                return EmptyResult()
+
+        connection = EmptyConnection()
+        place = lambda _connection, _lead_id: "sent"
+        work = OfficeWork(
+            hunters={}, draft_service_for=lambda _connection: FakeDrafts(_connection),
+            form_assist_enabled=False, interval_seconds=3600, lock=threading.Lock(),
+            freelancer_bid=place,
+        )
+        work.auto = True
+        with mock.patch("bot_loker_wfh.office_work.open_db") as open_database, \
+             mock.patch("bot_loker_wfh.office_work.run_auto_bids", return_value={"sent": 1}) as auto_bid:
+            open_database.return_value.__enter__.return_value = connection
+            work.run_cycle()
+
+        auto_bid.assert_called_once_with(connection, place, work._tell, None)
+        self.assertEqual(work.last["source"], "auto_bid")
+        self.assertEqual(work.last["sent"], 1)
 
 
 if __name__ == "__main__":

@@ -240,8 +240,6 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
                 payload[key] = _mask(value if value else None)
             elif key in payload:
                 payload[key] = {"value": value}
-    # This feature is intentionally disabled: external proposals always require owner approval.
-    payload["auto_bid_enabled"] = {"value": "0"}
     return payload
 
 
@@ -763,8 +761,8 @@ class _Handler(SimpleHTTPRequestHandler):
             for key, value in values.items():
                 if key not in ALLOWED_SETTINGS:
                     return self._json(400, {"error": "unknown_setting", "key": key})
-                if key == "auto_bid_enabled" and value == "1":
-                    return self._json(409, {"error": "owner_approval_required"})
+                if key == "auto_bid_enabled" and value == "1" and self.work.freelancer_bid is None:
+                    return self._json(409, {"error": "freelancer_api_not_configured"})
                 error = _validate_setting(key, value)
                 if error:
                     return self._json(400, {"error": error, "key": key})
@@ -782,8 +780,9 @@ class _Handler(SimpleHTTPRequestHandler):
                 save_dotenv({_ENV_SETTINGS_KEYS.get(key, key): value for key, value in values.items()})
             except Exception:
                 pass
-            if values.get("auto_bid_enabled") == "1" and self.work.auto:
-                self.work.run_soon()  # switching auto-bid on starts a round right away, not hours later
+            if values.get("auto_bid_enabled") == "1":
+                self.work.set_auto(True)
+                self.work.run_soon()  # enabling auto-bid starts the office cycle immediately
             return self._json(200, payload)
         if parts == ["office", "prefs"]:
             body = self._body()
@@ -1078,6 +1077,13 @@ class QuietThreadingHTTPServer(ThreadingHTTPServer):
 def serve(work, port: int = 8765) -> None:
     # Bound to localhost only: the page shows a personal bot's pipeline and cover letters.
     server = QuietThreadingHTTPServer(("127.0.0.1", port), partial(_Handler, work=work))
+    try:
+        with open_db() as connection:
+            auto_bid_enabled = get_setting(connection, "auto_bid_enabled") == "1"
+    except database.Error:
+        auto_bid_enabled = False
+    if auto_bid_enabled and work.freelancer_bid is not None:
+        work.set_auto(True)
     work.start_daily_reports()
     work.start_github_sync()
     print(f"kantor 3D siap di http://127.0.0.1:{port}  (Ctrl+C untuk berhenti)")

@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from bot_loker_wfh import database
 from bot_loker_wfh.auto_bid import candidates, config, run_auto_bids
 from bot_loker_wfh.database import apply_schema
+from bot_loker_wfh.freelancer_api import FreelancerError
 from bot_loker_wfh.settings_store import set_setting
 
 PROPOSAL = "Saya siap mengerjakan proyek ini dengan rapi dan tepat waktu. " * 3
@@ -27,6 +28,7 @@ class AutoBidTest(unittest.TestCase):
     def place(self, connection, lead_id):
         self.sent.append(lead_id)
         connection.execute("UPDATE leads SET status = 'SUBMITTED', bid_submitted_at = utc_now_iso() WHERE id = ?", (lead_id,))
+        connection.commit()
 
     def enable(self, **extra):
         set_setting(self.connection, "auto_bid_enabled", "1")
@@ -38,21 +40,69 @@ class AutoBidTest(unittest.TestCase):
 
     def test_off_by_default_sends_nothing(self):
         self.lead("a")
-        self.assertEqual(self.bid_pass()["skipped"], "owner_approval_required")
+        self.assertEqual(self.bid_pass()["skipped"], "disabled")
         self.assertEqual(self.sent, [])
 
-    def test_legacy_enabled_switch_never_sends_without_owner_approval(self):
+    def test_enabled_run_sends_eligible_bid_and_marks_it_automatic(self):
         self.enable()
         self.lead("draft")
-        place = Mock()
-        reconcile = Mock()
-        result = run_auto_bids(self.connection, place, self.notes.append, reconcile)
+        reconcile = Mock(return_value=0)
+        result = run_auto_bids(self.connection, self.place, self.notes.append, reconcile)
         row = self.connection.execute("SELECT status, bid_auto, bid_submitted_at FROM leads WHERE id='draft'").fetchone()
-        self.assertEqual(result, {"sent": 0, "skipped": "owner_approval_required"})
-        self.assertEqual(tuple(row), ("NEW", 0, None))
-        place.assert_not_called()
-        reconcile.assert_not_called()
-        self.assertEqual(self.notes, [])
+        self.assertEqual((result["sent"], result["reconciled"]), (1, 0))
+        self.assertEqual(tuple(row[:2]), ("SUBMITTED", 1))
+        self.assertIsNotNone(row[2])
+        reconcile.assert_called_once_with(self.connection)
+        self.assertEqual(self.sent, ["draft"])
+        self.assertIn("Bid otomatis BERHASIL", self.notes[0])
+
+    def test_daily_cap_prevents_another_submission(self):
+        self.enable(auto_bid_max_per_day=1)
+        self.lead("sent", status="SUBMITTED")
+        self.connection.execute(
+            "UPDATE leads SET bid_auto=1, bid_submitted_at=utc_now_iso() WHERE id='sent'"
+        )
+        self.connection.commit()
+        self.lead("next")
+        result = self.bid_pass()
+        self.assertEqual(result["skipped"], "daily_limit")
+        self.assertEqual(self.sent, [])
+
+    def test_failed_project_is_not_retried_automatically(self):
+        self.enable()
+        self.lead("refused")
+        def refuse(_connection, _lead_id):
+            self.sent.append("refused")
+            raise FreelancerError("Freelancer menolak bid: proyek sudah ditutup")
+
+        result = run_auto_bids(self.connection, refuse, self.notes.append)
+        row = self.connection.execute(
+            "SELECT status, bid_auto, bid_submitted_at, bid_error FROM leads WHERE id='refused'"
+        ).fetchone()
+        self.assertEqual(result["sent"], 0)
+        self.assertEqual(tuple(row[:3]), ("INTERESTED", 0, None))
+        self.assertIn("sudah ditutup", row[3])
+        self.assertIn("Bid GAGAL", self.notes[0])
+        self.assertEqual(self.bid_pass(refuse)["skipped"], "no_candidates")
+        self.assertEqual(self.sent, ["refused"])
+
+    def test_fatal_token_error_turns_auto_bid_off(self):
+        self.enable()
+        self.lead("token-error")
+        def refuse(_connection, _lead_id):
+            raise FreelancerError("Token Freelancer kedaluwarsa")
+
+        result = run_auto_bids(self.connection, refuse, self.notes.append)
+        self.assertEqual(result["skipped"], "account_error")
+        self.assertFalse(config(self.connection)["enabled"])
+        self.assertIn("Auto-bid dimatikan", self.notes[-1])
+
+    def test_missing_api_callback_fails_closed(self):
+        self.enable()
+        self.lead("draft")
+        result = run_auto_bids(self.connection, None)
+        self.assertEqual(result["skipped"], "freelancer_api_not_configured")
+        self.assertEqual(self.sent, [])
 
     def test_guard_rails_filter_candidates(self):
         self.enable()
