@@ -383,9 +383,10 @@ class _Handler(SimpleHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass  # the page went away mid-answer
         except database.Error as error:
-            # class name + SQLSTATE only: provider error text may carry credentials or data
-            detail = f"{type(error).__name__} {getattr(error, 'sqlstate', None) or ''}".strip()
-            print(f"[office] {self.command} {self.path.split('?')[0]} -> supabase_unavailable ({detail})", flush=True)
+            # Provider error text may carry credentials or data.
+            detail = database.safe_error_details(error)
+            timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            print(f"[office] {timestamp} {self.command} {self.path.split('?')[0]} -> supabase_unavailable ({detail})", flush=True)
             self._safe_error(503, "supabase_unavailable")
         except Exception as error:
             print(f"[office] {self.command} {self.path.split('?')[0]} -> {type(error).__name__}", flush=True)

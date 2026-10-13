@@ -32,8 +32,63 @@ OperationalError = psycopg.OperationalError
 UndefinedTable = pg_errors.UndefinedTable
 
 
-class DatabaseNotConfigured(RuntimeError):
+class DatabaseNotConfigured(psycopg.OperationalError):
     """Raised when SUPABASE_DB_URL is missing."""
+
+
+class DatabaseUnavailable(psycopg.OperationalError):
+    """A sanitized connection failure with a safe diagnostic category."""
+
+    def __init__(self, failure_kind: str, failure_class: str, sqlstate: str | None, attempts: int):
+        super().__init__("database_unavailable")
+        self.failure_kind = failure_kind
+        self.failure_class = failure_class
+        self.failure_sqlstate = sqlstate
+        self.attempts = attempts
+
+
+def database_error_kind(error: BaseException) -> str:
+    """Classify common Postgres connection failures without exposing driver text."""
+    if isinstance(error, DatabaseNotConfigured):
+        return "database_url_missing"
+    sqlstate = getattr(error, "sqlstate", None)
+    if sqlstate in {"28P01", "28000"}:
+        return "authentication_failed"
+    if sqlstate == "3D000":
+        return "database_not_found"
+    if sqlstate == "53300":
+        return "too_many_connections"
+
+    message = str(error).casefold()
+    if any(value in message for value in (
+        "could not translate host name", "could not resolve", "getaddrinfo failed",
+        "name or service not known", "nodename nor servname",
+    )):
+        return "dns_resolution_failed"
+    if any(value in message for value in ("timeout expired", "timed out", "connection timeout")):
+        return "connection_timeout"
+    if "connection refused" in message:
+        return "connection_refused"
+    if "connection reset" in message or "server closed the connection" in message:
+        return "connection_reset"
+    if any(value in message for value in ("no route to host", "network is unreachable", "host is unreachable")):
+        return "network_unreachable"
+    if any(value in message for value in ("password authentication failed", "no password supplied", "authentication failed")):
+        return "authentication_failed"
+    if "ssl" in message or "tls" in message or "certificate verify failed" in message:
+        return "tls_failure"
+    return "connection_failure"
+
+
+def safe_error_details(error: BaseException) -> str:
+    """Return diagnostic metadata only; never include provider messages or credentials."""
+    kind = getattr(error, "failure_kind", None) or database_error_kind(error)
+    error_class = getattr(error, "failure_class", None) or type(error).__name__
+    sqlstate = getattr(error, "failure_sqlstate", None) or getattr(error, "sqlstate", None)
+    details = f"{kind} {error_class}"
+    if attempts := getattr(error, "attempts", None):
+        details += f" attempts={attempts}"
+    return f"{details} sqlstate={sqlstate}" if sqlstate else details
 
 
 def database_url() -> str:
@@ -215,13 +270,20 @@ def connect(schema: str | None = None) -> Connection:
     if schema != "public" and not re.fullmatch(r"[a-z_][a-z0-9_]*", schema):
         raise ValueError("invalid schema name")
     options = f"-c search_path={schema}" if schema != "public" else None
-    for attempt in (1, 2, 3):  # the pooler drops fresh connections when busy: retry with a short backoff
+    retryable = {
+        "connection_failure", "connection_timeout", "connection_refused",
+        "connection_reset", "network_unreachable", "dns_resolution_failed",
+    }
+    for attempt in (1, 2, 3):  # retry transient pooler and network failures briefly
         try:
             raw = psycopg.connect(database_url(), options=options, connect_timeout=15, prepare_threshold=None, autocommit=True)
             break
-        except psycopg.OperationalError:
-            if attempt == 3:
-                raise psycopg.OperationalError("database_unavailable") from None
+        except psycopg.OperationalError as error:
+            failure_kind = database_error_kind(error)
+            if attempt == 3 or failure_kind not in retryable:
+                raise DatabaseUnavailable(
+                    failure_kind, type(error).__name__, getattr(error, "sqlstate", None), attempt
+                ) from None
             time.sleep(0.5 * attempt)
     raw.execute("SET extra_float_digits = 3")  # exact float round-trip
     connection = Connection(raw)
