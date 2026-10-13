@@ -878,6 +878,12 @@ class _Handler(SimpleHTTPRequestHandler):
             if len(parts) == 3 and parts[:2] == ["reports", "request"]:
                 with self._connect() as connection:
                     return self._json(200, self.work.request_reports(connection, parts[2]))
+            if len(parts) == 3 and parts[0] == "reports" and parts[2] == "handed":
+                with self._connect() as connection:
+                    division_reports = desk.mark_handed(connection, parts[1])
+                    for report in division_reports:
+                        self.work.log_work(report["employee"], "division_report", division=report.get("division"))
+                    return self._json(200, {"ok": True, "division_reports": len(division_reports)})
             if len(parts) == 3 and parts[0] == "reports" and parts[2] == "delivered":
                 with self._connect() as connection:
                     desk.mark_delivered(connection, parts[1])

@@ -6,7 +6,7 @@ import { seats, solid, dyn } from '../registry.js';
 
 export default function build(g, d) {
   const { back, front } = DESK_ROWS;
-  seats('lamar', [[-1.05, back], [1.05, back]], g, d.screen);
+  seats('lamar', [[0, back]], g, d.screen); // Faris; the manager, Subi, works in Ruang Subi
   const mb = group(-1.3, 0, front, g); cyl(0.08, 0.08, 1, 0x5a4a42, 0, 0.5, 0, mb); box(0.8, 0.6, 1.1, 0x4ea7c4, 0, 1.25, 0, mb); box(0.08, 0.5, 0.06, 0xef6a5a, 0.42, 1.6, 0.2, mb);
   solid(g, -1.3, front, 0.9, 1.1);
   box(1.8, 1.4, 0.45, 0xc89a6c, 1.3, 0.7, front + 0.3, g); solid(g, 1.3, front + 0.3, 1.8, 0.45);

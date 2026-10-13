@@ -386,6 +386,9 @@ class OfficeWork:
             for report in reports:
                 self.log_work(report["employee"], "report", mode="daily", rating=report["rating"])
             self._tell(desk.digest_text(reports, "Laporan pagi tim"))
+        # a one-person division (Tegar's) has nobody to wait for
+        for report in desk.ensure_division_reports(connection):
+            self.log_work(report["employee"], "division_report", division=report.get("division"))
         return reports
 
     def telegram_digest(self, connection: Connection) -> dict:

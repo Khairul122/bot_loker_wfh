@@ -11,10 +11,13 @@ import json
 import re
 from .database import Connection
 from .company import (
+    DIVISIONS,
     EMPLOYEES as EMPLOYEE_CATALOG,
     JOB_SCOUTS,
     LEAD_SCOUTS,
+    MANAGERS,
     ROLES as EMPLOYEE_ROLES,
+    division_for_employee,
     managed_division_for,
 )
 from .employee_memory import DRAFT_SOURCE, lessons_text, list_memories, remember
@@ -254,12 +257,87 @@ def list_reports(connection: Connection, employee: str | None = None, limit: int
     return [_row(r) for r in rows]
 
 
+_MANAGER_IDS = frozenset(MANAGERS.values())
+
+
 def undelivered(connection: Connection) -> list[dict]:
-    """Reports still to be walked to the owner's desk in 3D, oldest first."""
+    """Reports still to be walked in 3D, oldest first.
+
+    An employee's daily report goes to their division manager ("to": "manager"); a division report
+    (brought by its manager) and a report the owner asked for go to the owner ("to": "owner").
+    A manager's own daily report is folded into the division report and is never walked.
+    """
     rows = connection.execute(
-        "SELECT id, employee, body FROM office_reports WHERE delivered_at IS NULL ORDER BY created_at LIMIT 40"
+        "SELECT id, employee, kind, body FROM office_reports WHERE "
+        "(kind = 'daily' AND handed_at IS NULL AND created_at >= utc_now_iso('-1 day')) "
+        "OR (kind IN ('manual', 'division') AND delivered_at IS NULL) ORDER BY created_at LIMIT 40"
     ).fetchall()
-    return [{"id": i, "employee": e, "lines": json.loads(b)["lines"]} for i, e, b in rows]
+    out = []
+    for report_id, employee, kind, body in rows:
+        item = {"id": report_id, "employee": employee, "kind": kind, "lines": json.loads(body)["lines"], "to": "owner"}
+        if kind == "daily":
+            division = division_for_employee(employee)
+            if employee in _MANAGER_IDS or division is None:
+                continue
+            item.update(to="manager", manager=division["manager"])
+        out.append(item)
+    return out
+
+
+def mark_handed(connection: Connection, report_id: str) -> list[dict]:
+    """An employee put their daily report on the manager's desk; returns any division report now due."""
+    report = get_report(connection, report_id)
+    if report["kind"] != "daily":
+        raise ValueError("only daily reports are handed to a manager")
+    connection.execute("UPDATE office_reports SET handed_at = utc_now_iso() WHERE id = ? AND handed_at IS NULL", (report_id,))
+    connection.commit()
+    return ensure_division_reports(connection, day=report.get("day"))
+
+
+def _division_report(connection: Connection, division: dict, day: str, team: list[tuple[str, dict]]) -> dict:
+    names = {e["id"]: e["name"] for e in EMPLOYEE_CATALOG}
+    scores = [r["score"] for _, r in team]
+    average = sum(scores) / len(scores)
+    best = max(team, key=lambda item: item[1]["score"])
+    lines = [f"Divisi {division['name']}: {len(team)} laporan harian terkumpul, rata-rata skor {round(average * 100)}%."]
+    lines += [f"• {names.get(e, e)} ({round(r['score'] * 100)}%): {(r['lines'] or ['-'])[0]}" for e, r in team]
+    if len(team) > 1:
+        lines.append(f"⭐ Terbaik hari ini: {names.get(best[0], best[0])}.")
+    report_id = str(uuid.uuid4())
+    connection.execute(
+        "INSERT INTO office_reports (id, employee, kind, day, hours, score, body) VALUES (?, ?, 'division', ?, 24, ?, ?) "
+        "ON CONFLICT DO NOTHING",
+        (report_id, division["manager"], day, round(average, 3), json.dumps({
+            "division": division["id"],
+            "metrics": [["👥", "Laporan tim", len(team)], ["📊", "Rata-rata skor", f"{round(average * 100)}%"],
+                        ["⭐", "Skor terbaik", f"{round(best[1]['score'] * 100)}%"]],
+            "lines": lines,
+        }, ensure_ascii=False)),
+    )
+    connection.commit()
+    try:
+        return get_report(connection, report_id)
+    except KeyError:  # another request wrote this division's report first
+        return None
+
+
+def ensure_division_reports(connection: Connection, day: str | None = None) -> list[dict]:
+    """A manager writes the division report once every member's daily report for that day is on their desk."""
+    day = day or datetime.now().date().isoformat()
+    done = {r[0] for r in connection.execute("SELECT employee FROM office_reports WHERE kind = 'division' AND day = ?", (day,))}
+    daily = {row[0]: row for row in connection.execute(
+        f"SELECT employee, handed_at, {_COLUMNS} FROM office_reports WHERE kind = 'daily' AND day = ?", (day,))}
+    created = []
+    for division in DIVISIONS:
+        manager = division["manager"]
+        members = [e["id"] for e in EMPLOYEE_CATALOG if e["division"] == division["id"]]
+        if manager in done or any(m not in daily for m in members):
+            continue
+        if any(daily[m][1] is None for m in members if m != manager):
+            continue
+        team = [(m, _row(daily[m][2:])) for m in members]
+        created.append(_division_report(connection, division, day, team))
+    return [r for r in created if r]
 
 
 def tray_count(connection: Connection) -> int:

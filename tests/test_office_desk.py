@@ -36,7 +36,8 @@ class DeskTest(unittest.TestCase):
 
         self.assertEqual(report["metrics"], [["🔎", "Lowongan baru", 2], ["✅", "Cocok", 1]])
         self.assertIsNone(report["delivered_at"])
-        self.assertEqual(desk.undelivered(self.connection), [{"id": report["id"], "employee": "reno", "lines": report["lines"]}])
+        self.assertEqual(desk.undelivered(self.connection), [{"id": report["id"], "employee": "reno", "kind": "manual",
+                                                              "lines": report["lines"], "to": "owner"}])
 
     def test_every_employee_can_report(self):
         for employee in desk.EMPLOYEES:
@@ -50,6 +51,25 @@ class DeskTest(unittest.TestCase):
         self.assertEqual(len(first), len(desk.EMPLOYEES))
         self.assertEqual(desk.ensure_daily_reports(self.connection, datetime(2026, 10, 9, 15)), [])
         self.assertEqual(len(desk.ensure_daily_reports(self.connection, datetime(2026, 10, 10, 9))), len(desk.EMPLOYEES))
+
+    def test_daily_reports_go_to_the_manager_who_then_reports_the_division_to_the_owner(self):
+        desk.ensure_daily_reports(self.connection, datetime(2026, 10, 9, 9))
+        day = "2026-10-09"
+        walks = desk.undelivered(self.connection)
+        self.assertTrue(walks and all(w["to"] == "manager" for w in walks))
+        self.assertNotIn("sari", {w["employee"] for w in walks}, "a manager's own daily report is not walked")
+        eli = next(w for w in walks if w["employee"] == "eli")
+        self.assertEqual(eli["manager"], "sari")
+
+        self.assertEqual(desk.mark_handed(self.connection, eli["id"]), [])  # seleksi = sari + eli
+        division = [r for r in desk.ensure_division_reports(self.connection, day)]
+        self.assertTrue(any(r["employee"] == "tegar" for r in division), "one-person division reports right away")
+        seleksi = [r for r in desk.list_reports(self.connection, "sari") if r["kind"] == "division"]
+        self.assertEqual(len(seleksi), 1)
+        self.assertEqual(seleksi[0]["division"], "seleksi")
+        to_owner = [w for w in desk.undelivered(self.connection) if w["to"] == "owner"]
+        self.assertIn(seleksi[0]["id"], {w["id"] for w in to_owner})
+        self.assertEqual(desk.ensure_division_reports(self.connection, day), [], "written once per day")
 
     def test_review_is_validated_and_feeds_the_rating_average(self):
         r1 = desk.create_report(self.connection, "cora")
