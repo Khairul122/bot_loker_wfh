@@ -248,7 +248,8 @@ export function updateAnimals(dt, t) {
 // ---------- Pond Water Wading Mechanics for Player ----------
 function updateWaterWading(dt) {
   const distToPond = Math.hypot(me.pos.x - (-30), me.pos.z - (-6));
-  const inPond = distToPond < 5.8;
+  const onPier = me.pos.x > -26 && me.pos.x < -23.2 && me.pos.z > -4.8 && me.pos.z < -3.2;
+  const inPond = distToPond < 5.3 && !onPier;
 
   if (inPond) {
     if (!wasInWater) {

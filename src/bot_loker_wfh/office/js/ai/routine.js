@@ -10,6 +10,7 @@ import { night } from '../systems/night.js';
 import { goEat } from './dining.js';
 import { triggerLLMInstinct } from './llm_instinct.js';
 import { updateEnergy } from '../domain/employee-state.js';
+import { drinkCup } from '../world/props.js';
 
 // house furniture belongs to its occupant; the owner's room is not a lounge for staff
 export function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && !s.ownerOnly && filter(s)); return list.length ? pick(list) : null; }
@@ -26,7 +27,11 @@ export function sendTo(c, spot, onSit) {
   c.goTo(spot.level, target.x, target.z, () => {
     if (spot.by && spot.by !== c) return; // someone took it
     spot.by = c; c.spot = spot; c.pose = spot.pose; c.targetRy = spot.ry;
-    if (spot.kind === 'kopi' || spot.kind === 'kafe' || spot.kind === 'minum') c.doEmote('drink', 3);
+    if (spot.kind === 'slide') c.slideSpot = null; // every visit starts a fresh lap
+    if (spot.kind === 'kopi' || spot.kind === 'kafe' || spot.kind === 'minum') {
+      c.holdDrinkCup(drinkCup(spot.kind === 'minum' ? 0x78cde8 : 0x5a3428));
+      c.doEmote('drink', 3);
+    }
     c.showEmo(spot.emo);
     onSit && onSit(c, spot);
   }, { exact: true, prefer: approachOf(spot) });

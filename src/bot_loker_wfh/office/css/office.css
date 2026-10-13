@@ -648,6 +648,11 @@ body.night .manager-tag{background:#574b32;color:#f4dfaa}
   .lead-actions.revise{flex-wrap:wrap}
 }
 
+@media (max-width:760px){
+  #logDrawer{top:68px;right:8px;bottom:8px;width:calc(100vw - 16px);height:auto;max-height:none}
+  .observer-page{height:calc(100% - 146px)}
+}
+
 /* ---------- clean toolbar & employee card ---------- */
 #tools{gap:2px;padding:4px;border:1px solid var(--line);box-shadow:0 4px 18px rgba(38,54,47,.08)}
 #tools .tbtn{height:40px;min-height:40px;min-width:40px;padding:0 10px;font-size:15px;border-radius:10px}

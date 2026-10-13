@@ -63,7 +63,6 @@ function buildUnit(u, { who, name, color }) {
   box(0.7, 1.7, 0.6, 0xf4f7fa, 0, 0.85, 0, fridge); box(0.04, 0.5, 0.05, 0x9aa3ad, 0.36, 1.1, -0.2, fridge);
   solid(g, -1.75, 1.95, 0.7, 0.6);
   const lampG = group(0.2, 0, -2.05, g); cyl(0.04, 0.05, 1.5, 0x5a4a42, 0, 0.75, 0, lampG); sph(0.2, 0, 0, 1.6, 0, lampG, { material: h.win });
-  if (u.slot === OWNER_SLOT) { plant(1.7, 1.8, g, 0.9); solid(g, 1.7, 1.8, 0.6, 0.6); }
   h.bed = spotAt(g, { kind: 'kasur', x: -1.4, z: -0.3, ry: 0, pose: 'lie', emo: '😴', energy: 14, house: h });
   h.tv = spotAt(g, { kind: 'tv', x: 1.2, z: 0.15, ry: Math.PI, pose: 'sit', emo: '📺', joy: 4, energy: 3, house: h });
   h.fridge = spotAt(g, { kind: 'kulkas', x: -1, z: 1.95, ry: -Math.PI / 2, pose: 'stand', emo: '🥤', energy: 8, house: h });

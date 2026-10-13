@@ -55,7 +55,7 @@ function goShoot() {
 function shoot() {
   if (shooting) return; shooting = true;
   const from = new THREE.Vector3(me.pos.x + 0.2, 2.2, me.pos.z - 0.2);
-  const to = new THREE.Vector3(28, 3.05, -12.55);
+  const to = new THREE.Vector3(29, 3.05, -12.55);
   const chance = 0.35 + me.energy / 250 + (me.mood === 'semangat' ? 0.15 : 0);
   const made = Math.random() < chance;
   if (!made) to.x += pick([-0.7, 0.7]);

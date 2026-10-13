@@ -9,6 +9,7 @@ import shlex
 from .database import Connection
 import subprocess
 import time
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -504,6 +505,101 @@ class _Handler(SimpleHTTPRequestHandler):
             with self._connect() as connection:
                 from .employee_memory import list_memories
                 return self._json(200, {"id": employee, "items": list_memories(connection, employee, limit=10)})
+        if path == "/observability.json":
+            if not _browser_request_is_local(self.headers, self.server.server_address[1]):
+                return self._json(403, {"error": "forbidden"})
+            query = parse_qs(urlsplit(self.path).query)
+            try:
+                hours = int(query.get("hours", ["24"])[0])
+            except (TypeError, ValueError):
+                return self._json(400, {"error": "invalid_period"})
+            if hours not in (0, 4, 24, 168):
+                return self._json(400, {"error": "invalid_period"})
+            cutoff = None if hours == 0 else (
+                datetime.now(timezone.utc) - timedelta(hours=hours)
+            ).isoformat(timespec="seconds").replace("+00:00", "Z")
+            with self._connect() as connection:
+                if cutoff is None:
+                    memory_rows = connection.execute(
+                        "SELECT id, employee_id, kind, content, importance, created_at "
+                        "FROM employee_memory ORDER BY created_at DESC LIMIT 1000"
+                    ).fetchall()
+                    event_rows = connection.execute(
+                        "SELECT me.id, me.meeting_id, me.employee_id, me.event_type, me.content, "
+                        "me.created_at, m.title FROM meeting_events me "
+                        "JOIN meetings m ON me.meeting_id = m.id "
+                        "ORDER BY me.created_at DESC LIMIT 1000"
+                    ).fetchall()
+                    chat_rows = connection.execute(
+                        "SELECT id, conversation_id, employee_id, speaker, channel, content, created_at "
+                        "FROM employee_conversations ORDER BY created_at DESC LIMIT 1000"
+                    ).fetchall()
+                    report_rows = connection.execute(
+                        "SELECT employee, score, rating, created_at FROM office_reports "
+                        "ORDER BY created_at DESC LIMIT 1000"
+                    ).fetchall()
+                else:
+                    memory_rows = connection.execute(
+                        "SELECT id, employee_id, kind, content, importance, created_at "
+                        "FROM employee_memory WHERE created_at >= ? "
+                        "ORDER BY created_at DESC LIMIT 1000", (cutoff,)
+                    ).fetchall()
+                    event_rows = connection.execute(
+                        "SELECT me.id, me.meeting_id, me.employee_id, me.event_type, me.content, "
+                        "me.created_at, m.title FROM meeting_events me "
+                        "JOIN meetings m ON me.meeting_id = m.id WHERE me.created_at >= ? "
+                        "ORDER BY me.created_at DESC LIMIT 1000", (cutoff,)
+                    ).fetchall()
+                    chat_rows = connection.execute(
+                        "SELECT id, conversation_id, employee_id, speaker, channel, content, created_at "
+                        "FROM employee_conversations WHERE created_at >= ? "
+                        "ORDER BY created_at DESC LIMIT 1000", (cutoff,)
+                    ).fetchall()
+                    report_rows = connection.execute(
+                        "SELECT employee, score, rating, created_at FROM office_reports "
+                        "WHERE created_at >= ? ORDER BY created_at DESC LIMIT 1000", (cutoff,)
+                    ).fetchall()
+            performance = {}
+            for employee, score, rating, created_at in report_rows:
+                item = performance.setdefault(employee, {"employee": employee, "reports": 0,
+                                                         "score_total": 0.0, "rating_total": 0,
+                                                         "rated_reports": 0, "latest_at": created_at})
+                item["reports"] += 1
+                item["score_total"] += float(score)
+                if rating is not None:
+                    item["rating_total"] += int(rating)
+                    item["rated_reports"] += 1
+            performance = [
+                {"employee": item["employee"], "reports": item["reports"],
+                 "avg_score": round(item["score_total"] / item["reports"], 2),
+                 "avg_rating": round(item["rating_total"] / item["rated_reports"], 2)
+                 if item["rated_reports"] else None,
+                 "rated_reports": item["rated_reports"], "latest_at": item["latest_at"]}
+                for item in performance.values()
+            ]
+            conversations = [
+                {"id": row[0], "conversation_id": row[1], "employee_id": row[2],
+                 "speaker": row[3], "channel": row[4], "content": row[5],
+                 "created_at": row[6], "title": "Tanya jawab web"}
+                for row in chat_rows
+            ]
+            conversations.extend(
+                {"id": row[0], "conversation_id": row[1], "employee_id": row[2],
+                 "speaker": "employee", "channel": "meeting", "content": row[4],
+                 "created_at": row[5], "title": row[6], "event_type": row[3]}
+                for row in event_rows
+            )
+            conversations.sort(key=lambda item: item["created_at"], reverse=True)
+            return self._json(200, {
+                "hours": hours,
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                "memories": [dict(zip(("id", "employee_id", "kind", "content", "importance", "created_at"), row))
+                             for row in memory_rows],
+                "conversations": conversations[:1000],
+                "performance": performance,
+                "truncated": len(memory_rows) == 1000 or len(event_rows) == 1000 or
+                             len(chat_rows) == 1000 or len(report_rows) == 1000,
+            })
         if path == "/employee-skills.json":
             try:
                 return self._json(200, {"employees": all_employee_skills()})
@@ -801,6 +897,8 @@ class _Handler(SimpleHTTPRequestHandler):
                 question = str(self._body().get("question") or "")
                 with self._connect() as connection:
                     answer = desk.ask(connection, self.work.llm, parts[1], question)
+                    from .employee_conversations import record_web_exchange
+                    record_web_exchange(connection, parts[1], question, answer.get("answer", ""))
                     self.work.log_work(parts[1], "question", mode="ai" if answer.get("ai") else "facts")
                     return self._json(200, answer)
             if parts == ["work", "telegram"]:

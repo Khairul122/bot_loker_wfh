@@ -3,13 +3,18 @@ import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { mat, box, cyl, sph, group } from '../core/factory.js';
 import { rand } from '../core/util.js';
-import { path } from './props.js';
+import { rock } from './props.js';
 
 export const water = new THREE.Mesh(new THREE.CircleGeometry(220, 48), mat(0x8fd3e8));
 water.rotation.x = -Math.PI / 2; water.position.y = -0.6; scene.add(water);
 export const island = cyl(52, 50, 1.2, 0x9fd28a, 0, -0.6, 0); island.castShadow = false;
 cyl(50.2, 47, 2.4, 0xd9b48a, 0, -1.9, 0).castShadow = false;
-path(0, 12, 10, 12); path(-22, 9, 26, 3.4); path(22, 9, 26, 3.4); path(-13, 9, 3.4, 8);
+// a sandy shore around the grass, rocks along it, and lighter patches that break up the lawn
+const shore = new THREE.Mesh(new THREE.RingGeometry(48.2, 52.4, 64), mat(0xead2a4)); shore.rotation.x = -Math.PI / 2; shore.position.y = 0.012; scene.add(shore);
+for (let k = 0; k < 26; k++) { const a = k / 26 * Math.PI * 2 + rand(-0.08, 0.08), r = rand(49.2, 51.6); rock(Math.cos(a) * r, Math.sin(a) * r, rand(0.7, 1.6)); }
+for (const [x, z, r] of [[-40, 10, 5], [38, 20, 6], [-8, 34, 6], [12, -42, 4], [-36, -30, 4], [40, -24, 4]]) {
+  const m = cyl(r, r, 0.02, 0xaedb98, x, 0.012, z, scene, { cast: false }); m.scale.z = 0.7;
+}
 
 export const clouds = [];
 for (let i = 0; i < 9; i++) {

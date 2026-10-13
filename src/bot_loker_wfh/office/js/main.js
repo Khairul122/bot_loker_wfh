@@ -34,7 +34,7 @@ import { restorePositions, startPositionSync } from './systems/positions.js';
 import { loadPrefs } from './systems/prefs.js';
 import { applyLook } from './ui/customize.js';
 import { applySound } from './ui/hud.js';
-import './ui/logs.js';
+import { openMonitor } from './ui/logs.js';
 import './ui/dialogs.js';
 import './systems/realtime.js';
 
@@ -78,6 +78,7 @@ if (store.live && prefs.auto !== '0' && !store.S.work?.auto) setAuto(true);
 staff.forEach(c => c.setMood(staffMood(c, 0)));
 initAnimals();
 $('loading').style.opacity = 0; setTimeout(() => $('loading').remove(), 700);
+openMonitor();
 setTimeout(() => $('hint').style.opacity = 0, 12000);
 setTimeout(() => { say(me, `Halo! Ini kantor bot lokermu 🏢`); toast(store.live ? '🟢 Terhubung ke data bot' : '🟡 Pakai data contoh'); }, 900);
 frame();

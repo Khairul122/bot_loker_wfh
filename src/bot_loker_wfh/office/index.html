@@ -34,7 +34,7 @@
     <button class="panel tbtn" id="bNight" data-name="Siang / malam" title="Siang / malam" aria-label="Ganti tema siang atau malam">🌙</button>
     <button class="panel tbtn" id="bCustom" data-name="Ubah karakter" title="Ubah karakter" aria-label="Ubah karakter">🎨</button>
     <button class="panel tbtn" id="bSettings" data-name="Setting" title="Pengaturan model, provider, skill, BrowserMCP" aria-label="Pengaturan model, provider, skill, BrowserMCP">⚙️</button>
-    <button class="panel tbtn" id="bLogs" data-name="Log" title="Buka log terminal" aria-label="Buka log terminal">🧾</button>
+    <button class="panel tbtn" id="bLogs" data-name="Pantau" title="Percakapan, pembelajaran, dan aktivitas karyawan" aria-label="Buka pemantauan Hermes">🧾</button>
   </div>
 </div>
 
@@ -166,7 +166,41 @@
   <div class="settings-footer" id="settingsFooter"></div>
 </div>
 
-<aside id="logDrawer" class="panel" aria-label="Log aktivitas" aria-hidden="true"><div class="phead"><h2>Log aktivitas</h2><button id="logClose" class="xbtn" aria-label="Tutup">✕</button></div><ol id="logList"></ol></aside>
+<aside id="logDrawer" class="panel" aria-label="Pemantauan Hermes" aria-hidden="true">
+  <div class="phead"><div><h2>Terminal Hermes</h2><small id="observerState">Menyiapkan data karyawan…</small></div><button id="logClose" class="xbtn" aria-label="Tutup pemantauan">✕</button></div>
+  <div class="observer-toolbar">
+    <label for="observerPeriod">Periode</label>
+    <select id="observerPeriod">
+      <option value="4">4 jam</option><option value="24" selected>24 jam</option><option value="168">7 hari</option><option value="0">Semua data</option>
+    </select>
+    <button class="btn" id="observerRefresh" type="button">Muat ulang</button>
+  </div>
+  <p class="observer-updated" id="observerUpdated" role="status">Menghubungkan ke database…</p>
+  <div class="observer-tabs" role="tablist" aria-label="Bagian pemantauan">
+    <button type="button" role="tab" aria-selected="true" aria-controls="observer-conversations" data-observer-tab="conversations">Percakapan</button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="observer-learning" data-observer-tab="learning">Pembelajaran</button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="observer-team" data-observer-tab="team">Mood & kinerja</button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="observer-activity" data-observer-tab="activity">Aktivitas</button>
+  </div>
+  <section id="observer-conversations" class="observer-page" role="tabpanel" aria-label="Percakapan rapat">
+    <p class="observer-note">Tanya-jawab web dan transkrip rapat yang tersimpan untuk seluruh karyawan.</p>
+    <ol id="observerConversations" class="observer-list"></ol>
+  </section>
+  <section id="observer-learning" class="observer-page" role="tabpanel" aria-label="Memori pembelajaran" hidden>
+    <p class="observer-note">Koreksi, preferensi, observasi, dan hasil yang benar-benar tersimpan sebagai memori.</p>
+    <ol id="observerMemories" class="observer-list"></ol>
+  </section>
+  <section id="observer-team" class="observer-page" role="tabpanel" aria-label="Mood dan kinerja karyawan" hidden>
+    <p class="observer-note">Mood adalah indikator kantor yang dihitung dari kinerja, energi, dan rating owner; bukan pembacaan emosi internal.</p>
+    <div id="observerMood" class="observer-moods"></div>
+    <h3>Skor laporan</h3>
+    <ol id="observerPerformance" class="observer-list"></ol>
+  </section>
+  <section id="observer-activity" class="observer-page" role="tabpanel" aria-label="Aktivitas langsung" hidden>
+    <p class="observer-note">Peristiwa kerja yang diterima selama halaman ini terbuka.</p>
+    <ol id="logList" class="observer-list observer-terminal-list"><li class="observer-empty">Menunggu aktivitas langsung selama halaman ini terbuka.</li></ol>
+  </section>
+</aside>
 <div id="toast" class="panel"></div>
 <div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik furnitur untuk duduk, main, atau makan · semua ruangan satu lantai, masuk lewat pintu · rumah di belakang kantor · V mode POV</div>
 <div id="loading">Menyiapkan kantor…</div>

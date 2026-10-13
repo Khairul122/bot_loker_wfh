@@ -5,6 +5,8 @@ import { clickables, walkables } from '../core/factory.js';
 import { store } from '../core/store.js';
 import { pick, clamp } from '../core/util.js';
 import { snapFree } from '../world/navigation.js';
+import { office } from '../buildings/office.js';
+import { rusun } from '../buildings/houses.js';
 import { island } from '../world/sky.js';
 import { MOODS } from '../characters/body.js';
 import { me, myLook } from '../characters/player.js';
@@ -20,7 +22,15 @@ export function hitAt(e) {
   mouse.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1);
   ray.setFromCamera(mouse, camera);
   const targets = clickables.filter(o => isShown(o)).concat(walkables.filter(w => isShown(w.mesh)).map(w => w.mesh), [island]);
-  return ray.intersectObjects(targets, false)[0];
+  const usable = new Set(targets);
+  // walls and roofs are not clickable but still hide what is behind them (glass does not)
+  const blockers = [office, rusun].flatMap(b => [...b.cut, ...b.upper, b.roof]).filter(isShown);
+  for (const h of ray.intersectObjects([...targets, ...blockers], true)) {
+    if (usable.has(h.object)) return h;
+    if (h.object.material?.transparent || !isShown(h.object)) continue;
+    return undefined;
+  }
+  return undefined;
 }
 function isShown(o) { while (o) { if (!o.visible || o.userData.faded) return false; o = o.parent; } return true; }
 renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
