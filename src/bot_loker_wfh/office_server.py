@@ -584,7 +584,7 @@ class _Handler(SimpleHTTPRequestHandler):
                 for row in chat_rows
             ]
             conversations.extend(
-                {"id": row[0], "conversation_id": row[1], "employee_id": row[2],
+                {"id": row[0], "meeting_id": row[1], "conversation_id": row[1], "employee_id": row[2],
                  "speaker": "employee", "channel": "meeting", "content": row[4],
                  "created_at": row[5], "title": row[6], "event_type": row[3]}
                 for row in event_rows

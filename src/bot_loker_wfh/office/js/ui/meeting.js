@@ -44,15 +44,29 @@ function line(text) {
   l.scrollTop = l.scrollHeight;
 }
 
+// the header strip of a live meeting: topic, and whether the team is still talking
+function status(text, talking) {
+  $('meetingStatus').textContent = text;
+  $('meetingStatus').classList.toggle('talking', talking);
+  $('meetingPill').textContent = talking ? 'LIVE' : 'SELESAI';
+  $('meetingPill').classList.toggle('done', !talking);
+}
+function startLive(topic) {
+  $('meetingTopicLive').textContent = topic; $('meetingTopicLive').title = topic;
+  $('meetingLog').replaceChildren();
+  status('berdiskusi', true);
+}
+
 function appendSpeech(emp, text) {
   const l = $('meetingLog');
   if (!l) return;
   const c = byId(emp);
   const name = c?.name || emp || 'Anggota Tim';
   const role = c?.def?.role || '';
-  const emo = c ? '💬' : '🗣️';
 
-  const avatar = el('div', 'msg-avatar', emo);
+  const avatar = el('div', 'msg-avatar', name.slice(0, 1).toUpperCase());
+  const shirt = c?.look?.shirt;
+  avatar.style.background = typeof shirt === 'number' ? '#' + shirt.toString(16).padStart(6, '0') : shirt || 'var(--accent)';
   const header = el('div', 'msg-header', [
     el('span', 'msg-name', name),
     role ? el('span', 'msg-role', role) : null
@@ -127,6 +141,7 @@ function finishRun(decision) {
   const run = activeRun; if (!run) return;
   activeRun = null;
   if (decision) appendDecision(decision);
+  status(decision ? 'selesai' : 'berhenti', false);
   busy = false; $('meetingRun').disabled = false;
   sleep(1200).then(() => returnCrew(run.crew)); // let the decision land before everyone walks off
 }
@@ -143,7 +158,7 @@ $('meetingRun').onclick = async () => {
   crew = ready;
   if (!crew.length) return toast('Semua peserta sedang sibuk, coba lagi sebentar ⏳');
   busy = true; $('meetingRun').disabled = true; $('meeting').classList.add('live');
-  $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan… tim sedang berdiskusi lewat Hermes'));
+  startLive(topic);
   const run = { crew, streamed: false };
   activeRun = run;
   const arrivals = gather(crew);
@@ -175,7 +190,7 @@ export function meetingEvent(evt) {
     const crew = staff.filter(c => ids.includes(c.def.id) && c.state !== 'report');
     if (!crew.length) return;
     busy = true; $('meetingRun').disabled = true; $('meeting').classList.add('live');
-    $('meetingLog').replaceChildren(el('li', null, '⏳ Rapat berjalan…'));
+    startLive(evt.task || 'Rapat tim');
     const run = { crew, streamed: true };
     activeRun = run;
     Promise.race([Promise.all(gather(crew)), sleep(10000)]).then(() => { if (activeRun === run) line(`🎙️ ${evt.task || 'Rapat'} dimulai`); });

@@ -176,6 +176,7 @@
     <button class="btn" id="observerRefresh" type="button">Muat ulang</button>
   </div>
   <p class="observer-updated" id="observerUpdated" role="status">Menghubungkan ke database…</p>
+  <p class="observer-updated" id="observerAIState" role="status">Memeriksa koneksi Hermes…</p>
   <div class="observer-tabs" role="tablist" aria-label="Bagian pemantauan">
     <button type="button" role="tab" aria-selected="true" aria-controls="observer-conversations" data-observer-tab="conversations">Percakapan</button>
     <button type="button" role="tab" aria-selected="false" aria-controls="observer-learning" data-observer-tab="learning">Pembelajaran</button>
@@ -183,7 +184,7 @@
     <button type="button" role="tab" aria-selected="false" aria-controls="observer-activity" data-observer-tab="activity">Aktivitas</button>
   </div>
   <section id="observer-conversations" class="observer-page" role="tabpanel" aria-label="Percakapan rapat">
-    <p class="observer-note">Tanya-jawab web dan transkrip rapat yang tersimpan untuk seluruh karyawan.</p>
+    <p class="observer-note">Tanya-jawab web dan transkrip rapat tampil di sini. Gelembung obrolan suasana di kantor 3D bukan transkrip rapat.</p>
     <ol id="observerConversations" class="observer-list"></ol>
   </section>
   <section id="observer-learning" class="observer-page" role="tabpanel" aria-label="Memori pembelajaran" hidden>
@@ -206,8 +207,8 @@
 <div id="loading">Menyiapkan kantor…</div>
 
 <div id="meeting" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Ruang rapat">
-  <button class="xbtn" id="meetingClose" aria-label="Tutup">✕</button>
-  <h2>💬 Ruang Rapat</h2>
+  <div class="mhead"><h2>💬 Ruang Rapat</h2><button class="xbtn" id="meetingClose" aria-label="Tutup">✕</button></div>
+  <div class="meet-live" aria-live="polite"><span class="live-pill" id="meetingPill">LIVE</span><b id="meetingTopicLive"></b><span id="meetingStatus"></span></div>
   <div class="sub">Pilih topik & peserta. Karyawan berdiskusi lewat sesi Hermes lalu sepakati satu keputusan.</div>
   <label>Topik <input id="meetingTopic" maxlength="200" placeholder="Misal: Strategi lamaran minggu ini" aria-label="Topik rapat"></label>
   <div class="chips" id="meetingPeople" aria-label="Peserta"></div>

@@ -10,6 +10,9 @@ const close = $('logClose');
 const period = $('observerPeriod');
 const state = $('observerState');
 const updated = $('observerUpdated');
+const aiState = $('observerAIState');
+let storedConversations = [];
+const liveMeetingItems = new Map();
 
 function when(value) {
   const date = typeof value === 'number' ? new Date(value * 1000) : new Date(value || '');
@@ -29,13 +32,24 @@ function emptyList(list, message) {
   list.replaceChildren(item);
 }
 
+function meetingKey(event) {
+  return `${event.meeting_id || ''}\u0000${event.employee_id || ''}\u0000${event.content || ''}`;
+}
+
 function renderConversations(items) {
   const list = $('observerConversations');
-  if (!items.length) {
-    emptyList(list, 'Belum ada tanya-jawab web atau transkrip rapat tersimpan pada periode ini.');
+  storedConversations = items;
+  const storedMeetingKeys = new Set(items
+    .filter(event => event.channel === 'meeting' && event.meeting_id)
+    .map(meetingKey));
+  for (const key of storedMeetingKeys) liveMeetingItems.delete(key);
+  const visibleItems = [...liveMeetingItems.values(), ...items]
+    .sort((a, b) => Date.parse(b.created_at || '') - Date.parse(a.created_at || ''));
+  if (!visibleItems.length) {
+    emptyList(list, 'Belum ada tanya-jawab atau transkrip pada periode ini. Rapat resmi dimulai lewat “Mulai rapat”; gelembung 3D hanya suasana visual.');
     return;
   }
-  list.replaceChildren(...items.map(event => {
+  list.replaceChildren(...visibleItems.map(event => {
     const item = document.createElement('li');
     item.className = 'observer-entry';
     const head = document.createElement('div');
@@ -123,10 +137,37 @@ function renderTeam(performanceRows) {
     }));
 }
 
+function renderAIStatus(result) {
+  if (!aiState) return;
+  if (!result?.ok) {
+    aiState.textContent = 'Status Hermes tidak dapat diperiksa dari server kantor.';
+    return;
+  }
+  const readiness = result.data || {};
+  if (readiness.ok) {
+    aiState.textContent = 'Hermes siap · alias rapat loker-answer tersedia (upstream mengikuti route profile).';
+    return;
+  }
+  const missingModels = readiness.missing_models || [];
+  if (readiness.status === 'network_error' || readiness.status === 'timeout') {
+    aiState.textContent = 'Hermes API Server tidak terjangkau; rapat tidak akan meneruskan permintaan ke 9Router.';
+  } else if (readiness.status === 'unauthorized') {
+    aiState.textContent = 'API key Hermes ditolak; permintaan belum diteruskan ke upstream.';
+  } else if (missingModels.includes('loker-answer')) {
+    aiState.textContent = 'Alias rapat loker-answer belum tersedia di Hermes; upstream belum dipanggil.';
+  } else {
+    aiState.textContent = `Hermes belum siap (${readiness.status || 'status tidak diketahui'}); periksa Pengaturan Hermes.`;
+  }
+}
+
 async function refreshMonitor() {
   if (!state) return;
   state.textContent = 'Mengambil data karyawan…';
-  const result = await get(`/observability.json?hours=${encodeURIComponent(period.value || '24')}`);
+  const [result, aiResult] = await Promise.all([
+    get(`/observability.json?hours=${encodeURIComponent(period.value || '24')}`),
+    get('/llm/test'),
+  ]);
+  renderAIStatus(aiResult);
   if (!result.ok) {
     state.textContent = 'Data pemantauan tidak tersedia';
     updated.textContent = result.status === 0
@@ -182,6 +223,30 @@ setInterval(() => {
 }, 60000);
 
 export function openMonitor() { toggleLogs(true); }
+
+export function addMeetingEvent(event) {
+  if (!event || event.type !== 'meeting') return;
+  if (event.status === 'speaking' && event.meeting_id && event.employee && event.content) {
+    const item = {
+      meeting_id: event.meeting_id,
+      employee_id: event.employee,
+      speaker: 'employee',
+      channel: 'meeting',
+      content: event.content,
+      created_at: new Date().toISOString(),
+      title: event.task || 'Rapat',
+      event_type: 'ucapan langsung',
+    };
+    const key = meetingKey(item);
+    const alreadyStored = storedConversations.some(row => row.channel === 'meeting' && meetingKey(row) === key);
+    if (!alreadyStored && !liveMeetingItems.has(key)) {
+      liveMeetingItems.set(key, item);
+      renderConversations(storedConversations);
+    }
+  } else if (event.status === 'completed' || event.status === 'failed') {
+    setTimeout(refreshMonitor, 250);
+  }
+}
 
 export function addLogItem(event) {
   const list = $('logList');

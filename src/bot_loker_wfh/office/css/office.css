@@ -650,7 +650,7 @@ body.night .manager-tag{background:#574b32;color:#f4dfaa}
 
 @media (max-width:760px){
   #logDrawer{top:68px;right:8px;bottom:8px;width:calc(100vw - 16px);height:auto;max-height:none}
-  .observer-page{height:calc(100% - 146px)}
+
 }
 
 /* ---------- clean toolbar & employee card ---------- */
@@ -693,3 +693,40 @@ body.night .manager-tag{background:#574b32;color:#f4dfaa}
 #tools .badge{position:absolute;top:1px;right:0;min-width:16px;height:16px;padding:0 4px;font-size:9px}
 #toolName{position:fixed;z-index:30;padding:5px 10px;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:800;font-size:12px;pointer-events:none;white-space:nowrap;transform:translateX(-50%);opacity:0;transition:opacity .15s}
 #toolName.show{opacity:1}
+
+/* ---------- meeting room: one header, one scrolling transcript ---------- */
+#meeting .mhead{display:flex;align-items:center;gap:10px}
+#meeting .mhead h2{flex:1}
+#meeting .mhead .xbtn{float:none;flex:none;width:34px;height:34px;min-height:34px;font-size:15px;border-radius:10px}
+.meet-live{display:none}
+#meeting.live .panel{display:flex;flex-direction:column;overflow:hidden;width:min(400px,100%);max-height:46vh;padding:0;border-width:1px}
+#meeting.live .mhead{padding:10px 12px 0 14px}
+#meeting.live .mhead h2{font-size:15px}
+#meeting.live .meet-live{display:flex;align-items:center;gap:8px;margin:8px 14px 6px;padding:7px 10px;border-radius:10px;background:var(--paper-2);font-size:12px}
+.live-pill{flex:none;padding:2px 7px;border-radius:6px;background:#d8434a;color:#fff;font-weight:900;font-size:10px;letter-spacing:.6px}
+#meetingTopicLive{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+#meetingStatus{flex:none;color:var(--ink-soft);font-weight:700}
+#meetingStatus.talking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:meetDots 1.2s steps(4) infinite}
+@keyframes meetDots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+#meeting.live #meetingLog{flex:1;min-height:0;max-height:none;margin:0;padding:4px 14px 14px;gap:8px}
+#meetingLog .msg-avatar{width:28px;height:28px;border-radius:50%;border:0;color:#fff;font-size:13px;font-weight:900;text-shadow:0 1px 2px rgba(0,0,0,.25)}
+#meetingLog .msg-box{flex:1;max-width:none;border:0;box-shadow:none;background:var(--paper-2);border-radius:12px;border-top-left-radius:3px;padding:7px 10px}
+#meetingLog .msg-header{gap:6px}
+#meetingLog .msg-text{font-weight:600;color:var(--ink)}
+#meetingLog .meeting-info{align-self:center}
+#meetingLog .meeting-decision{margin-top:4px;padding:10px 12px;box-shadow:none}
+.live-pill.done{background:var(--ink-soft)}
+
+/* ---------- Terminal Hermes: header, period and tabs stay put, the open tab scrolls ---------- */
+#logDrawer.show{display:flex;flex-direction:column;overflow:hidden}
+#logDrawer>.phead,#logDrawer>.observer-toolbar,#logDrawer>.observer-updated,#logDrawer>.observer-tabs{flex:none}
+#logDrawer .observer-page{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;margin:0 -16px;padding:0 16px 8px;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+#logDrawer .observer-page[hidden]{display:none}
+#logDrawer .observer-toolbar{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}
+#logDrawer .observer-toolbar select{flex:1;min-height:36px;padding:0 8px;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);color:var(--ink);font:inherit;font-weight:700}
+#logDrawer .observer-toolbar .btn{min-height:36px}
+#logDrawer .observer-updated{margin:6px 0 0;font-size:12px;color:var(--ink-soft);font-weight:700}
+#logDrawer .observer-tabs{display:flex;gap:2px;margin:10px 0 8px;padding:3px;border-radius:12px;background:var(--paper-2);overflow-x:auto;scrollbar-width:none}
+#logDrawer .observer-tabs button{flex:1;min-height:34px;padding:0 8px;border-radius:9px;font-size:12px;font-weight:800;color:var(--ink-soft);white-space:nowrap}
+#logDrawer .observer-tabs button[aria-selected="true"]{background:var(--paper);color:var(--ink);box-shadow:0 1px 4px rgba(38,54,47,.12)}
+#logDrawer .observer-note{font-size:12px;color:var(--ink-soft);margin:0 0 8px}
