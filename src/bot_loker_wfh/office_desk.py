@@ -289,9 +289,10 @@ def mark_handed(connection: Connection, report_id: str) -> list[dict]:
     report = get_report(connection, report_id)
     if report["kind"] != "daily":
         raise ValueError("only daily reports are handed to a manager")
+    day = connection.execute("SELECT day FROM office_reports WHERE id = ?", (report_id,)).fetchone()[0]
     connection.execute("UPDATE office_reports SET handed_at = utc_now_iso() WHERE id = ? AND handed_at IS NULL", (report_id,))
     connection.commit()
-    return ensure_division_reports(connection, day=report.get("day"))
+    return ensure_division_reports(connection, day=day)
 
 
 def _division_report(connection: Connection, division: dict, day: str, team: list[tuple[str, dict]]) -> dict:
