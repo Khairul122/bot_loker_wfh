@@ -21,6 +21,7 @@ from . import database
 from .employee_skills import all_employee_skills, load_employee_skills
 from .github_portfolio import USERNAME_RE, load_portfolio, sync_portfolio
 from .auto_bid import AUTO_BID_KEYS
+from .leads import validate_freelancer_fields
 from .lead_desk import RevisionFailed
 from .office_work import open_db
 from .office_state import load_state, save_state
@@ -46,6 +47,7 @@ ALLOWED_SETTINGS = frozenset({
     "form_timeout_seconds", "form_connect_timeout_seconds", "form_ai_answers",
     "applicant_path", "answers_path", "scrape_interval_hours",
     "auto_bid_enabled", "auto_bid_max_per_day", "auto_bid_min_score", "auto_bid_max_competitors", "auto_bid_max_age_hours",
+    "freelancer_search_fields", "freelancer_auto_bid_fields",
 })
 _NUMERIC_SETTINGS = {
     "llm_timeout_seconds": (1, 3600), "llm_task_budget_seconds": (1, 7200),
@@ -80,6 +82,8 @@ _ENV_SETTINGS_KEYS = {
     "form_ai_answers": "FORM_AI_ANSWERS",
     "applicant_path": "APPLICANT_PATH",
     "answers_path": "ANSWERS_PATH",
+    "freelancer_search_fields": "FREELANCER_SEARCH_FIELDS",
+    "freelancer_auto_bid_fields": "FREELANCER_AUTO_BID_FIELDS",
 }
 
 
@@ -102,6 +106,8 @@ def _validate_setting(key: str, value: str) -> str | None:
             return f"{key} harus berupa angka"
         low, high = _NUMERIC_SETTINGS[key]
         return None if low <= number <= high else f"{key} di luar rentang {low}-{high}"
+    if key in {"freelancer_search_fields", "freelancer_auto_bid_fields"}:
+        return None if validate_freelancer_fields(value) else "bidang Freelancer tidak valid"
     return None
 
 
@@ -231,6 +237,7 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
 
     for key in AUTO_BID_KEYS:  # stored in Supabase only; show the default until the owner changes it
         all_settings[key] = DEFAULTS[key][0]
+    all_settings["freelancer_search_fields"] = DEFAULTS["freelancer_search_fields"][0]
     payload = {k: (_mask(v) if k in SECRET_KEYS else {"value": v}) for k, v in all_settings.items()}
     if overrides:
         # Stored values win: real secret values mark "set"
@@ -768,11 +775,14 @@ class _Handler(SimpleHTTPRequestHandler):
                     return self._json(400, {"error": error, "key": key})
             # a blank secret means "keep the stored one", never wipe it
             values = {k: v for k, v in values.items() if not (k in SECRET_KEYS and v == "")}
+            auto_bid_settings_changed = bool(set(values) & set(AUTO_BID_KEYS))
+            search_fields_changed = "freelancer_search_fields" in values
             try:
                 with self._connect() as connection:
                     for key, value in values.items():
                         set_setting(connection, key, value)
                     payload = _all_settings_payload(all_settings(connection))
+                    auto_bid_enabled = get_setting(connection, "auto_bid_enabled") == "1"
             except database.Error:
                 # Success is only reported once the values are stored in Supabase.
                 return self._json(503, {"error": "supabase_unavailable"})
@@ -780,9 +790,11 @@ class _Handler(SimpleHTTPRequestHandler):
                 save_dotenv({_ENV_SETTINGS_KEYS.get(key, key): value for key, value in values.items()})
             except Exception:
                 pass
-            if values.get("auto_bid_enabled") == "1":
+            if auto_bid_settings_changed and auto_bid_enabled and self.work.freelancer_bid is not None:
                 self.work.set_auto(True)
-                self.work.run_soon()  # enabling auto-bid starts the office cycle immediately
+                self.work.run_soon()  # changed bid limits take effect on the next cycle immediately
+            elif search_fields_changed and self.work.auto:
+                self.work.run_soon()
             return self._json(200, payload)
         if parts == ["office", "prefs"]:
             body = self._body()

@@ -20,6 +20,7 @@ from .database import Connection
 from .form_agent.bid_terms import parse_budget
 from .freelancer_api import FreelancerError
 from .lead_desk import WHEN, LeadClaimLost, approve_lead, get_bid_terms
+from .leads import FREELANCER_FIELD_LABELS, parse_freelancer_fields
 from .settings_store import get_setting, set_setting
 
 # only account-wide trouble switches auto-bid off; a refusal about one project (needs verification,
@@ -29,16 +30,20 @@ MAX_FAILURES_PER_PASS = 3
 # Freelancer only lets verified accounts bid on projects of USD 2,500 and over
 UNVERIFIED_BUDGET_CAP = 2500
 DOLLAR_LIKE = {"USD", "EUR", "GBP", "AUD", "CAD", "NZD", "SGD", "CHF"}
-AUTO_BID_KEYS = ("auto_bid_enabled", "auto_bid_max_per_day", "auto_bid_min_score", "auto_bid_max_competitors", "auto_bid_max_age_hours")
+AUTO_BID_KEYS = (
+    "auto_bid_enabled", "auto_bid_max_per_day", "auto_bid_min_score",
+    "auto_bid_max_competitors", "auto_bid_max_age_hours", "freelancer_auto_bid_fields",
+)
 
 
-def config(connection: Connection) -> dict[str, float]:
+def config(connection: Connection) -> dict[str, Any]:
     return {
         "enabled": get_setting(connection, "auto_bid_enabled") == "1",
         "per_day": int(float(get_setting(connection, "auto_bid_max_per_day"))),
         "min_score": float(get_setting(connection, "auto_bid_min_score")),
         "max_competitors": int(float(get_setting(connection, "auto_bid_max_competitors"))),
         "max_age_hours": float(get_setting(connection, "auto_bid_max_age_hours")),
+        "fields": parse_freelancer_fields(get_setting(connection, "freelancer_auto_bid_fields")),
     }
 
 
@@ -48,15 +53,18 @@ def bid_detail(connection: Connection, lead_id: str) -> str:
     Never includes the token. Telegram caps messages, so the sender splits long text (see split_text).
     """
     row = connection.execute(
-        "SELECT title, source, budget, url, score, proposal FROM leads WHERE id = ?", (lead_id,)
+        "SELECT title, source, budget, url, score, proposal, freelancer_field FROM leads WHERE id = ?",
+        (lead_id,),
     ).fetchone()
     if row is None:
         return ""
-    title, source, budget, url, score, proposal = row
+    title, source, budget, url, score, proposal, freelancer_field = row
     parsed = parse_budget(budget)
     currency = f"{parsed.currency} " if parsed and parsed.currency else ""
     terms = get_bid_terms(connection, lead_id)
     lines = [f"Proyek: {title}", f"Sumber: {source}", f"Budget klien: {budget or '-'}"]
+    if source == "freelancer":
+        lines.insert(2, f"Bidang: {FREELANCER_FIELD_LABELS.get(freelancer_field, 'Lainnya')}")
     if terms and (terms.amount or terms.hourly_rate):
         if parsed and parsed.hourly:
             lines.append(f"Tarif bid: {currency}{terms.hourly_rate or terms.amount}/jam, maks {terms.weekly_limit or '-'} jam/minggu")
@@ -102,12 +110,17 @@ def sent_last_24h(connection: Connection) -> int:
 
 def candidates(connection: Connection, cfg: dict, limit: int) -> list[tuple[str, str]]:
     """Fresh, relevant, drafted, not-yet-bid Freelancer projects, best first: [(id, title)]."""
+    fields = tuple(cfg.get("fields") or ())
+    if not fields:
+        return []
+    field_marks = ", ".join("?" for _ in fields)
     rows = connection.execute(
         "SELECT id, title, budget FROM leads WHERE source = 'freelancer' AND status IN ('NEW', 'INTERESTED') "
         "AND length(COALESCE(proposal, '')) >= 100 AND bid_error IS NULL AND bid_submitted_at IS NULL "
+        f"AND COALESCE(freelancer_field, 'software') IN ({field_marks}) "
         f"AND score >= ? AND {WHEN} >= now() - (? * interval '1 hour') "
         f"ORDER BY score DESC, {WHEN} DESC LIMIT 60",
-        (cfg["min_score"], cfg["max_age_hours"]),
+        (*fields, cfg["min_score"], cfg["max_age_hours"]),
     ).fetchall()
     picked = []
     for lead_id, title, budget in rows:

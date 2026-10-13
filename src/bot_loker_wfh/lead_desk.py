@@ -14,6 +14,7 @@ from collections import Counter
 from collections.abc import Callable
 
 from .cv_profile import SafeCvProfile
+from .leads import FREELANCER_FIELD_LABELS
 from .form_agent.bid_terms import BidTerms, choose_bid_terms, parse_bid_terms, parse_budget, suggest_amount
 from .github_portfolio import MIN_MATCH, relevant_repos
 
@@ -84,7 +85,7 @@ LEAD_VIEWS = {
 
 def list_leads(connection: Connection, source: str | None = None, view: str = "all") -> list[dict]:
     sql = (
-        "SELECT id, source, kind, title, description, budget, url, status, posted_at, "
+        "SELECT id, source, kind, freelancer_field, title, description, budget, url, status, posted_at, "
         f"fetched_at, proposal, bid_terms, bid_auto, bid_error, bid_submitted_at FROM leads WHERE {LEAD_VIEWS.get(view, LEAD_VIEWS['all'])}"
     )
     params: tuple = ()
@@ -94,10 +95,10 @@ def list_leads(connection: Connection, source: str | None = None, view: str = "a
     sql += (
         f" ORDER BY (status = 'INTERESTED') DESC, {WHEN} DESC LIMIT ?"
     )
-    keys = ("id", "source", "kind", "title", "description", "budget", "url", "status",
+    keys = ("id", "source", "kind", "freelancer_field", "title", "description", "budget", "url", "status",
             "posted_at", "fetched_at", "proposal", "bid_terms", "bid_auto", "bid_error", "bid_submitted_at")
     rows = connection.execute(sql, (*params, LEAD_LIST_LIMIT)).fetchall()
-    items = [{**dict(zip(keys, row)), "description": (row[4] or "")[:600]} for row in rows]
+    items = [{**dict(zip(keys, row)), "description": (row[5] or "")[:600]} for row in rows]
     for item in items:
         terms = terms_from_json(item["bid_terms"], item["budget"])
         item["bid_terms"] = terms.as_dict() if terms else None
@@ -127,11 +128,24 @@ def _matched_skills(profile: SafeCvProfile, text: str, limit: int = 4) -> list[s
 
 
 def template_proposal(
-    title: str, description: str, profile: SafeCvProfile, repos: list[dict], *, indonesian: bool
+    title: str, description: str, profile: SafeCvProfile, repos: list[dict], *,
+    indonesian: bool, freelancer_field: str = "software",
 ) -> str:
     """Offline fallback: hook, proof (real repos), plan, call to action."""
     skills = ", ".join(_matched_skills(profile, f"{title} {description}")) or "web & mobile development"
     proof = "\n".join(f"• {r['name']} ({r['language'] or 'code'}): {r['url']}" for r in repos)
+    if freelancer_field != "software":
+        if indonesian:
+            return "\n\n".join((
+                f'Saya sudah membaca kebutuhan "{title}" dan memahami hasil yang ingin dicapai.',
+                "Saya akan mulai dengan menyamakan ruang lingkup dan contoh referensi, lalu mengirim hasil awal untuk ditinjau sebelum menyelesaikan revisi dan serah terima berkas.",
+                "Saya tidak ingin mengklaim pengalaman atau portofolio yang belum tercantum. Agar rencana dan estimasi saya tepat, hasil akhir atau format apa yang paling penting bagi Anda?",
+            ))
+        return "\n\n".join((
+            f'I have read your brief for "{title}" and understand the outcome you need.',
+            "I would first confirm the scope and references, then share an initial deliverable for review before refining it and handing over the final files.",
+            "I will not claim experience or portfolio work that is not documented. Which final format or outcome matters most to you?",
+        ))
     if indonesian:
         parts = [
             f'Halo! Saya sudah membaca kebutuhan "{title}" dan siap membantu sampai proyek ini benar-benar jalan.',
@@ -161,9 +175,24 @@ def template_proposal(
 
 def proposal_prompt(
     title: str, description: str, budget: str | None, profile: SafeCvProfile, repos: list[dict], *,
-    indonesian: bool, stack: str = "",
+    indonesian: bool, stack: str = "", freelancer_field: str = "software",
 ) -> str:
     language = "Bahasa Indonesia yang ramah dan profesional" if indonesian else "confident, friendly English"
+    if freelancer_field != "software":
+        field = FREELANCER_FIELD_LABELS.get(freelancer_field, freelancer_field)
+        proof = "\n".join(
+            f"- {r['name']} | {r['language'] or '-'} | {r['description'] or 'no description'} | {r['url']}"
+            for r in repos
+        ) or "- (none)"
+        return (
+            f"Write a truthful freelance proposal in {language}, 100-160 words, plain text. The project field is {field}. "
+            "Tailor the approach to the deliverable described by the client. Use only candidate skills, experience, or portfolio facts below that directly relate to this field. "
+            "If there is no relevant proof, do not claim expertise, years of experience, clients, or results; keep the proposal transparent and ask one useful question. "
+            "Do not discuss coding, software stacks, or GitHub repos unless they directly support this project. Never invent facts or include a price unless the budget is given.\n\n"
+            f"Project: {title}\nBudget: {budget or '-'}\nDescription: {description[:1500]}\n\n"
+            f"Candidate profile: {profile.to_summary()}\n"
+            f"Candidate GitHub repos (cite only if directly relevant):\n{proof}"
+        )
     proof = "\n".join(
         f"- {r['name']} | {r['language'] or '-'} | {r['description'] or 'no description'} | {r['url']}"
         for r in repos
@@ -197,21 +226,26 @@ def draft_proposal(
 ) -> str:
     """Write (or, with the owner's `note`, revise) the proposal and Cora's suggested bid terms."""
     row = connection.execute(
-        "SELECT title, description, source, budget, proposal FROM leads WHERE id = ?", (lead_id,)
+        "SELECT title, description, source, budget, proposal, freelancer_field FROM leads WHERE id = ?", (lead_id,)
     ).fetchone()
     if row is None:
         raise KeyError(lead_id)
-    title, description, source, budget, previous = row
+    title, description, source, budget, previous, freelancer_field = row
     ensure_open(connection, lead_id)
     note = note.strip()[:500]
     indonesian = is_indonesian(f"{title} {description}", source)
-    repos = relevant_repos(portfolio or {}, f"{title} {description}")
+    repos = (
+        relevant_repos(portfolio or {}, f"{title} {description}")
+        if (freelancer_field or "software") == "software"
+        else []
+    )
     text = ""
     if llm is not None:
         try:
             prompt = proposal_prompt(
                 title, description, budget, profile, repos,
                 indonesian=indonesian, stack=portfolio_stack(portfolio or {}),
+                freelancer_field=freelancer_field or "software",
             )
             if note and (previous or "").strip():
                 prompt += (
@@ -225,7 +259,10 @@ def draft_proposal(
             text = ""
     if note and not text:
         raise RevisionFailed("model tidak menjawab; draf lama dipertahankan")
-    text = text or template_proposal(title, description, profile, repos, indonesian=indonesian)
+    text = text or template_proposal(
+        title, description, profile, repos, indonesian=indonesian,
+        freelancer_field=freelancer_field or "software",
+    )
     save_proposal(connection, lead_id, text, mark_interested=mark_interested)
     _log_draft_repos(connection, lead_id, title, repos, portfolio or {})
     terms = choose_bid_terms(llm, title=title, description=description, budget=budget or "", note=note)

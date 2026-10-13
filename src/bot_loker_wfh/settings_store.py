@@ -18,6 +18,10 @@ DEFAULTS: dict[str, tuple[str, float | None]] = {
     "auto_bid_min_score": ("0.7", 0),
     "auto_bid_max_competitors": ("40", 1),
     "auto_bid_max_age_hours": ("24", 1),
+    # Search scope and automatic bid scope are independent; new fields are
+    # discover-only until the owner also enables them for automatic bidding.
+    "freelancer_search_fields": ("software", None),
+    "freelancer_auto_bid_fields": ("software", None),
 }
 
 

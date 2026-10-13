@@ -64,6 +64,79 @@ WEAK_TERMS = (
     "developer", "programmer", "backend", "frontend", "api", "source code",
     "sourcecode", "kode sumber",
 )
+
+# Freelancer searches and bid eligibility are configured separately. Keeping the
+# existing software search as the default preserves the current scope until the
+# owner opts into other fields in the office settings.
+FREELANCER_FIELD_ORDER = (
+    "software",
+    "design",
+    "writing",
+    "marketing",
+    "data_admin",
+    "video_audio",
+    "finance",
+    "customer_support",
+    "ecommerce",
+)
+DEFAULT_FREELANCER_FIELDS = ("software",)
+FREELANCER_FIELD_LABELS = {
+    "software": "Web, aplikasi & pemrograman",
+    "design": "Desain grafis & UI/UX",
+    "writing": "Penulisan & penerjemahan",
+    "marketing": "Pemasaran digital",
+    "data_admin": "Data entry & administrasi",
+    "video_audio": "Video, animasi & audio",
+    "finance": "Pembukuan & keuangan",
+    "customer_support": "Layanan pelanggan",
+    "ecommerce": "Toko online & katalog produk",
+}
+FREELANCER_FIELD_QUERIES = {
+    "software": FREELANCER_QUERIES,
+    "design": ("graphic design", "UI UX design"),
+    "writing": ("content writing", "translation"),
+    "marketing": ("digital marketing", "SEO"),
+    "data_admin": ("data entry", "virtual assistant"),
+    "video_audio": ("video editing", "animation"),
+    "finance": ("bookkeeping", "accounting"),
+    "customer_support": ("customer support", "chat support"),
+    "ecommerce": ("Shopify", "product listing"),
+}
+FREELANCER_FIELD_TERMS = {
+    "design": (
+        "graphic design", "logo design", "UI UX", "UI/UX", "user interface design",
+        "user experience design", "Figma", "Adobe Photoshop", "Adobe Illustrator",
+        "brand identity", "branding",
+    ),
+    "writing": (
+        "content writing", "copywriting", "article writing", "blog writing",
+        "proofreading", "translation", "English translation", "Indonesian translation",
+    ),
+    "marketing": (
+        "digital marketing", "search engine optimization", "SEO", "social media marketing",
+        "Facebook ads", "Google ads", "lead generation", "email marketing",
+    ),
+    "data_admin": (
+        "data entry", "virtual assistant", "web research", "data processing",
+        "Excel spreadsheet", "spreadsheet management", "transcription",
+    ),
+    "video_audio": (
+        "video editing", "video editor", "animation", "motion graphics", "voice over",
+        "audio editing", "podcast editing",
+    ),
+    "finance": (
+        "bookkeeping", "accounting", "QuickBooks", "Xero accounting", "financial reporting",
+        "accounts payable", "accounts receivable",
+    ),
+    "customer_support": (
+        "customer support", "customer service", "chat support", "email support",
+        "support agent", "call center",
+    ),
+    "ecommerce": (
+        "Shopify", "WooCommerce", "ecommerce", "e-commerce", "product listing",
+        "Amazon seller", "online store",
+    ),
+}
 # Phrases that show someone wants to BUY existing code. Plain "source code" is
 # not enough: most projects merely require the source code as a deliverable.
 SOURCE_CODE_BUYER_TERMS = (
@@ -89,6 +162,7 @@ class Lead:
     kind: str = ""
     score: float = 0.0
     bids: int | None = None
+    freelancer_field: str | None = None
 
 
 def classify(
@@ -109,6 +183,77 @@ def classify(
     return ("source_code" if is_source_code else "project"), score
 
 
+def parse_freelancer_fields(value: str | Sequence[str] | None) -> tuple[str, ...]:
+    """Parse a comma-separated field setting into known values in stable order."""
+    if value is None:
+        selected = set(DEFAULT_FREELANCER_FIELDS)
+    elif isinstance(value, str):
+        selected = {part.strip() for part in value.split(",") if part.strip()}
+    else:
+        selected = {str(part).strip() for part in value if str(part).strip()}
+    return tuple(field for field in FREELANCER_FIELD_ORDER if field in selected)
+
+
+def validate_freelancer_fields(value: str) -> bool:
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    return len(value) <= 200 and all(part in FREELANCER_FIELD_ORDER for part in parts)
+
+
+def get_freelancer_fields(connection: Connection, setting_key: str = "freelancer_search_fields") -> tuple[str, ...]:
+    from .settings_store import get_setting
+
+    return parse_freelancer_fields(get_setting(connection, setting_key))
+
+
+def classify_freelancer(
+    title: str,
+    description: str,
+    extra_terms: Sequence[str] = (),
+    fields: Sequence[str] = DEFAULT_FREELANCER_FIELDS,
+) -> tuple[str | None, float, str | None]:
+    """Classify a Freelancer project only inside enabled fields; return its field too."""
+    text = f"{title} . {description}".lower().replace("-", " ")
+    candidates: list[tuple[float, int, str]] = []
+    for field in fields:
+        if field not in FREELANCER_FIELD_LABELS:
+            continue
+        if field == "software":
+            terms = (*STRONG_TERMS, *extra_terms)
+            strong = {
+                term.lower().replace("-", " ")
+                for term in terms
+                if _has_term(text, term.lower().replace("-", " "))
+            }
+            weak = {term for term in WEAK_TERMS if _has_term(text, term)}
+            if not strong and len(weak) < 2:
+                continue
+            score = min(1.0, (len(strong) + len(weak) / 2) / 3)
+        else:
+            strong = {
+                term.lower().replace("-", " ")
+                for term in FREELANCER_FIELD_TERMS[field]
+                if _has_term(text, term.lower().replace("-", " "))
+            }
+            weak = set()
+            if not strong:
+                continue
+            score = min(1.0, len(strong) / 3)
+        candidates.append((score, len(strong) + len(weak), field))
+
+    if not candidates:
+        return None, 0.0, None
+    score, _matches, field = max(
+        candidates,
+        key=lambda item: (item[0], item[1], -FREELANCER_FIELD_ORDER.index(item[2])),
+    )
+    title_text = title.lower().replace("-", " ")
+    is_source_code = field == "software" and (
+        any(_has_term(text, term) for term in SOURCE_CODE_BUYER_TERMS)
+        or any(_has_term(title_text, term) for term in TITLE_SOURCE_CODE_TERMS)
+    )
+    return ("source_code" if is_source_code else "project"), score, field
+
+
 def _has_term(text: str, term: str) -> bool:
     return re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", text) is not None
 
@@ -123,11 +268,13 @@ class FreelancerFetcher:
         self,
         *,
         fetch_json: Callable[[str], dict[str, Any]] | None = None,
-        queries: Sequence[str] = FREELANCER_QUERIES,
+        queries: Sequence[str] | None = None,
+        fields: Sequence[str] = DEFAULT_FREELANCER_FIELDS,
         delay_seconds: float = REQUEST_DELAY_SECONDS,
     ) -> None:
         self.fetch_json = fetch_json or fetch_freelancer_json
-        self.queries = tuple(queries)
+        self.fields = parse_freelancer_fields(fields)
+        self.queries = tuple(queries) if queries is not None else freelancer_queries(self.fields)
         self.delay_seconds = delay_seconds
 
     def fetch(self) -> list[Lead]:
@@ -141,6 +288,15 @@ class FreelancerFetcher:
                 if lead is not None:
                     leads.setdefault(lead.external_id, lead)
         return list(leads.values())
+
+
+def freelancer_queries(fields: Sequence[str]) -> tuple[str, ...]:
+    """Build the search list for selected fields, removing duplicate API calls."""
+    return tuple(dict.fromkeys(
+        query
+        for field in fields
+        for query in FREELANCER_FIELD_QUERIES.get(field, ())
+    ))
 
 
 class ProjectsCoIdFetcher:
@@ -503,15 +659,25 @@ class LeadService:
         *,
         fetchers: Sequence[Any] | None = None,
         max_age_days: int = MAX_AGE_DAYS,
+        freelancer_fields: Sequence[str] | None = None,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
         logger: logging.Logger | None = None,
     ) -> None:
         self.connection = connection
         self.extra_terms = tuple(profile.skills)
+        self.freelancer_fields = (
+            parse_freelancer_fields(freelancer_fields)
+            if freelancer_fields is not None
+            else get_freelancer_fields(connection)
+        )
         self.fetchers = (
             list(fetchers)
             if fetchers is not None
-            else [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]
+            else [
+                FreelancerFetcher(fields=self.freelancer_fields),
+                ProjectsCoIdFetcher(),
+                PeoplePerHourFetcher(),
+            ]
         )
         self.max_age_days = max_age_days
         self.now = now
@@ -546,16 +712,22 @@ class LeadService:
             return False
         if self._exceeds_max_bids(lead):
             return False
-        kind, score = classify(lead.title, lead.description, self.extra_terms)
+        if lead.source == "freelancer":
+            kind, score, field = classify_freelancer(
+                lead.title, lead.description, self.extra_terms, self.freelancer_fields
+            )
+        else:
+            kind, score = classify(lead.title, lead.description, self.extra_terms)
+            field = lead.freelancer_field or "software"
         if kind is None:
             return False
-        lead = replace(lead, kind=kind, score=score)
+        lead = replace(lead, kind=kind, score=score, freelancer_field=field)
         cursor = self.connection.execute(
-            "INSERT INTO leads (id, source, external_id, kind, title, description, "
-            "url, budget, posted_at, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "INSERT INTO leads (id, source, external_id, kind, freelancer_field, title, description, "
+            "url, budget, posted_at, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT DO NOTHING",
             (
-                str(uuid.uuid4()), lead.source, lead.external_id, lead.kind,
+                str(uuid.uuid4()), lead.source, lead.external_id, lead.kind, lead.freelancer_field,
                 lead.title, lead.description, lead.url, lead.budget,
                 lead.posted_at, lead.score,
             ),
@@ -613,14 +785,16 @@ class LeadService:
 
     def message(self, lead_id: str, chat_id: int) -> TelegramMessage | None:
         row = self.connection.execute(
-            "SELECT kind, title, source, budget, posted_at, url, description "
+            "SELECT kind, title, source, budget, posted_at, url, description, freelancer_field "
             "FROM leads WHERE id = ?",
             (lead_id,),
         ).fetchone()
         if row is None:
             return None
-        kind, title, source, budget, posted_at, url, description = row
+        kind, title, source, budget, posted_at, url, description, freelancer_field = row
         label = "Peluang jual source code" if kind == "source_code" else "Proyek dicari developer"
+        if source == "freelancer":
+            label = f"Proyek Freelancer · {FREELANCER_FIELD_LABELS.get(freelancer_field, 'Lainnya')}"
         snippet = " ".join(description.split())[:350]
         text = (
             f"{label}\nID Lead: {lead_id}\n{title}\nSumber: {source}\nBudget: {budget or '-'}\n"

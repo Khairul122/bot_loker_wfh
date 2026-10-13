@@ -6,6 +6,13 @@ import { loadPrefs, savePrefNow } from '../systems/prefs.js';
 
 const SOURCES = [['', '✨ Semua'], ['freelancer', '🌍 Freelancer'], ['projects.co.id', '🏠 Projects.co.id'], ['telegram', '🏠 Telegram']];
 const VIEWS = [['all', '📋 Aktif'], ['new', '🆕 Baru'], ['interested', '⭐ Diminati'], ['proposal', '📝 Draf'], ['approved', '🚀 Disetujui'], ['old', '🕰️ Lama'], ['ignored', '🚫 Diabaikan']];
+const FREELANCER_FIELD_LABELS = {
+  software: 'Web, aplikasi & pemrograman', design: 'Desain grafis & UI/UX',
+  writing: 'Penulisan & penerjemahan', marketing: 'Pemasaran digital',
+  data_admin: 'Data entry & administrasi', video_audio: 'Video, animasi & audio',
+  finance: 'Pembukuan & keuangan', customer_support: 'Layanan pelanggan',
+  ecommerce: 'Toko online & katalog produk',
+};
 const STATUS = {
   NEW: ['good', '🆕 Baru'], INTERESTED: ['mid', '⭐ Diminati'], IGNORED: ['low', '🚫 Diabaikan'],
   APPROVED: ['mid', '⏳ Faris sedang mengisi & mengirim'], SUBMITTED: ['good', '✅ Terkirim'],
@@ -70,6 +77,9 @@ function lead(l) {
     : sourceClass === 'projects' ? '🏠 Projects.co.id' : '✈️ Telegram';
 
   top.append(el('span', `tag tag-src ${sourceClass}`, sourceLabel));
+  if (sourceClass === 'freelancer' && FREELANCER_FIELD_LABELS[l.freelancer_field]) {
+    top.append(el('span', 'tag', FREELANCER_FIELD_LABELS[l.freelancer_field]));
+  }
   if (l.budget) top.append(el('span', 'b-badge', l.budget));
 
   const title = el('div', 'jt', l.title);
@@ -114,14 +124,18 @@ function detail(l) {
 
   const [cls, label] = STATUS[l.status] || ['mid', l.status];
   const grid = el('div', 'periods');
-  grid.append(
-    row('Sumber', l.source),
+  const details = [row('Sumber', l.source)];
+  if (l.source === 'freelancer') {
+    details.push(row('Bidang', FREELANCER_FIELD_LABELS[l.freelancer_field] || 'Lainnya'));
+  }
+  details.push(
     row('Jenis', l.kind),
     row('Budget', l.budget),
     row('Status', label),
     row('Diposting', ago(l.posted_at || l.fetched_at)),
     row('Diambil', ago(l.fetched_at)),
   );
+  grid.append(...details);
   wrap.append(grid);
   if (l.description) wrap.append(el('h4', null, 'Deskripsi'), el('p', 'note', l.description));
 

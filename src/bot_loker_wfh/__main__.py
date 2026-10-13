@@ -24,6 +24,7 @@ from .leads import (
     PeoplePerHourFetcher,
     ProjectsCoIdFetcher,
     TelegramChannelFetcher,
+    get_freelancer_fields,
 )
 from .lever import LeverFetcher
 from .llm import create_chat_llm, create_llm_from_settings
@@ -473,7 +474,7 @@ def _office_hunters(profile, settings: Settings) -> dict:
         )
         for source, fetcher_class in job_fetchers.items()
     }
-    lead_fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]  # global + Indonesia
+    lead_fetchers = [ProjectsCoIdFetcher(), PeoplePerHourFetcher()]  # global + Indonesia
     if settings.lead_telegram_channels:
         lead_fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
     for fetcher in lead_fetchers:
@@ -482,6 +483,16 @@ def _office_hunters(profile, settings: Settings) -> dict:
                 connection, LeadService(connection, profile, fetchers=[fetcher]), fetcher.source
             )
         )
+
+    def hunt_freelancer(connection):
+        fields = get_freelancer_fields(connection)
+        fetcher = FreelancerFetcher(fields=fields)
+        service = LeadService(
+            connection, profile, fetchers=[fetcher], freelancer_fields=fields
+        )
+        return hunt_leads(connection, service, "freelancer")
+
+    hunters["freelancer"] = hunt_freelancer
     return hunters
 
 
@@ -505,10 +516,11 @@ def _read_scrape_interval() -> float:
 
 
 def _lead_service(connection, profile, settings: Settings) -> LeadService:
-    fetchers = [FreelancerFetcher(), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]
+    fields = get_freelancer_fields(connection)
+    fetchers = [FreelancerFetcher(fields=fields), ProjectsCoIdFetcher(), PeoplePerHourFetcher()]
     if settings.lead_telegram_channels:
         fetchers.append(TelegramChannelFetcher(settings.lead_telegram_channels))
-    return LeadService(connection, profile, fetchers=fetchers)
+    return LeadService(connection, profile, fetchers=fetchers, freelancer_fields=fields)
 
 
 def _fill_form(

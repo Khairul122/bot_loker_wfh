@@ -10,6 +10,18 @@ const SETTINGS_TABS = [
   { id: 'freelance', label: '💼 Freelance' },
 ];
 
+const FREELANCER_FIELDS = [
+  { value: 'software', label: 'Web, aplikasi & pemrograman' },
+  { value: 'design', label: 'Desain grafis & UI/UX' },
+  { value: 'writing', label: 'Penulisan & penerjemahan' },
+  { value: 'marketing', label: 'Pemasaran digital' },
+  { value: 'data_admin', label: 'Data entry & administrasi' },
+  { value: 'video_audio', label: 'Video, animasi & audio' },
+  { value: 'finance', label: 'Pembukuan & keuangan' },
+  { value: 'customer_support', label: 'Layanan pelanggan' },
+  { value: 'ecommerce', label: 'Toko online & katalog produk' },
+];
+
 let settingsData = null;
 let settingsMeta = {}; // raw payload for masked secrets (hint/set)
 const dirty = new Map(); // key -> pending value (local edit not yet saved)
@@ -135,6 +147,30 @@ function createList(items) {
   return list;
 }
 
+function createFieldPicker(key, label, fields, value) {
+  const picker = el('fieldset', 'setting-field-picker');
+  const legend = el('legend', '', label);
+  const options = el('div', 'setting-field-options');
+  const selected = new Set(String(value || '').split(',').map(item => item.trim()).filter(Boolean));
+
+  fields.forEach(field => {
+    const option = el('label', 'setting-field-option');
+    const input = el('input', '');
+    input.type = 'checkbox';
+    input.checked = selected.has(field.value);
+    input.onchange = () => {
+      if (input.checked) selected.add(field.value);
+      else selected.delete(field.value);
+      markDirty(key, fields.filter(item => selected.has(item.value)).map(item => item.value).join(','));
+    };
+    option.append(input, el('span', '', field.label));
+    options.append(option);
+  });
+
+  picker.append(legend, options);
+  return picker;
+}
+
 function renderPanelContent(tabId) {
   switch (tabId) {
     case 'llm': return renderLLMPanel();
@@ -204,7 +240,13 @@ function renderFreelancePanel() {
   const s = settingsData || {};
   const valueOf = key => s[key]?.value ?? s[key];
   container.append(
-    el('h4', '', 'Bid otomatis Freelancer.com'),
+    el('h4', '', 'Bidang proyek Freelancer.com'),
+    el('p', 'settings-note', 'Pilih bidang yang ingin dipantau. Proyek yang cocok akan masuk ke daftar temuan dan dapat dibuatkan draf.'),
+    createFieldPicker('freelancer_search_fields', 'Cari proyek di bidang ini', FREELANCER_FIELDS, valueOf('freelancer_search_fields') ?? 'software'),
+    el('h4', '', 'Batas bidang untuk bid otomatis'),
+    el('p', 'settings-note', 'Bid otomatis tetap dibatasi terpisah. Bidang baru tidak ikut dikirimi proposal sampai kamu memilihnya di daftar ini.'),
+    createFieldPicker('freelancer_auto_bid_fields', 'Izinkan bid otomatis di bidang ini', FREELANCER_FIELDS, valueOf('freelancer_auto_bid_fields') ?? 'software'),
+    el('h4', '', 'Pengiriman proposal otomatis'),
     el('p', 'settings-note', 'Saat aktif, proposal dan harga yang sudah disiapkan AI dikirim melalui API resmi tanpa persetujuan per proyek. Aktifkan hanya jika kamu menyetujui pengiriman otomatis atas nama akun Freelancer.'),
     createSelect('auto_bid_enabled', 'Kirim bid otomatis', [
       { value: '0', label: 'Mati' },
