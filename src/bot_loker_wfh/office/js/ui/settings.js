@@ -7,7 +7,7 @@ const SETTINGS_TABS = [
   { id: 'llm', label: '🔀 Hermes Agent' },
   { id: 'browser', label: '🌐 BrowserMCP' },
   { id: 'form', label: '📝 Form Engine' },
-  { id: 'freelance', label: '🤖 Freelance Otomatis' },
+  { id: 'freelance', label: '💼 Freelance' },
 ];
 
 let settingsData = null;
@@ -201,24 +201,14 @@ function renderLLMPanel() {
 
 function renderFreelancePanel() {
   const container = el('div');
-  const s = settingsData || {};
   container.append(
-    el('h4', '', '🤖 Bid Freelancer otomatis (tanpa persetujuan)'),
-    el('p', '', 'Kalau aktif, setiap putaran kerja: Cora menulis draf untuk proyek Freelancer baru, lalu bid yang lolos aturan di bawah dikirim lewat API resmi. Hasilnya dikabari lewat Telegram. Karyawan dan server harus tetap menyala.'),
-    createSelect('auto_bid_enabled', 'Auto-bid', [
-      { value: '0', label: '⏸️ Mati (kamu setujui satu per satu)' },
-      { value: '1', label: '🤖 Aktif (bid dikirim otomatis)' },
-    ], String(s.auto_bid_enabled || '0')),
-    createNumberInput('auto_bid_max_per_day', 'Maks bid per 24 jam', s.auto_bid_max_per_day || 5, 1, 50),
-    createNumberInput('auto_bid_min_score', 'Skor relevansi minimum (0-1)', s.auto_bid_min_score || 0.7, 0, 1, 0.05),
-    createNumberInput('auto_bid_max_competitors', 'Lewati proyek dengan bid lebih dari', s.auto_bid_max_competitors || 40, 1, 500),
-    createNumberInput('auto_bid_max_age_hours', 'Hanya proyek yang diposting dalam (jam)', s.auto_bid_max_age_hours || 24, 1, 720),
+    el('h4', '', 'Draf otomatis, pengiriman dengan persetujuan owner'),
+    el('p', 'settings-note', 'Saat mode kerja otomatis aktif, karyawan dapat mencari proyek dan menyiapkan draf proposal. Draf menunggu di Papan Proyek; proposal eksternal hanya dikirim setelah owner meninjau dan menyetujuinya.'),
     el('hr', '', ''),
     createList([
-      '✅ Hanya Freelancer.com (API resmi); Projects.co.id tetap lewat persetujuanmu',
-      '💰 Harga = rata-rata bid platform (tidak di bawahnya), tenggang waktu dari Cora',
-      '🛑 Satu penolakan menghentikan putaran itu; token/kuota bermasalah mematikan auto-bid',
-      '🔁 Proyek yang ditolak tidak dicoba ulang otomatis',
+      'Pencarian dan analisis berjalan otomatis sesuai jadwal kantor.',
+      'Setiap draf dapat ditinjau dan diedit sebelum dikirim.',
+      'Persetujuan owner menjadi langkah wajib untuk setiap pengiriman eksternal.',
     ]),
   );
   return container;

@@ -122,6 +122,13 @@ button:disabled{cursor:not-allowed;opacity:.55}
 .pane .btn{margin-top:6px}
 .answer{white-space:pre-wrap;font-size:13px;font-weight:700;margin:8px 0 0;line-height:1.45}
 .answer:empty{display:none}
+.chat-feedback{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.chat-feedback>small{display:block;color:var(--ink-soft);font-size:12px;font-weight:800;margin-bottom:6px}
+.chat-feedback-actions{display:flex;flex-wrap:wrap;gap:6px}
+.chat-feedback-actions .btn{font-size:12px;min-height:34px;padding:5px 9px}
+.chat-feedback label{display:block;margin-top:8px;font-size:12px;font-weight:800}
+.chat-feedback textarea{width:100%;min-height:58px;margin-top:4px;padding:7px 9px;border:2px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-size:13px;resize:vertical}
+.chat-feedback [role="status"]{margin:5px 0 0;font-size:12px;font-weight:700;color:var(--ink-soft)}
 .rate{display:flex;gap:2px;align-items:center;flex-wrap:wrap}
 .rate button{font-size:22px;color:#e7d6c2;width:32px;height:32px;border-radius:8px}
 .rate button.on{color:#f2b84b}

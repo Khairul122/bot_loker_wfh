@@ -21,6 +21,7 @@ HERMES_REQUIRED_TOOLS = frozenset({"skills_list", "skill_view", "memory", "deleg
 HERMES_REQUIRED_SKILLS = frozenset(
     f"loker-employee-{employee['id']}" for employee in EMPLOYEES
 )
+_EMPLOYEE_IDS = frozenset(employee["id"] for employee in EMPLOYEES)
 
 
 @dataclass(frozen=True)
@@ -481,6 +482,7 @@ class LLMRouter:
                             prompt_tokens=res.prompt_tokens,
                             completion_tokens=res.completion_tokens,
                             application_id=application_id,
+                            employee_id=persona if persona in _EMPLOYEE_IDS else None,
                         )
                     return res
                 except LLMError as err:
@@ -497,6 +499,7 @@ class LLMRouter:
                             error_code=err.code,
                             latency_ms=err.latency_ms,
                             application_id=application_id,
+                            employee_id=persona if persona in _EMPLOYEE_IDS else None,
                         )
                     if err.code == "rate_limited" and attempt == 1:
                         time.sleep(1.0)
@@ -514,6 +517,7 @@ class LLMRouter:
                             error_code="unexpected_error",
                             latency_ms=int((time.monotonic() - attempt_started) * 1000),
                             application_id=application_id,
+                            employee_id=persona if persona in _EMPLOYEE_IDS else None,
                         )
                     break
 

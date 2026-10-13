@@ -70,6 +70,8 @@ function act(kind) {
 }
 
 let cardFor = null;
+let feedbackConversationId = null;
+let feedbackKind = null;
 export function openCard(c) {
   const p = c.perfNow;
   $('cFace').textContent = MOODS[c.mood].emo; $('cFace').style.cssText = faceStyle(c);
@@ -92,6 +94,7 @@ export function openCard(c) {
     ['cAsk', 'cOrder'].forEach(id => $(id).classList.remove('show'));
     ['cAskBtn', 'cOrderBtn'].forEach(id => $(id).classList.remove('on'));
     $('cAnswer').textContent = ''; $('cAskIn').value = '';
+    resetChatFeedback();
     $('cOrderIn').value = order || ''; $('cOrderHint').textContent = ORDER_HINT(c);
   }
   showLeads(c.lastHunt || []);
@@ -192,13 +195,66 @@ $('cReport').onclick = async () => {
 async function askNow() {
   const c = chatWith, q = $('cAskIn').value.trim(); if (!c || !q) return;
   if (!store.live) { toast(OFFLINE); return; }
+  resetChatFeedback();
   $('cAskGo').disabled = true; $('cAnswer').textContent = '💭 …'; c.showEmo('💭'); c.doEmote('nod', 1.5);
   const res = await post(`ask/${c.def.id}`, { question: q });
   $('cAskGo').disabled = false;
   const a = res.ok ? res.data.answer : 'Maaf bos, aku lagi nggak bisa jawab 😢';
-  if (chatWith === c) $('cAnswer').textContent = a;
+  if (chatWith === c) {
+    $('cAnswer').textContent = a;
+    feedbackConversationId = res.ok ? res.data.conversation_id : null;
+    $('cFeedback').hidden = !feedbackConversationId;
+  }
   say(c, a.length > 140 ? a.slice(0, 137) + '…' : a, 8); c.showEmo(res.ok ? '💡' : '😢');
 }
+function resetChatFeedback() {
+  feedbackConversationId = null;
+  feedbackKind = null;
+  $('cFeedback').hidden = true;
+  $('cFeedbackNotePane').hidden = true;
+  $('cFeedbackNote').value = '';
+  $('cFeedbackState').textContent = '';
+  document.querySelectorAll('[data-chat-feedback]').forEach(button => { button.disabled = false; });
+  $('cFeedbackSave').disabled = false;
+}
+async function sendChatFeedback(kind, note = '') {
+  const c = chatWith;
+  if (!c || !feedbackConversationId) return;
+  if (kind !== 'helpful' && !note.trim()) {
+    $('cFeedbackState').textContent = 'Isi catatan owner agar karyawan tahu apa yang perlu diperbaiki atau diingat.';
+    $('cFeedbackNote').focus();
+    return;
+  }
+  document.querySelectorAll('[data-chat-feedback]').forEach(button => { button.disabled = true; });
+  $('cFeedbackSave').disabled = true;
+  $('cFeedbackState').textContent = 'Menyimpan…';
+  const res = await post(`chat-feedback/${c.def.id}`, {
+    conversation_id: feedbackConversationId, kind, note,
+  });
+  if (!res.ok) {
+    $('cFeedbackState').textContent = 'Gagal menyimpan. Coba lagi.';
+    document.querySelectorAll('[data-chat-feedback]').forEach(button => { button.disabled = false; });
+    $('cFeedbackSave').disabled = false;
+    return;
+  }
+  $('cFeedbackNotePane').hidden = true;
+  $('cFeedbackState').textContent = res.data.memory_saved
+    ? 'Tersimpan dan ditambahkan ke memori karyawan.'
+    : 'Umpan balik tersimpan.';
+}
+document.querySelectorAll('[data-chat-feedback]').forEach(button => {
+  button.addEventListener('click', () => {
+    const kind = button.dataset.chatFeedback;
+    if (kind === 'helpful') { sendChatFeedback(kind); return; }
+    feedbackKind = kind;
+    $('cFeedbackLabel').textContent = kind === 'correction'
+      ? 'Apa yang salah dan bagaimana seharusnya?'
+      : 'Aturan atau pelajaran apa yang perlu diingat?';
+    $('cFeedbackNotePane').hidden = false;
+    $('cFeedbackNote').focus();
+  });
+});
+$('cFeedbackSave').addEventListener('click', () => sendChatFeedback(feedbackKind, $('cFeedbackNote').value));
 $('cAskGo').onclick = askNow;
 $('cAskIn').onkeydown = e => { if (e.key === 'Enter') askNow(); };
 $('cOrderGo').onclick = async () => {

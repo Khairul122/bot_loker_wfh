@@ -1,11 +1,10 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock
 
 from bot_loker_wfh import database
 from bot_loker_wfh.auto_bid import candidates, config, run_auto_bids
 from bot_loker_wfh.database import apply_schema
-from bot_loker_wfh.freelancer_api import FreelancerError
-from bot_loker_wfh.settings_store import get_setting, set_setting
+from bot_loker_wfh.settings_store import set_setting
 
 PROPOSAL = "Saya siap mengerjakan proyek ini dengan rapi dan tepat waktu. " * 3
 
@@ -39,19 +38,21 @@ class AutoBidTest(unittest.TestCase):
 
     def test_off_by_default_sends_nothing(self):
         self.lead("a")
-        self.assertEqual(self.bid_pass()["skipped"], "off")
+        self.assertEqual(self.bid_pass()["skipped"], "owner_approval_required")
         self.assertEqual(self.sent, [])
 
-    def test_sends_best_scored_fresh_projects_and_records_the_audit_trail(self):
+    def test_legacy_enabled_switch_never_sends_without_owner_approval(self):
         self.enable()
-        self.lead("good", score=0.95)
-        self.lead("better", score=1.0)
-        result = self.bid_pass()
-        self.assertEqual((result["sent"], self.sent), (2, ["better", "good"]))
-        row = self.connection.execute("SELECT status, bid_auto, bid_submitted_at FROM leads WHERE id='good'").fetchone()
-        self.assertEqual((row[0], row[1]), ("SUBMITTED", 1))
-        self.assertIsNotNone(row[2])
-        self.assertEqual(len(self.notes), 2)
+        self.lead("draft")
+        place = Mock()
+        reconcile = Mock()
+        result = run_auto_bids(self.connection, place, self.notes.append, reconcile)
+        row = self.connection.execute("SELECT status, bid_auto, bid_submitted_at FROM leads WHERE id='draft'").fetchone()
+        self.assertEqual(result, {"sent": 0, "skipped": "owner_approval_required"})
+        self.assertEqual(tuple(row), ("NEW", 0, None))
+        place.assert_not_called()
+        reconcile.assert_not_called()
+        self.assertEqual(self.notes, [])
 
     def test_guard_rails_filter_candidates(self):
         self.enable()
@@ -65,70 +66,6 @@ class AutoBidTest(unittest.TestCase):
         self.lead("ok")
         self.assertEqual([i for i, _ in candidates(self.connection, config(self.connection), 10)], ["ok"])
 
-    def test_daily_cap_counts_the_last_24_hours(self):
-        self.enable(auto_bid_max_per_day=2)
-        for lead_id in ("a", "b", "c", "d"):
-            self.lead(lead_id)
-        self.assertEqual(self.bid_pass()["sent"], 2)
-        self.assertEqual(self.bid_pass()["skipped"], "daily_cap")
-        self.assertEqual(len(self.sent), 2)
-
-    def test_stale_candidate_does_not_reopen_another_workers_claim(self):
-        self.enable()
-        self.lead("claimed")
-        self.connection.execute("UPDATE leads SET status = 'APPROVED' WHERE id = 'claimed'")
-        self.connection.commit()
-
-        with patch("bot_loker_wfh.auto_bid.candidates", return_value=[("claimed", "Project claimed")]):
-            result = self.bid_pass()
-
-        row = self.connection.execute("SELECT status, bid_error FROM leads WHERE id = 'claimed'").fetchone()
-        self.assertEqual(tuple(row), ("APPROVED", None))
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(self.sent, [])
-        self.assertEqual(self.notes, [])
-
-    def test_claim_race_after_validation_keeps_the_other_workers_status(self):
-        self.enable()
-        self.lead("raced")
-        execute = self.connection.execute
-
-        def race_on_claim(sql, params=None):
-            if sql.startswith("UPDATE leads SET status = 'APPROVED'"):
-                other = database.connect()
-                try:
-                    other.execute("UPDATE leads SET status = 'APPROVED' WHERE id = 'raced'")
-                    other.commit()
-                finally:
-                    other.close()
-            return execute(sql, params)
-
-        with patch.object(self.connection, "execute", side_effect=race_on_claim):
-            result = self.bid_pass()
-
-        row = self.connection.execute("SELECT status, bid_error FROM leads WHERE id = 'raced'").fetchone()
-        self.assertEqual(tuple(row), ("APPROVED", None))
-        self.assertEqual(result["sent"], 0)
-        self.assertEqual(self.sent, [])
-
-    def test_a_refusal_about_one_project_skips_it_and_keeps_going(self):
-        self.enable()
-        self.lead("a", score=1.0)
-        self.lead("b", score=0.9)
-
-        def refuse_first(connection, lead_id):
-            if lead_id == "a":
-                raise FreelancerError("Freelancer menolak bid: You must be Verified by Freelancer to bid on projects $2500 USD and over")
-            self.place(connection, lead_id)
-
-        result = self.bid_pass(refuse_first)
-        self.assertEqual((result["sent"], self.sent), (1, ["b"]))        # the next project still went out
-        self.assertEqual(get_setting(self.connection, "auto_bid_enabled"), "1")  # verification is per project: stays on
-        self.assertEqual(self.connection.execute("SELECT status FROM leads WHERE id='a'").fetchone()[0], "INTERESTED")
-        self.sent.clear()
-        self.bid_pass()  # the refused project is never retried
-        self.assertEqual(self.sent, [])
-
     def test_projects_the_account_cannot_bid_on_are_not_even_tried(self):
         self.enable()
         self.lead("big", budget="USD 100,000-? | 5 bid")
@@ -136,57 +73,6 @@ class AutoBidTest(unittest.TestCase):
         self.lead("inr", budget="INR 12,500-37,500 | 5 bid")
         self.lead("small", budget="USD 250-750 | 5 bid")
         self.assertEqual({i for i, _ in candidates(self.connection, config(self.connection), 10)}, {"inr", "small"})
-
-    def test_repeated_refusals_stop_the_pass(self):
-        self.enable()
-        for lead_id in "abcde":
-            self.lead(lead_id)
-
-        def refuse(connection, lead_id):
-            raise FreelancerError("Freelancer menolak bid: project closed")
-
-        self.bid_pass(refuse)
-        refused = self.connection.execute("SELECT COUNT(*) FROM leads WHERE bid_error IS NOT NULL").fetchone()[0]
-        self.assertEqual(refused, 3)
-
-    def test_token_or_quota_trouble_switches_auto_bid_off_and_tells_the_owner(self):
-        self.enable()
-        self.lead("a")
-
-        def quota(connection, lead_id):
-            raise FreelancerError("Freelancer menolak bid: insufficient bids left")
-
-        self.bid_pass(quota)
-        self.assertEqual(get_setting(self.connection, "auto_bid_enabled"), "0")
-        self.assertTrue(any("dimatikan" in note for note in self.notes))
-
-    def test_success_and_failure_messages_carry_cora_full_draft_and_price(self):
-        import json
-
-        draft = "Halo, saya Khairul.\n\nPengalaman saya relevan. " + "Detail kerja. " * 40
-        terms = {"amount": "410", "hourly_rate": "", "weekly_limit": "", "duration_days": "10",
-                 "milestones": "1) Analisis; 2) Build; 3) Serah terima"}
-        self.enable()
-        self.lead("ok", proposal=draft)
-        self.connection.execute("UPDATE leads SET bid_terms = ? WHERE id = 'ok'", (json.dumps(terms),))
-        self.connection.commit()
-        self.bid_pass()
-        success = self.notes[0]
-        self.assertIn("BERHASIL", success)
-        for expected in ("USD 410", "10 hari", "1) Analisis", draft.strip(), "Budget klien: USD 250-750"):
-            self.assertIn(expected, success)
-
-        self.notes.clear()
-        self.lead("bad", proposal=draft)
-
-        def refuse(connection, lead_id):
-            raise FreelancerError("Freelancer menolak bid: project closed")
-
-        self.bid_pass(refuse)
-        failure = self.notes[0]
-        self.assertIn("GAGAL", failure)
-        self.assertIn("project closed", failure)
-        self.assertIn(draft.strip(), failure)  # the owner can copy the draft and bid by hand
 
     def test_long_drafts_are_split_not_truncated(self):
         from bot_loker_wfh.auto_bid import split_text
@@ -249,7 +135,7 @@ class FreelanceManagerReportTest(unittest.TestCase):
 
 
 class RunSoonTest(unittest.TestCase):
-    def test_switching_auto_bid_on_wakes_the_work_loop(self):
+    def test_owner_can_wake_the_work_loop_for_an_immediate_cycle(self):
         import threading
         from bot_loker_wfh.office_work import OfficeWork
         work = OfficeWork(hunters={}, draft_service_for=None, form_assist_enabled=False, interval_seconds=3600, lock=threading.Lock())

@@ -17,7 +17,6 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from .auto_bid import bid_failure_text, bid_success_text, run_auto_bids
 from .freelancer_api import FreelancerError
 from .form_assist import FormAssistError, resolve_form_target, spawn_fill_form, spawn_fill_lead
 from .lead_desk import (
@@ -519,15 +518,6 @@ class OfficeWork:
                         except Exception as error:
                             self.last = {"source": "proposal", "error": True, "at": self.clock()}
                             self.log_failure("cora", "proposal", error)
-                if self.freelancer_bid is not None and self.auto:
-                    self.busy = "bid"
-                    with self.lock:
-                        try:
-                            result = run_auto_bids(connection, self.freelancer_bid, self._tell, self.freelancer_reconcile)
-                            if result.get("sent") or result.get("error"):
-                                self.log_work("faris", "auto_bid", count=result.get("sent", 0), status="error" if result.get("error") else "ok")
-                        except Exception as error:  # a broken bid pass must not stop the work loop
-                            self.log_failure("faris", "auto_bid", error)
         finally:
             self.busy = None
 

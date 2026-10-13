@@ -23,6 +23,7 @@ class LLMCallRecorder:
         prompt_tokens: int | None = None,
         completion_tokens: int | None = None,
         application_id: str | None = None,
+        employee_id: str | None = None,
     ) -> None:
         call_id = str(uuid.uuid4())
         try:
@@ -32,8 +33,8 @@ class LLMCallRecorder:
                     INSERT INTO llm_calls (
                         id, run_id, task, provider, model, attempt,
                         status, error_code, latency_ms, prompt_tokens,
-                        completion_tokens, application_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        completion_tokens, application_id, employee_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         call_id,
@@ -48,6 +49,7 @@ class LLMCallRecorder:
                         prompt_tokens,
                         completion_tokens,
                         application_id,
+                        employee_id,
                     ),
                 )
                 conn.commit()

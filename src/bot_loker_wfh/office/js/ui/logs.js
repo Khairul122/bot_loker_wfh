@@ -137,6 +137,32 @@ function renderTeam(performanceRows) {
     }));
 }
 
+function renderAIUsage(rows) {
+  const list = $('observerAIUsage');
+  const usage = new Map(rows.map(row => [row.employee_id, row]));
+  const number = new Intl.NumberFormat('id-ID');
+  const items = staff.map(character => ({ character, metric: usage.get(character.def.id) }))
+    .sort((a, b) => (b.metric?.calls || 0) - (a.metric?.calls || 0) || a.character.name.localeCompare(b.character.name, 'id'))
+    .map(({ character, metric }) => {
+      const item = document.createElement('li');
+      item.className = 'observer-entry';
+      const head = document.createElement('div');
+      head.className = 'observer-entry-head';
+      const who = document.createElement('strong');
+      who.textContent = character.name;
+      const calls = document.createElement('span');
+      calls.textContent = `${metric?.calls || 0} upaya AI`;
+      head.append(who, calls);
+      const detail = document.createElement('small');
+      detail.textContent = metric
+        ? `${metric.succeeded} berhasil · ${metric.failed} gagal · ${metric.success_rate}% berhasil · rata-rata ${metric.avg_latency_ms == null ? '—' : `${number.format(metric.avg_latency_ms)} ms`} · ${number.format(metric.prompt_tokens)} input / ${number.format(metric.completion_tokens)} output token`
+        : 'Belum ada upaya AI tercatat pada periode ini.';
+      item.append(head, detail);
+      return item;
+    });
+  list.replaceChildren(...items);
+}
+
 function renderAIStatus(result) {
   if (!aiState) return;
   if (!result?.ok) {
@@ -180,6 +206,7 @@ async function refreshMonitor() {
   renderConversations(data.conversations || []);
   renderMemories(data.memories || []);
   renderTeam(data.performance || []);
+  renderAIUsage(data.ai_usage || []);
   state.textContent = 'Terhubung ke data kantor';
   const hours = Number(data.hours);
   const scope = hours === 0 ? 'semua data' : `${hours} jam terakhir`;

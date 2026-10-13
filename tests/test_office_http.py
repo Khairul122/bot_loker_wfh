@@ -128,13 +128,64 @@ class OfficeHttpTest(unittest.TestCase):
         self.assertEqual(self.call(f"reports/{report_id}/review", {"rating": 5, "note": "ok"})[1]["rating"], 5)
         self.assertEqual(self.call(f"reports/{report_id}/review", {"rating": 9})[0], 400)
         self.assertEqual(self.call("instructions/cora", {"text": "python"})[1], {"text": "python"})
-        self.assertFalse(self.call("ask/reno", {"question": "dapat apa?"})[1]["ai"])
+        ask_status, answer = self.call("ask/reno", {"question": "dapat apa?"})
+        self.assertEqual(ask_status, 200)
+        self.assertFalse(answer["ai"])
+        self.assertTrue(answer["conversation_id"])
         self.assertEqual(self.call("reports/request/nobody", {})[0], 404)
         self.assertEqual(self.call("work/telegram", {})[1], {"sent": False})
         stats = self.call("stats.json")[1]
         self.assertEqual(stats["desk"]["instructions"], {"cora": "python"})
         self.assertEqual(self.call("employee.json?id=reno")[1]["rating"]["avg"], 5)
         self.assertIn("counts", self.call("leads.json?view=new")[1])
+
+    def test_owner_chat_feedback_saves_explicit_lesson_to_employee_memory(self):
+        _, answer = self.call("ask/reno", {"question": "dapat apa?"})
+        status, data = self.call("chat-feedback/reno", {
+            "conversation_id": answer["conversation_id"],
+            "kind": "lesson",
+            "note": "Dahulukan lowongan remote untuk Python.",
+        })
+        self.assertEqual((status, data), (200, {"ok": True, "memory_saved": True}))
+        with database.connect() as connection:
+            memory = connection.execute(
+                "SELECT kind, content, source FROM employee_memory WHERE employee_id = 'reno'"
+            ).fetchone()
+            feedback = connection.execute(
+                "SELECT kind, memory_id FROM employee_chat_feedback WHERE conversation_id = ?",
+                (answer["conversation_id"],),
+            ).fetchone()
+        self.assertEqual(tuple(memory), ("observation", "Dahulukan lowongan remote untuk Python.", f"chat-feedback:{answer['conversation_id']}"))
+        self.assertEqual((feedback[0], feedback[1] is not None), ("lesson", True))
+
+    def test_owner_chat_feedback_requires_matching_answer_and_note(self):
+        _, answer = self.call("ask/reno", {"question": "dapat apa?"})
+        self.assertEqual(self.call("chat-feedback/cora", {
+            "conversation_id": answer["conversation_id"], "kind": "lesson", "note": "Ingat aturan ini",
+        })[0], 404)
+        self.assertEqual(self.call("chat-feedback/reno", {
+            "conversation_id": answer["conversation_id"], "kind": "correction", "note": " ",
+        })[0], 400)
+
+    def test_observability_summarizes_ai_attempts_per_employee(self):
+        with database.connect() as connection:
+            connection.executemany(
+                "INSERT INTO llm_calls "
+                "(id, task, provider, model, status, latency_ms, prompt_tokens, completion_tokens, employee_id) "
+                "VALUES (?, 'answer', 'custom:9router-local', 'LokerHouse', ?, ?, ?, ?, 'reno')",
+                [
+                    ("metric-ok", "success", 120, 100, 25),
+                    ("metric-error", "error", 60, None, None),
+                ],
+            )
+        status, data = self.call("observability.json?hours=0")
+        self.assertEqual(status, 200)
+        reno = next(item for item in data["ai_usage"] if item["employee_id"] == "reno")
+        self.assertEqual(
+            (reno["calls"], reno["succeeded"], reno["failed"], reno["success_rate"],
+             reno["avg_latency_ms"], reno["prompt_tokens"], reno["completion_tokens"]),
+            (2, 1, 1, 50.0, 90, 100, 25),
+        )
 
     def test_manager_task_routes_return_client_errors_for_invalid_requests(self):
         self.assertEqual(self.call("manager/brief", {"manager": "rima"}), (404, {"error": "not_manager"}))
@@ -316,7 +367,8 @@ class SettingsHttpTest(unittest.TestCase):
     def test_auto_bid_settings_default_off_roundtrip_and_validation(self):
         self.assertEqual(self.call("settings.json")[1]["auto_bid_enabled"]["value"], "0")
         status, data = self.call("settings", {"values": {"auto_bid_enabled": "1", "auto_bid_max_per_day": "3"}})
-        self.assertEqual((status, data["auto_bid_enabled"]["value"], data["auto_bid_max_per_day"]["value"]), (200, "1", "3"))
+        self.assertEqual((status, data), (409, {"error": "owner_approval_required"}))
+        self.assertEqual(self.call("settings.json")[1]["auto_bid_enabled"]["value"], "0")
         self.assertEqual(self.call("settings", {"key": "auto_bid_enabled", "value": "2"})[0], 400)
         self.assertEqual(self.call("settings", {"key": "auto_bid_max_per_day", "value": "500"})[0], 400)
 

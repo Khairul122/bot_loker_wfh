@@ -240,17 +240,25 @@ class HermesRouterTest(unittest.TestCase):
         provider.name = "hermes"
         provider.complete.return_value = LLMResult("ok", "custom", "model-a", latency_ms=18, prompt_tokens=9, completion_tokens=3)
         router = LLMRouter([(provider, "loker-draft")], recorder=recorder)
-        router.complete("draft", [{"role": "user", "content": "x"}], run_id="run-a")
+        router.complete("draft", [{"role": "user", "content": "x"}], run_id="run-a", persona="sari")
         success = recorder.record_call.call_args.kwargs
         self.assertEqual((success["provider"], success["model"], success["latency_ms"]), ("custom", "model-a", 18))
         self.assertEqual((success["prompt_tokens"], success["completion_tokens"]), (9, 3))
+        self.assertEqual(success["employee_id"], "sari")
 
         recorder.reset_mock()
         provider.complete.side_effect = LLMError("network_error")
         with self.assertRaises(LLMError):
-            router.complete("draft", [{"role": "user", "content": "x"}])
+            router.complete("draft", [{"role": "user", "content": "x"}], persona="sari")
         self.assertEqual(recorder.record_call.call_args.kwargs["status"], "error")
         self.assertEqual(recorder.record_call.call_args.kwargs["error_code"], "network_error")
+        self.assertEqual(recorder.record_call.call_args.kwargs["employee_id"], "sari")
+
+        recorder.reset_mock()
+        provider.complete.side_effect = None
+        provider.complete.return_value = LLMResult("ok", "custom", "model-a")
+        router.complete("draft", [{"role": "user", "content": "x"}])
+        self.assertIsNone(recorder.record_call.call_args.kwargs["employee_id"])
 
     def test_router_records_requested_custom_route_when_completion_fails(self):
         recorder = MagicMock()

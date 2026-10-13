@@ -240,6 +240,8 @@ def _all_settings_payload(overrides: dict[str, str] | None = None) -> dict:
                 payload[key] = _mask(value if value else None)
             elif key in payload:
                 payload[key] = {"value": value}
+    # This feature is intentionally disabled: external proposals always require owner approval.
+    payload["auto_bid_enabled"] = {"value": "0"}
     return payload
 
 
@@ -539,6 +541,15 @@ class _Handler(SimpleHTTPRequestHandler):
                         "SELECT employee, score, rating, created_at FROM office_reports "
                         "ORDER BY created_at DESC LIMIT 1000"
                     ).fetchall()
+                    ai_rows = connection.execute(
+                        "SELECT employee_id, COUNT(*), "
+                        "SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), "
+                        "SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), "
+                        "AVG(latency_ms), COALESCE(SUM(prompt_tokens), 0), "
+                        "COALESCE(SUM(completion_tokens), 0), MAX(created_at) "
+                        "FROM llm_calls WHERE employee_id IS NOT NULL GROUP BY employee_id "
+                        "ORDER BY employee_id"
+                    ).fetchall()
                 else:
                     memory_rows = connection.execute(
                         "SELECT id, employee_id, kind, content, importance, created_at "
@@ -560,6 +571,15 @@ class _Handler(SimpleHTTPRequestHandler):
                         "SELECT employee, score, rating, created_at FROM office_reports "
                         "WHERE created_at >= ? ORDER BY created_at DESC LIMIT 1000", (cutoff,)
                     ).fetchall()
+                    ai_rows = connection.execute(
+                        "SELECT employee_id, COUNT(*), "
+                        "SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END), "
+                        "SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), "
+                        "AVG(latency_ms), COALESCE(SUM(prompt_tokens), 0), "
+                        "COALESCE(SUM(completion_tokens), 0), MAX(created_at) "
+                        "FROM llm_calls WHERE employee_id IS NOT NULL AND created_at >= ? "
+                        "GROUP BY employee_id ORDER BY employee_id", (cutoff,)
+                    ).fetchall()
             performance = {}
             for employee, score, rating, created_at in report_rows:
                 item = performance.setdefault(employee, {"employee": employee, "reports": 0,
@@ -578,6 +598,21 @@ class _Handler(SimpleHTTPRequestHandler):
                  "rated_reports": item["rated_reports"], "latest_at": item["latest_at"]}
                 for item in performance.values()
             ]
+            ai_usage = []
+            for row in ai_rows:
+                employee_id, calls, succeeded, failed, avg_latency, prompt_tokens, completion_tokens, last_call_at = row
+                calls, succeeded, failed = int(calls), int(succeeded or 0), int(failed or 0)
+                ai_usage.append({
+                    "employee_id": employee_id,
+                    "calls": calls,
+                    "succeeded": succeeded,
+                    "failed": failed,
+                    "success_rate": round(succeeded * 100 / calls, 1) if calls else 0,
+                    "avg_latency_ms": round(float(avg_latency)) if avg_latency is not None else None,
+                    "prompt_tokens": int(prompt_tokens or 0),
+                    "completion_tokens": int(completion_tokens or 0),
+                    "last_call_at": last_call_at,
+                })
             conversations = [
                 {"id": row[0], "conversation_id": row[1], "employee_id": row[2],
                  "speaker": row[3], "channel": row[4], "content": row[5],
@@ -598,6 +633,7 @@ class _Handler(SimpleHTTPRequestHandler):
                              for row in memory_rows],
                 "conversations": conversations[:1000],
                 "performance": performance,
+                "ai_usage": ai_usage,
                 "truncated": len(memory_rows) == 1000 or len(event_rows) == 1000 or
                              len(chat_rows) == 1000 or len(report_rows) == 1000,
             })
@@ -727,6 +763,8 @@ class _Handler(SimpleHTTPRequestHandler):
             for key, value in values.items():
                 if key not in ALLOWED_SETTINGS:
                     return self._json(400, {"error": "unknown_setting", "key": key})
+                if key == "auto_bid_enabled" and value == "1":
+                    return self._json(409, {"error": "owner_approval_required"})
                 error = _validate_setting(key, value)
                 if error:
                     return self._json(400, {"error": error, "key": key})
@@ -905,9 +943,21 @@ class _Handler(SimpleHTTPRequestHandler):
                 with self._connect() as connection:
                     answer = desk.ask(connection, self.work.llm, parts[1], question)
                     from .employee_conversations import record_web_exchange
-                    record_web_exchange(connection, parts[1], question, answer.get("answer", ""))
+                    conversation_id = record_web_exchange(connection, parts[1], question, answer.get("answer", ""))
                     self.work.log_work(parts[1], "question", mode="ai" if answer.get("ai") else "facts")
-                    return self._json(200, answer)
+                    return self._json(200, {**answer, "conversation_id": conversation_id})
+            if len(parts) == 2 and parts[0] == "chat-feedback":
+                body = self._body()
+                from .employee_chat_feedback import save_feedback
+                with self._connect() as connection:
+                    saved = save_feedback(
+                        connection,
+                        parts[1],
+                        body.get("conversation_id"),
+                        body.get("kind"),
+                        body.get("note", ""),
+                    )
+                    return self._json(200, {"ok": True, "memory_saved": saved["memory_id"] is not None})
             if parts == ["work", "telegram"]:
                 with self._connect() as connection:
                     return self._json(200, self.work.telegram_digest(connection))

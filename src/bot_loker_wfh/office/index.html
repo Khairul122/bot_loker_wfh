@@ -75,6 +75,20 @@
     <input id="cAskIn" maxlength="300" placeholder="Misal: hari ini dapat apa?" aria-label="Pertanyaan untuk karyawan">
     <button class="btn ok" id="cAskGo">Kirim pertanyaan</button>
     <p class="answer" id="cAnswer"></p>
+    <div id="cFeedback" class="chat-feedback" hidden>
+      <small>Beri umpan balik untuk jawaban ini</small>
+      <div class="chat-feedback-actions">
+        <button type="button" class="btn" data-chat-feedback="helpful">👍 Membantu</button>
+        <button type="button" class="btn" data-chat-feedback="correction">✍️ Perlu koreksi</button>
+        <button type="button" class="btn" data-chat-feedback="lesson">🧠 Jadikan pelajaran</button>
+      </div>
+      <div id="cFeedbackNotePane" hidden>
+        <label for="cFeedbackNote" id="cFeedbackLabel">Catatan owner</label>
+        <textarea id="cFeedbackNote" maxlength="1000"></textarea>
+        <button type="button" class="btn ok" id="cFeedbackSave">Simpan umpan balik</button>
+      </div>
+      <p id="cFeedbackState" role="status" aria-live="polite"></p>
+    </div>
   </div>
   <div class="pane" id="cOrder">
     <small id="cOrderHint"></small>
@@ -181,6 +195,7 @@
     <button type="button" role="tab" aria-selected="true" aria-controls="observer-conversations" data-observer-tab="conversations">Percakapan</button>
     <button type="button" role="tab" aria-selected="false" aria-controls="observer-learning" data-observer-tab="learning">Pembelajaran</button>
     <button type="button" role="tab" aria-selected="false" aria-controls="observer-team" data-observer-tab="team">Mood & kinerja</button>
+    <button type="button" role="tab" aria-selected="false" aria-controls="observer-ai" data-observer-tab="ai">Pemakaian AI</button>
     <button type="button" role="tab" aria-selected="false" aria-controls="observer-activity" data-observer-tab="activity">Aktivitas</button>
   </div>
   <section id="observer-conversations" class="observer-page" role="tabpanel" aria-label="Percakapan rapat">
@@ -196,6 +211,11 @@
     <div id="observerMood" class="observer-moods"></div>
     <h3>Skor laporan</h3>
     <ol id="observerPerformance" class="observer-list"></ol>
+  </section>
+  <section id="observer-ai" class="observer-page" role="tabpanel" aria-label="Pemakaian AI per karyawan" hidden>
+    <p class="observer-note">Panggilan, keberhasilan, kegagalan, waktu respons, dan token dicatat mulai pembaruan ini. Riwayat lama yang belum memiliki label karyawan tidak dihitung.</p>
+    <h3>Per karyawan</h3>
+    <ol id="observerAIUsage" class="observer-list"></ol>
   </section>
   <section id="observer-activity" class="observer-page" role="tabpanel" aria-label="Aktivitas langsung" hidden>
     <p class="observer-note">Peristiwa kerja yang diterima selama halaman ini terbuka.</p>
