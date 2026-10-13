@@ -20,6 +20,7 @@ import fokus from './rooms/fokus.js';
 import kantin from './rooms/kantin.js';
 import lobi from './rooms/lobi.js';
 import santai from './rooms/santai.js';
+import subi from './rooms/subi.js';
 
 const { minX, maxX, minZ, maxZ, height: H, wall: T } = OFFICE;
 const CX = (minX + maxX) / 2, CZ = (minZ + maxZ) / 2;
@@ -34,7 +35,7 @@ const upperRoot = group(0, 0, 0, root); office.upper.push(upperRoot);
 // ---------- floor ----------
 const slab = box(maxX - minX + 0.6, 0.4, maxZ - minZ + 0.6, C.slab, CX, -0.18, CZ, root);
 walkables.push({ mesh: slab, level: 0 });
-const FLOORS = { owner: 0xc9a27a, meeting: 0xcfd8e6, toilet: 0xe3f1f4, focus: 0xd5e3cf, work: 0xe2e6ea, kantin: 0xf1dcc4, lobby: 0xf3ede4, lounge: 0xf2dcc8 };
+const FLOORS = { owner: 0xc9a27a, meeting: 0xcfd8e6, toilet: 0xe3f1f4, focus: 0xd5e3cf, work: 0xe2e6ea, kantin: 0xf1dcc4, lobby: 0xf3ede4, lounge: 0xf2dcc8, subi: 0xd4ecf2 };
 for (const r of Object.values(ROOMS)) {
   box(r.x1 - r.x0 - T, 0.02, r.z1 - r.z0 - T, FLOORS[r.id], (r.x0 + r.x1) / 2, 0.03, (r.z0 + r.z1) / 2, root, { cast: false });
 }
@@ -65,7 +66,7 @@ const pendant = (x, z) => {
   sph(0.13, 0xfff1c9, 0, H - 0.84, 0, g, { glow: 0xffd27a, cast: false });
   return g;
 };
-const ROOM_BUILD = { owner, meeting: rapat, toilet, focus: fokus, kantin, lobby: lobi, lounge: santai };
+const ROOM_BUILD = { owner, meeting: rapat, toilet, focus: fokus, kantin, lobby: lobi, lounge: santai, subi };
 for (const [id, build] of Object.entries(ROOM_BUILD)) {
   const r = ROOMS[id], g = at(r);
   build(g, r);

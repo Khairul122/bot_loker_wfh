@@ -11,7 +11,8 @@ import { adjustMoodForEnergy } from '../domain/employee-state.js';
 export const staff = [];
 const used = {};
 STAFF.forEach(def => {
-  const seat = deskSeats[def.div][used[def.div] = (used[def.div] ?? -1) + 1];
+  const office = def.office || def.div;
+  const seat = deskSeats[office][used[office] = (used[office] ?? -1) + 1];
   const c = new Char(def.name, def.look, 0, seat.x, seat.z);
   c.def = def; c.seat = { ...seat, level: 0 }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
   c.state = 'work'; c.timer = rand(15, 50); c.boost = 0; c.boostUntil = 0;

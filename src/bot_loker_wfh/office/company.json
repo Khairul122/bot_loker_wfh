@@ -23,7 +23,7 @@
     {"id":"cora","name":"Cora","title":"Manajer Penulisan","division":"tulis","responsibility":"penulis surat lamaran dan proposal freelance"},
     {"id":"lulu","name":"Lulu","title":"Asisten AI","division":"tulis","responsibility":"asisten AI yang menjalankan panggilan model bahasa"},
     {"id":"faris","name":"Faris","title":"Pengisi Formulir","division":"lamar","responsibility":"pengisi formulir lamaran di browser"},
-    {"id":"subi","name":"Subi","title":"Manajer Lamaran","division":"lamar","responsibility":"pengirim lamaran"},
+    {"id":"subi","name":"Subi","title":"Manajer Lamaran","division":"lamar","office":"subi","responsibility":"pengirim lamaran"},
     {"id":"tara","name":"Tara","title":"Manajer Pantau & Interview","division":"pantau","responsibility":"pemantau status lamaran"},
     {"id":"ivan","name":"Ivan","title":"Pelatih Interview","division":"pantau","responsibility":"pelatih interview"},
     {"id":"lido","name":"Lido","title":"Pemburu Freelancer.com","division":"freelance","pipeline":"leads","source":"freelancer","responsibility":"pemburu proyek freelance di Freelancer.com"},

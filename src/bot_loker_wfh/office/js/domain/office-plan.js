@@ -12,7 +12,8 @@ export const ROOMS = Object.freeze({
   work: room('work', 'Ruang Kerja', '💼', -19, 19, -6, 8, { hall: true }),
   kantin: room('kantin', 'Kantin', '🍜', -19, -6, 8, 18),
   lobby: room('lobby', 'Lobi', '🛎️', -6, 6, 8, 18),
-  lounge: room('lounge', 'Ruang Santai', '🛋️', 6, 19, 8, 18),
+  subi: room('subi', 'Ruang Subi', '🚀', 6, 12, 8, 18),
+  lounge: room('lounge', 'Ruang Santai', '🛋️', 12, 19, 8, 18),
 });
 
 // axis 'x': the door sits in a wall that runs along x (a wall at constant z); 'z' the other way.
@@ -24,7 +25,8 @@ export const DOORS = Object.freeze([
   door('east', 19, 0.6, 'z', 2, ['work', 'out']),
   door('lobby', 0, 8, 'x', 2.4, ['lobby', 'work'], 'slide'),
   door('kantin', -9, 8, 'x', 2, ['kantin', 'work']),
-  door('lounge', 9, 8, 'x', 2, ['lounge', 'work']),
+  door('subi', 9, 8, 'x', 2, ['subi', 'work']),
+  door('lounge', 15.5, 8, 'x', 2, ['lounge', 'work']),
   door('owner', -11, -6, 'x', 2, ['owner', 'work']),
   door('meeting', 1.5, -6, 'x', 2, ['meeting', 'work'], 'glass'),
   door('toilet', 7.5, -6, 'x', 2, ['toilet', 'work']),
@@ -47,7 +49,9 @@ export const WALL_LINES = Object.freeze([
   line(10, minZ, 10, -6, 'interior'),
   line(minX, 8, -6, 8, 'interior'),
   line(-6, 8, 6, 8, 'glass'),
-  line(6, 8, maxX, 8, 'interior'),
+  line(6, 8, 12, 8, 'interior'),
+  line(12, 8, maxX, 8, 'interior'),
+  line(12, 8, 12, maxZ, 'interior'),
   line(-6, 8, -6, maxZ, 'interior'),
   line(6, 8, 6, maxZ, 'interior'),
 ]);

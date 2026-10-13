@@ -198,6 +198,7 @@ export function meetingEvent(evt) {
   }
   activeRun.streamed = true;
   if (evt.status === 'speaking') speak(evt.employee, evt.content);
+  else if (evt.status === 'degraded') line(`⚠️ ${evt.content || 'Jawaban fallback dipakai.'}`);
   else if (evt.status === 'completed') finishRun(evt.content);
   else if (evt.status === 'failed') { line(`❌ ${evt.content || 'Rapat gagal.'}`); finishRun(null); }
 }

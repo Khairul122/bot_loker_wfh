@@ -117,7 +117,7 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
     from .llm import create_llm_from_settings
 
     settings = Settings.from_environment()
-    llm = create_llm_from_settings(settings)
+    llm = create_llm_from_settings(settings, record_calls=True)
 
     from .office_events import bus as _bus
 
@@ -129,6 +129,7 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
                   "task": topic, "participants": list(participants)})
 
     transcript = []
+    warnings = []
     # Conversation turns
     for emp in participants:
         skill_text = ""
@@ -153,23 +154,36 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
             f"Beri tanggapan padat (1-2 kalimat) sesuai keahlian Anda mengenai topik tersebut. "
             f"Sampaikan solusi konkret, bukan basa-basi."
         )
+        failure_code = None
         try:
             speech = llm.complete(
                 "answer",
                 [{"role": "user", "content": prompt}],
                 persona=emp,
                 memory_context=lessons,
-                session_key=f"loker:employee:{emp}",
+                run_id=meeting_id,
+                session_key=f"bot-loker-wfh:employee:{emp}",
                 session_id=f"loker-meeting-{meeting_id}-{emp}",
             ).text.strip() if llm else ""
-        except Exception:
+            if not llm:
+                failure_code = "llm_disabled"
+        except Exception as error:
+            failure_code = getattr(error, "code", None) or "llm_error"
             speech = ""
-        speech = speech or f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
+        if not speech:
+            failure_code = failure_code or "empty_response"
+            warning = f"Fallback lokal dipakai untuk {emp}; kode error Hermes: {failure_code}."
+            warnings.append(warning)
+            speech = f"Saya siap mendukung topik {topic} sesuai fokus tim saya."
 
         add_event(connection, meeting_id, emp, "note", speech)
         _bus.publish({"type": "meeting", "status": "speaking", "meeting_id": meeting_id,
                       "task": topic, "employee": emp, "content": speech})
-        transcript.append({"employee": emp, "speech": speech})
+        transcript.append({"employee": emp, "speech": speech, "source": "fallback" if failure_code else "hermes"})
+        if failure_code:
+            add_event(connection, meeting_id, emp, "action", warning)
+            _bus.publish({"type": "meeting", "status": "degraded", "meeting_id": meeting_id,
+                          "task": topic, "employee": emp, "content": warning})
 
     # Summary turn
     decision_prompt = (
@@ -178,19 +192,33 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         + "\n".join([f"- {t['employee']}: {t['speech']}" for t in transcript])
         + "\nBuatkan 1 kesimpulan keputusan aksi konkret."
     )
+    decision_error_code = None
     try:
         decision = llm.complete(
             "answer",
             [{"role": "user", "content": decision_prompt}],
             persona=participants[0] if participants else "tegar",
-            session_key=f"loker:employee:{participants[0] if participants else 'tegar'}",
+            run_id=meeting_id,
+            session_key=f"bot-loker-wfh:employee:{participants[0] if participants else 'tegar'}",
             session_id=f"loker-meeting-{meeting_id}-decision",
         ).text.strip() if llm else ""
-    except Exception:
+        if not llm:
+            decision_error_code = "llm_disabled"
+    except Exception as error:
+        decision_error_code = getattr(error, "code", None) or "llm_error"
         decision = ""
-    decision = decision or f"Tim sepakat mengeksekusi prioritas terkait {topic}."
+    if not decision:
+        decision_error_code = decision_error_code or "empty_response"
+        warning = f"Fallback lokal dipakai untuk keputusan rapat; kode error Hermes: {decision_error_code}."
+        warnings.append(warning)
+        decision = f"Tim sepakat mengeksekusi prioritas terkait {topic}."
 
     add_event(connection, meeting_id, participants[0] if participants else "cora", "decision", decision)
+    if decision_error_code:
+        warning_employee = participants[0] if participants else "cora"
+        add_event(connection, meeting_id, warning_employee, "action", warning)
+        _bus.publish({"type": "meeting", "status": "degraded", "meeting_id": meeting_id,
+                      "task": topic, "employee": warning_employee, "content": warning})
     for emp in participants:  # everyone in the room carries the decision into later work
         try:
             remember(connection, emp, f"Keputusan rapat '{topic[:200]}': {decision[:1500]}",
@@ -209,4 +237,6 @@ def run_dynamic_meeting(connection: Any, topic: str, participants: list[str]) ->
         "status": "completed",
         "transcript": transcript,
         "decision": decision,
+        "degraded": bool(warnings),
+        "warnings": warnings,
     }

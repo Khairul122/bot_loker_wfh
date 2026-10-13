@@ -520,7 +520,7 @@ class LLMRouter:
     def __call__(self, prompt: str) -> str:
         """Plain prompt -> text, so callers can treat the router like a single provider."""
         return self.for_task(
-            "draft", persona="leva", session_key="loker:employee:leva"
+            "draft", persona="leva", session_key="bot-loker-wfh:employee:leva"
         )(prompt)
 
     def for_task(
