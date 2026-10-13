@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS employee_chat_feedback (
   created_at TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_employee_chat_feedback_memory
+  ON employee_chat_feedback (memory_id)
+  WHERE memory_id IS NOT NULL;
+
 ALTER TABLE employee_chat_feedback ENABLE ROW LEVEL SECURITY;
 
 UPDATE app_settings
