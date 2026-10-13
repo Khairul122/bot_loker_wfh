@@ -1,8 +1,9 @@
-// ---------- living world: doors, TVs, windows, chimney smoke, toilet doors, birds, fireflies ----------
+// ---------- living world: office doors, house doors, TVs, windows, chimney smoke, toilet doors, birds, fireflies ----------
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { pick } from '../core/util.js';
-import { stalls } from '../buildings/rooms/kantin.js';
+import { stalls } from '../buildings/rooms/toilet.js';
+import { office } from '../buildings/office.js';
 import { houses } from '../buildings/houses.js';
 import { inR } from '../world/navigation.js';
 import { spots } from '../world/spots.js';
@@ -18,10 +19,15 @@ const smoke = [];
 const smokeMat = new THREE.MeshBasicMaterial({ color: 0xe8e8ee, transparent: true, opacity: 0.6, depthWrite: false });
 const smokeGeo = new THREE.SphereGeometry(0.22, 8, 6);
 export function updateWorld(dt, t) {
+  for (const d of office.doors) {
+    const near = chars.some(c => Math.abs(c.pos.x - d.x) < 1.8 && Math.abs(c.pos.z - d.z) < 1.8);
+    const u = d.u + ((near ? 1 : 0) - d.u) * Math.min(1, dt * 6);
+    if (Math.abs(u - d.u) > 1e-4) { d.u = u; d.set(u); }
+  }
   for (const h of houses) {
-    const near = chars.some(c => c.level === 0 && Math.abs(c.pos.x - h.x) < 1.3 && Math.abs(c.pos.z - h.front) < 1.5);
+    const near = chars.some(c => Math.abs(c.pos.x - h.x) < 1.5 && Math.abs(c.pos.z - h.front) < 1.5);
     h.door.rotation.y += ((near ? 1.5 : 0) - h.door.rotation.y) * Math.min(1, dt * 6);
-    const home = h.who === me ? me.level === 0 && inR(me.pos.x, me.pos.z, h.box, 0) : h.who?.state === 'home';
+    const home = h.who === me ? inR(me.pos.x, me.pos.z, h.box, 0) : h.who?.state === 'home';
     h.win.emissiveIntensity += ((night && home ? 1.2 : 0) - h.win.emissiveIntensity) * Math.min(1, dt * 3);
     const tvOn = h.tv.by && h.tv.by.spot === h.tv;
     if (tvOn) h.tvMat.color.setHSL((t * 0.07) % 1, 0.55, 0.42 + Math.sin(t * 9) * 0.07 + (Math.random() < 0.04 ? 0.15 : 0));
@@ -37,7 +43,7 @@ export function updateWorld(dt, t) {
     p.material.opacity = Math.max(0, p.userData.life / 5);
     if (p.userData.life <= 0) { scene.remove(p); p.material.dispose(); smoke.splice(i, 1); }
   }
-  for (const s of stalls) { const occ = s.spot.by && s.spot.by.spot === s.spot; s.hinge.rotation.y += ((occ ? 0 : -1.2) - s.hinge.rotation.y) * Math.min(1, dt * 5); }
+  for (const s of stalls) { const occ = s.spot.by && s.spot.by.spot === s.spot; s.hinge.rotation.y += ((occ ? s.closed : s.open) - s.hinge.rotation.y) * Math.min(1, dt * 5); }
   for (const s of spots) if (s.plate?.visible && (!s.by || s.by.spot !== s)) s.plate.visible = false;
   // birds circle by day, fireflies drift over the park at night
   birds.forEach((b, i) => {
@@ -52,7 +58,7 @@ export function updateWorld(dt, t) {
   }
   water.position.y = -0.6 + Math.sin(t * 0.8) * 0.05;
   // greet the owner when walking into somebody's house
-  const hNow = me.level === 0 ? houses.find(h => inR(me.pos.x, me.pos.z, h.box, 0)) || null : null;
+  const hNow = houses.find(h => inR(me.pos.x, me.pos.z, h.box, 0)) || null;
   if (hNow !== meHouse) {
     meHouse = hNow;
     const o = hNow?.who;

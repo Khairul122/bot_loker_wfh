@@ -18,12 +18,11 @@
 <div id="bubbles"></div>
 <div id="tip"></div>
 <div id="cross" aria-hidden="true"></div>
-<div id="lift" class="panel" role="group" aria-label="Tombol lift"><b>🛗 Lift</b><div id="liftBtns"></div></div>
 
 <div id="top">
   <div id="brand" class="panel chip"><img src="assets/logo.svg" alt="LOKER WFH" class="logo-icon"><span class="dot" id="liveDot"></span><span class="bt">LOKER WFH</span> <span id="clock" style="color:var(--ink-soft)"></span></div>
   <div id="tools" role="toolbar" aria-label="Aksi kantor">
-    <button class="panel tbtn" id="bPov" title="Mata owner (V)" aria-label="Mata owner (V)">👁️<span>POV</span></button>
+    <button class="panel tbtn" id="bPov" title="Mata owner (V)" aria-label="Mata owner (V)">👁️</button>
     <button class="panel tbtn" id="bAuto" title="Karyawan kerja otomatis" aria-label="Karyawan kerja otomatis">🤖<span>Auto</span></button>
     <button class="panel tbtn" id="bInbox" title="Persetujuan lamaran" aria-label="Persetujuan lamaran">📥<span>Persetujuan</span><b class="badge" id="inboxBadge"></b></button>
     <button class="panel tbtn" id="bBoard" title="Papan proyek freelance" aria-label="Papan proyek freelance">💼<span>Proyek</span></button>
@@ -34,8 +33,8 @@
     <button class="panel tbtn" id="bSound" title="Musik & efek suara" aria-label="Musik &amp; efek suara">🔇</button>
     <button class="panel tbtn" id="bNight" title="Siang / malam" aria-label="Ganti tema siang atau malam">🌙</button>
     <button class="panel tbtn" id="bCustom" title="Ubah karakter" aria-label="Ubah karakter">🎨</button>
-    <button class="panel tbtn" id="bSettings" title="Pengaturan model, provider, skill, BrowserMCP" aria-label="Pengaturan model, provider, skill, BrowserMCP">⚙️<span>Setting</span></button>
-    <button class="panel tbtn" id="bLogs" title="Buka log terminal" aria-label="Buka log terminal">🧾<span>Log</span></button>
+    <button class="panel tbtn" id="bSettings" title="Pengaturan model, provider, skill, BrowserMCP" aria-label="Pengaturan model, provider, skill, BrowserMCP">⚙️</button>
+    <button class="panel tbtn" id="bLogs" title="Buka log terminal" aria-label="Buka log terminal">🧾</button>
   </div>
 </div>
 
@@ -65,12 +64,6 @@
     <div class="ring" id="cRing"><div id="cMood"></div></div>
     <div><div class="stars" id="cStars"></div><div class="pills" id="cPills"></div></div>
   </div>
-  <div class="acts">
-    <button data-act="sapa">👋<small>Sapa</small></button>
-    <button data-act="tos">✋<small>Tos</small></button>
-    <button data-act="pingpong">🏓<small>Pingpong</small></button>
-    <button data-act="makan">🍛<small>Makan</small></button>
-  </div>
   <button class="hunt" id="cHuntBtn"></button>
   <div class="real">
     <button class="btn" id="cReport" title="Karyawan menyusun laporan 24 jam dari data asli lalu mengantarnya ke ruanganmu">📋 Laporan</button>
@@ -88,8 +81,16 @@
     <textarea id="cOrderIn" maxlength="500" aria-label="Instruksi untuk karyawan"></textarea>
     <button class="btn ok" id="cOrderGo">💾 Simpan instruksi</button>
   </div>
-  <button class="btn" id="cBoard" style="width:100%;justify-content:center;margin-top:8px;display:none">💼 Buka papan proyek</button>
-  <button class="btn" id="cResults" style="width:100%;justify-content:center;margin-top:8px">📂 Lihat hasil kerjanya</button>
+  <div class="links">
+    <button class="btn" id="cBoard" style="display:none">💼 Papan proyek</button>
+    <button class="btn" id="cResults">📂 Hasil kerja</button>
+  </div>
+  <div class="acts" role="group" aria-label="Interaksi">
+    <button data-act="sapa" title="Sapa">👋<small>Sapa</small></button>
+    <button data-act="tos" title="Tos">✋<small>Tos</small></button>
+    <button data-act="pingpong" title="Ajak pingpong">🏓<small>Pingpong</small></button>
+    <button data-act="makan" title="Ajak makan">🍛<small>Makan</small></button>
+  </div>
   <ul class="leads" id="cHunt"></ul>
 </div>
 
@@ -167,7 +168,7 @@
 
 <aside id="logDrawer" class="panel" aria-label="Log aktivitas" aria-hidden="true"><div class="phead"><h2>Log aktivitas</h2><button id="logClose" class="xbtn" aria-label="Tutup">✕</button></div><ol id="logList"></ol></aside>
 <div id="toast" class="panel"></div>
-<div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik lift kaca untuk pindah lantai · kantin & ruang owner di lantai atas · rumah di belakang gedung · V mode POV</div>
+<div id="hint">WASD jalan · klik karyawan untuk ngobrol & memberi perintah · klik furnitur untuk duduk, main, atau makan · semua ruangan satu lantai, masuk lewat pintu · rumah di belakang kantor · V mode POV</div>
 <div id="loading">Menyiapkan kantor…</div>
 
 <div id="meeting" aria-hidden="true"><div class="panel" role="dialog" aria-modal="true" aria-label="Ruang rapat">

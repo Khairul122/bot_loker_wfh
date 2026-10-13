@@ -42,6 +42,12 @@ export function sofa(x, z, ry, p, color = 0xe9967a) {
   box(0.25, 0.4, 0.9, color, -1.2, 0.6, 0, g); box(0.25, 0.4, 0.9, color, 1.2, 0.6, 0, g);
   return g;
 }
+export function armchair(x, z, ry, p, color = 0x8fae8a) {
+  const g = group(x, 0, z, p, ry);
+  box(0.9, 0.4, 0.85, color, 0, 0.3, 0.05, g); box(0.9, 0.65, 0.2, color, 0, 0.75, -0.35, g);
+  for (const s of [-1, 1]) box(0.16, 0.3, 0.85, color, s * 0.45, 0.6, 0.05, g);
+  return g;
+}
 export function shelf(x, z, ry, p) {
   const g = group(x, 0, z, p, ry);
   box(2, 2.4, 0.5, 0xc89a6c, 0, 1.2, 0, g);

@@ -1,5 +1,6 @@
 // ---------- character coordinates: saved to Supabase (via the office server) and restored on load ----------
-import { FH, rand } from '../core/util.js';
+import { rand } from '../core/util.js';
+import { isFree, snapFree } from '../world/navigation.js';
 import { me } from '../characters/player.js';
 import { staff } from '../characters/team.js';
 import { get, post } from '../infrastructure/office-api.js';
@@ -9,16 +10,16 @@ const r2 = n => Math.round(n * 100) / 100;
 let lastSent = '';
 
 function snapshot() {
-  const at = c => ({ x: r2(c.pos.x), y: r2(c.level * FH), z: r2(c.pos.z), yaw: r2(c.ry || 0) });
+  const at = c => ({ x: r2(c.pos.x), y: 0, z: r2(c.pos.z), yaw: r2(c.ry || 0) });
   const state = { owner: at(me), staff: {} };
   for (const c of staff) state.staff[c.def.id] = at(c);
   return state;
 }
 
+// A saved spot may now be inside a wall or a desk (the layout changed): stand on the nearest free floor.
 function place(c, p) {
-  c.level = Math.max(0, Math.round(p.y / FH));
-  c.y = c.level * FH;
-  c.pos.x = p.x; c.pos.z = p.z;
+  const at = isFree(p) ? p : snapFree(p);
+  c.pos.x = at.x; c.pos.z = at.z;
   c.ry = c.targetRy = p.yaw;
 }
 
@@ -31,15 +32,14 @@ export async function restorePositions() {
   for (const c of staff) {
     const p = saved[c.def.id];
     if (!p) continue;
-    const away = c.level !== Math.round(p.y / FH) || Math.hypot(c.pos.x - p.x, c.pos.z - p.z) > 0.5;
+    if (Math.hypot(c.pos.x - p.x, c.pos.z - p.z) <= 0.5) continue; // still at the desk
     place(c, p);
-    if (away) { c.inside = null; c.pose = 'stand'; c.state = 'break'; c.afterBreak = null; c.timer = rand(4, 8); }
+    c.pose = 'stand'; c.state = 'break'; c.afterBreak = null; c.timer = rand(4, 8);
   }
   lastSent = JSON.stringify(snapshot());
 }
 
 function save({ beacon = false } = {}) {
-  if (staff.some(c => c.ride) || me.ride) return; // mid-lift: y is in between floors
   const body = JSON.stringify(snapshot());
   if (body === lastSent) return;
   lastSent = body;

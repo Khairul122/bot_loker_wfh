@@ -1,10 +1,10 @@
 // a walking, emoting character: staff and the player are both Char
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
-import { cyl, tag, emojiTex } from '../core/factory.js';
-import { Snd } from '../core/sound.js';
-import { FH, V, rand } from '../core/util.js';
-import { route, inR } from '../world/navigation.js';
+import { tag, emojiTex } from '../core/factory.js';
+import { V, rand } from '../core/util.js';
+import { route, blocked } from '../world/navigation.js';
+import { advancePosition } from '../domain/movement.js';
 import { spots } from '../world/spots.js';
 import { makeBody, MOODS } from './body.js';
 
@@ -13,12 +13,11 @@ export class Char {
   constructor(name, look, level, x, z) {
     this.name = name; this.look = look; this.p = makeBody(look);
     scene.add(this.p.root);
-    this.level = level; this.pos = V(x, z); this.y = level * FH; this.ry = 0;
+    this.level = level; this.pos = V(x, z); this.y = 0; this.ry = 0;
     this.path = []; this.speed = 2.6; this.pose = 'stand'; this.spot = null;
     this.emote = null; this.emoteT = 0; this.mood = 'senang'; this.t = rand(0, 10);
     this.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex('😊'), depthWrite: false }));
     this.bubble.scale.set(0.7, 0.7, 1); this.bubble.position.y = 2.35; this.p.root.add(this.bubble);
-    this.platform = cyl(0.8, 0.8, 0.08, 0xffffff, 0, -0.05, 0, this.p.root, { cast: false }); this.platform.visible = false;
     this.setMood('senang');
     tag(this.p.root, { kind: 'char', char: this });
     chars.push(this);
@@ -43,25 +42,12 @@ export class Char {
   face(x, z) { this.targetRy = Math.atan2(x - this.pos.x, z - this.pos.z); }
   leaveSpot() { if (this.spot) { this.spot.by = null; this.spot = null; } this.pose = 'stand'; }
   stop() { spots.forEach(s => { if (s.by === this) s.by = null; }); this.spot = null; this.pose = 'stand'; this.path = []; this.onArrive = null; }
-  // via: waypoints from outside to just inside a room/desk/house; box: that room's footprint.
-  // The next trip out of it walks the same waypoints backwards instead of through a wall.
-  goTo(level, x, z, onArrive, { via = [], box } = {}) {
-    if (this.ride) { this.pendingGo = [level, x, z, onArrive, { via, box }]; return; }
-    const exit = this.exitPts();
+  // Routes go through doors and around furniture (world/navigation.js). `exact` steps right onto
+  // the target (a seat); otherwise the walk ends on the nearest free floor. `prefer`: arrive from that side.
+  goTo(level, x, z, onArrive, { exact = false, prefer = null } = {}) {
     this.stop(); this.emote = null;
-    const start = exit.length ? exit[exit.length - 1] : this.pos;
-    const path = exit.map(p => ({ p }));
-    path.push(...route(this.level, start, level, via.length ? via[0] : V(x, z)));
-    via.slice(1).forEach(p => path.push({ p }));
-    if (via.length) path.push({ p: V(x, z) });
-    this.path = path; this.onArrive = onArrive;
-    this.inside = via.length ? { level, via, box, at: V(x, z) } : null;
-  }
-  exitPts() {
-    const i = this.inside;
-    if (!i || i.level !== this.level) return [];
-    const near = i.box ? inR(this.pos.x, this.pos.z, i.box, 0.2) : Math.hypot(this.pos.x - i.at.x, this.pos.z - i.at.z) < 1.2;
-    return near ? [...i.via].reverse() : [];
+    this.level = level;
+    this.path = route(this.pos, V(x, z), exact, prefer); this.onArrive = onArrive;
   }
   carry(obj) { this.drop(); obj.position.set(0, -0.52, 0.2); this.p.arms[1].add(obj); this.carrying = obj; }
   drop() { if (this.carrying) { this.carrying.parent?.remove(this.carrying); this.carrying = null; } }
@@ -70,21 +56,18 @@ export class Char {
     const P = this.p; let walking = false;
     const step = this.path[0];
     if (step) {
-      if (step.ride !== undefined) {
-        if (!this.ride) { this.ride = { from: this.level * FH, to: step.ride * FH, u: 0, dur: 0.6 + 0.35 * Math.abs(step.ride - this.level) }; this.platform.visible = true; }
-        this.ride.u += dt / this.ride.dur;
-        const u = Math.min(1, this.ride.u), e = u * u * (3 - 2 * u);
-        this.y = this.ride.from + (this.ride.to - this.ride.from) * e;
-        if (u >= 1) {
-          this.level = step.ride; this.y = this.level * FH; this.ride = null; this.platform.visible = false; this.path.shift();
-          if (this.isMe) Snd.play('ding');
-          if (this.pendingGo) { const g = this.pendingGo; this.pendingGo = null; this.goTo(...g); }
+      const dx = step.p.x - this.pos.x, dz = step.p.z - this.pos.z, dist = Math.hypot(dx, dz);
+      const sp = this.speed * (this.mood === 'lelah' || this.mood === 'ngantuk' ? 0.7 : this.mood === 'semangat' ? 1.25 : 1);
+      if (dist < 0.08) this.path.shift();
+      else {
+        const next = advancePosition(this.pos, step.p, sp * dt,
+          (from, to) => !blocked(from, to.x, to.z));
+        if (Math.hypot(next.x - this.pos.x, next.z - this.pos.z) > 0.001) {
+          this.pos.x = next.x; this.pos.z = next.z;
+          this.targetRy = Math.atan2(dx, dz); walking = true; this.stuck = 0;
+        } else if ((this.stuck = (this.stuck || 0) + dt) > 1) {
+          this.stuck = 0; this.path.shift(); // pinned against a wall: give up on this waypoint
         }
-      } else {
-        const dx = step.p.x - this.pos.x, dz = step.p.z - this.pos.z, dist = Math.hypot(dx, dz);
-        const sp = this.speed * (this.mood === 'lelah' || this.mood === 'ngantuk' ? 0.7 : this.mood === 'semangat' ? 1.25 : 1);
-        if (dist < 0.08) this.path.shift();
-        else { const k = Math.min(1, sp * dt / dist); this.pos.x += dx * k; this.pos.z += dz * k; this.targetRy = Math.atan2(dx, dz); walking = true; }
       }
       if (!this.path.length) { const cb = this.onArrive; this.onArrive = null; cb && cb(this); }
     }

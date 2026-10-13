@@ -20,7 +20,7 @@ export function scheduleDeliveries() {
   for (const r of store.desk.undelivered) {
     const slot = DELIVER_AT.find(p => !p.by); if (!slot) return;
     const c = byId(r.employee);
-    if (delivering.has(r.id) || !c || ['report', 'chat'].includes(c.state) || c.ride) continue;
+    if (delivering.has(r.id) || !c || ['report', 'chat'].includes(c.state)) continue;
     deliver(c, r, slot);
   }
 }
@@ -33,7 +33,7 @@ function deliver(c, r, slot) {
   c.goTo(OWNER, slot.x, slot.z, () => {
     c.targetRy = Math.PI; c.doEmote('give', 1.8);
     say(c, `Bos, laporanku: ${r.lines[0] || 'beres semua'} 📋`, 5);
-    if (me.level === OWNER) { me.face(c.pos.x, c.pos.z); me.doEmote('nod', 1.5); }
+    if (me.spot?.kind === 'owner') { me.face(c.pos.x, c.pos.z); me.doEmote('nod', 1.5); }
     setTimeout(async () => {
       const res = await post(`reports/${encodeURIComponent(r.id)}/delivered`);
       Snd.play('pop'); if (res.ok) toast(`📋 ${c.name} menaruh laporan di meja owner`);

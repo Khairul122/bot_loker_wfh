@@ -80,7 +80,7 @@ Most of these can also be changed live from **⚙️ Setting** in the office.
 
 Run only one process that polls the same Telegram token at a time.
 
-**Office controls:** `WASD` walk · click an employee to chat · `V` first-person view (drag to look around) · `E`/`Q` ride the lift · `Esc` close panels.
+**Office controls:** `WASD` walk · click an employee to chat · `V` first-person view (drag to look around) · click furniture to sit, play or eat · `E` interact in first-person view · `Esc` close panels. The office is a single storey; every room has its own door.
 
 **Projects.co.id bids** use the bot's own browser window. Install it with `python -m pip install -e ".[form]"` and `python -m playwright install chromium`, then log in once in that window.
 
@@ -176,7 +176,7 @@ Sebagian besar juga bisa diubah langsung dari menu **⚙️ Setting** di kantor.
 
 Pastikan hanya satu proses yang membaca token Telegram yang sama dalam satu waktu.
 
-**Kontrol kantor:** `WASD` jalan · klik karyawan untuk ngobrol · `V` mode POV (drag untuk menoleh) · `E`/`Q` naik-turun lift · `Esc` tutup panel.
+**Kontrol kantor:** `WASD` jalan · klik karyawan untuk ngobrol · `V` mode POV (drag untuk menoleh) · klik furnitur untuk duduk, main, atau makan · `E` interaksi di mode POV · `Esc` tutup panel. Kantor satu lantai; setiap ruangan punya pintu sendiri.
 
 **Bid Projects.co.id** memakai jendela browser milik bot. Pasang dengan `python -m pip install -e ".[form]"` dan `python -m playwright install chromium`, lalu login sekali di jendela itu.
 

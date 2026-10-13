@@ -1,9 +1,9 @@
-// ---------- keyboard: WASD walking, lift E/Q, V for POV, Escape closes everything ----------
+// ---------- keyboard: WASD walking, V for POV, E to interact in POV, Escape closes everything ----------
 import * as THREE from 'three';
 import { camera } from '../core/engine.js';
 import { store } from '../core/store.js';
-import { V, ROOF, DOOR_X, clamp } from '../core/util.js';
-import { blocked, inLift } from '../world/navigation.js';
+import { blocked } from '../world/navigation.js';
+import { advancePosition } from '../domain/movement.js';
 import { me } from '../characters/player.js';
 import { $ } from '../ui/dom.js';
 import { endChat } from '../ui/card.js';
@@ -34,25 +34,25 @@ export function keyMove(dt) {
   if (keys.w || keys.arrowup) z -= 1; if (keys.s || keys.arrowdown) z += 1;
   if (keys.a || keys.arrowleft) x -= 1; if (keys.d || keys.arrowright) x += 1;
   if (!x && !z) return;
-  if (me.path.length && me.path[0].ride !== undefined) return;
   me.stop(); endChat();
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
   const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
   const mv = fwd.multiplyScalar(-z).add(right.multiplyScalar(x)).normalize();
   const step = me.speed * dt * (me.energy < 15 ? 0.7 : 1);
-  const nx = me.pos.x + mv.x * step, nz = me.pos.z + mv.z * step;
-  if (!blocked(me.level, me.pos, nx, nz)) { me.pos.x = nx; me.pos.z = nz; }
-  me.targetRy = Math.atan2(mv.x, mv.z); me.kbWalk = true;
+  const target = { x: me.pos.x + mv.x * step, z: me.pos.z + mv.z * step };
+  const next = advancePosition(me.pos, target, step,
+    (from, to) => !blocked(from, to.x, to.z, { furniture: true }));
+  if (Math.hypot(next.x - me.pos.x, next.z - me.pos.z) > 0.001) {
+    me.pos.x = next.x; me.pos.z = next.z;
+    me.targetRy = Math.atan2(mv.x, mv.z); me.kbWalk = true;
+  }
 }
 addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
   if (k === 'escape') { endChat(); togglePerf(false); toggleInbox(false); toggleResults(false); toggleBoard(false); toggleReports(false); closeMenu(); toggleSettings(false); toggleLogs(false); toggleMeeting(false); $('custom').classList.remove('show'); }
   if (k === 'v') setFP(!store.fp);
-  if ((k === 'e' || k === 'q') && inLift(me.pos) && !me.ride) {
-    const to = clamp(me.level + (k === 'e' ? 1 : -1), 0, ROOF);
-    if (to !== me.level) { me.stop(); me.path = [{ ride: to }, { p: V(DOOR_X, 0) }]; }
-  } else if (k === 'e' && store.fp) {
+  if (k === 'e' && store.fp) {
     interact(hitAt({ clientX: innerWidth / 2, clientY: innerHeight / 2 }));
   }
 });

@@ -1,6 +1,6 @@
 // ---------- "go to" place list ----------
 import { store } from '../core/store.js';
-import { ROOF } from '../core/util.js';
+import { PODS } from '../domain/office-plan.js';
 import { DIVS } from '../buildings/divisions.js';
 import { EMPLOYEES } from '../domain/company.js';
 import { me } from '../characters/player.js';
@@ -21,13 +21,15 @@ const PLACES = [
     icon: d.icon,
     name: d.name.replace('Divisi ', ''),
     manager: EMPLOYEES.find(employee => employee.id === d.manager)?.name || d.manager,
-    go: () => me.goTo(d.floor, 2, 4),
+    go: () => { const pod = PODS.find(p => p.id === d.id); pod ? me.goTo(0, pod.x, pod.z) : useSpot('sofa'); },
   })),
   { icon: '👑', name: 'Ruang Owner', go: () => sitOwner(false) },
   { icon: '💬', name: 'Ruang Rapat', go: () => useSpot('rapat') },
   { icon: '🍜', name: 'Kantin', go: () => useSpot('kantin') },
-  { icon: '🚻', name: 'Kamar Mandi', go: () => useSpot('toilet') },
-  { icon: '🌿', name: 'Taman Atap', go: () => me.goTo(ROOF, 0, 1) },
+  { icon: '🚻', name: 'Toilet', go: () => useSpot('toilet') },
+  { icon: '🛋️', name: 'Ruang Santai', go: () => useSpot('foosball') },
+  { icon: '📚', name: 'Ruang Fokus', go: () => useSpot('baca') },
+  { icon: '🌿', name: 'Teras Taman', go: () => useSpot('hammock') },
 ];
 const narrow = () => innerWidth <= 760;
 function setNav(open) { $('nav').classList.toggle('open', open); $('bNav').setAttribute('aria-expanded', open); }

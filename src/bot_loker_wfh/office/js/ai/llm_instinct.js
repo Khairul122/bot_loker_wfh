@@ -4,7 +4,8 @@ import { staff } from '../characters/team.js';
 import { me } from '../characters/player.js';
 import { say } from '../fx/bubbles.js';
 import { sendTo, goBack } from './routine.js';
-import { pick, rand, ROOF } from '../core/util.js';
+import { pick, rand } from '../core/util.js';
+import { roomAt } from '../domain/office-plan.js';
 import { DIVS } from '../buildings/divisions.js';
 import { post } from '../infrastructure/office-api.js';
 
@@ -14,14 +15,15 @@ const LLM_CONFIG = {
   active: true,
 };
 
-// All available exploration zones across floors & outdoor
+// All available exploration zones inside the office & outdoor
 export const EXPLORE_ZONES = [
   { name: 'Kolam Bebek 🦆', filter: s => s.kind === 'pond' },
-  { name: 'Taman Atap / Rooftop Garden 🌿', filter: s => s.level === ROOF },
+  { name: 'Teras Taman 🌿', filter: s => s.kind === 'hammock' || s.kind === 'parasol' },
   { name: 'Kafe Santai ☕', filter: s => s.kind === 'kafe' || s.kind === 'kopi' },
+  { name: 'Ruang Santai 🛋️', filter: s => ['foosball', 'arcade', 'beanbag'].includes(s.kind) },
   { name: 'Arena Basket & Pingpong 🏀🏓', filter: s => s.kind === 'hoop' || s.kind === 'ping' },
   { name: 'Piknik & Saung Taman 🧺', filter: s => s.kind === 'picnic' || s.kind === 'bench' },
-  { name: 'Sofa Karyawan Lintas Lantai 🛋️', filter: s => s.kind === 'sofa' },
+  { name: 'Sofa & Ruang Fokus 📚', filter: s => s.kind === 'sofa' || s.kind === 'baca' },
   { name: 'Ayunan & Perosotan 🛝', filter: s => s.kind === 'swing' || s.kind === 'slide' },
 ];
 
@@ -36,7 +38,7 @@ export async function triggerLLMInstinct(character) {
 
 async function decideInstinct(character) {
 
-  const currentZone = getLocationLabel(character.pos.x, character.pos.z, character.level);
+  const currentZone = getLocationLabel(character.pos.x, character.pos.z);
   const nearbyStaff = staff.filter(s => s !== character && s.level === character.level && s.pos.distanceTo(character.pos) < 6);
 
   // Construct prompt payload for Autonomous LLM
@@ -85,11 +87,12 @@ async function decideInstinct(character) {
 // Server answers {zone, thought}; filters are functions so they live here, keyed by zone.
 const ZONE_FILTERS = {
   pond: s => s.kind === 'pond' || s.kind === 'bench',
-  roof: s => s.level === ROOF,
+  roof: s => s.kind === 'hammock' || s.kind === 'parasol',
+  lounge: s => ['foosball', 'arcade', 'beanbag'].includes(s.kind),
   cafe: s => s.kind === 'kafe' || s.kind === 'kopi',
   arena: s => s.kind === 'hoop' || s.kind === 'ping',
   picnic: s => s.kind === 'picnic' || s.kind === 'bench',
-  sofa: s => s.kind === 'sofa',
+  sofa: s => s.kind === 'sofa' || s.kind === 'baca',
   swing: s => s.kind === 'swing' || s.kind === 'slide',
 };
 
@@ -112,12 +115,18 @@ function generateLocalInstinct(character, ctx, nearbyStaff) {
       thought: pick(['Bosan di ruangan, mau liat bebek di kolam ah 🦆', 'Cari udara segar dekat kolam bebek 🌿', 'Refreshing sebentar ke luar']),
       targetFilter: s => s.kind === 'pond' || s.kind === 'bench',
     }),
-    // 2. Rooftop Garden
+    // 2. Garden terrace and the lounge
     () => ({
       action: 'explore_roof',
-      zoneName: 'Taman Atap 🌿',
-      thought: pick(['Naik ke taman atap dulu ah 🌤️', 'Mau lihat pemandangan dari atap gedung 🏙️', 'Nyantai di hammock atap']),
-      targetFilter: s => s.level === ROOF,
+      zoneName: 'Teras Taman 🌿',
+      thought: pick(['Ngadem di teras taman dulu ah 🌤️', 'Mau rebahan di hammock teras 🌿', 'Cari udara segar di teras']),
+      targetFilter: s => s.kind === 'hammock' || s.kind === 'parasol',
+    }),
+    () => ({
+      action: 'explore_lounge',
+      zoneName: 'Ruang Santai 🛋️',
+      thought: pick(['Main foosball bentar yuk ⚽', 'Satu ronde arcade dulu 🕹️', 'Rebahan di bean bag ah 😌']),
+      targetFilter: s => ['foosball', 'arcade', 'beanbag'].includes(s.kind),
     }),
     // 3. Visit Cafe / Coffee
     () => ({
@@ -126,12 +135,12 @@ function generateLocalInstinct(character, ctx, nearbyStaff) {
       thought: pick(['Ngopi bentar biar nggak ngantuk ☕', 'Beli kopi dulu ke kafe ☕', 'Duduk santai di kafe']),
       targetFilter: s => s.kind === 'kafe' || s.kind === 'kopi',
     }),
-    // 4. Cross-Floor Social Visit
+    // 4. Quiet corner: a sofa or the reading room
     () => ({
       action: 'visit_colleague',
-      zoneName: 'Kunjungan Divisi 🏢',
-      thought: pick(['Main ke lantai divisi lain ah 🏢', 'Mau nyapa teman di lantai atas 🏢', 'Jalan-jalan antar lantai']),
-      targetFilter: s => s.kind === 'sofa' || s.level !== character.level,
+      zoneName: 'Ruang Fokus 📚',
+      thought: pick(['Baca buku di ruang fokus sebentar 📚', 'Duduk di sofa sambil mikir ide 💡', 'Cari pojok yang tenang']),
+      targetFilter: s => s.kind === 'sofa' || s.kind === 'baca',
     }),
   ];
 
@@ -141,7 +150,7 @@ function generateLocalInstinct(character, ctx, nearbyStaff) {
       action: 'socialize',
       friendName: friend.name,
       thought: `Eh ada ${friend.name}, ngobrol sebentar yuk! 👋`,
-      targetFilter: s => s.level === character.level && !s.by,
+      targetFilter: s => !s.by && Math.hypot(s.x - character.pos.x, s.z - character.pos.z) < 12,
     };
   }
 
@@ -157,7 +166,7 @@ function executeInstinctDecision(c, decision) {
     c.timer = rand(20, 45);
     return;
   }
-  const availableSpots = spots.filter(s => !s.by && !s.house && s.level !== 9 && decision.targetFilter(s));
+  const availableSpots = spots.filter(s => !s.by && !s.house && !s.ownerOnly && decision.targetFilter(s));
   const chosenSpot = availableSpots.length ? pick(availableSpots) : null;
 
   if (decision.thought) {
@@ -178,11 +187,11 @@ function executeInstinctDecision(c, decision) {
   }
 }
 
-function getLocationLabel(x, z, level) {
-  if (level === ROOF) return 'Taman Atap';
+function getLocationLabel(x, z) {
   const dPond = Math.hypot(x - (-30), z - (-6));
   if (dPond < 6) return 'Kolam Bebek';
-  if (x >= -9 && x <= 9 && z >= -6 && z <= 6) return `Lantai ${level + 1}`;
+  const room = roomAt({ x, z });
+  if (room) return room.name;
   if (z < -18) return 'Taman Terbuka';
   return 'Area Outdoor';
 }

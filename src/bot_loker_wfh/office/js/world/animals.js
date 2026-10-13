@@ -15,7 +15,7 @@ let waterRippleTimer = 0;
 // Territory bounds
 const TERRITORIES = {
   taman: { minX: -36, maxX: 36, minZ: -35, maxZ: -18 },
-  rumah: { minX: -24, maxX: 24, minZ: -16, maxZ: -8 },
+  rumah: { minX: -28, maxX: 28, minZ: -17.6, maxZ: -15.4 }, // the street between the office and the homes
 };
 
 function pickTarget(area) {

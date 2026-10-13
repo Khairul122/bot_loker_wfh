@@ -14,7 +14,7 @@ export const DIVS = DIVISIONS.map(division => ({
 
 export { MAX_FLOORS, MANAGERS };
 
-// These services live in separate one-story pavilions on level zero.
+// The office is a single storey: every room is on level 0.
 export const KANTIN = 0;
 export const OWNER = 0;
 export const RAPAT = 0;

@@ -523,7 +523,7 @@ def ask(connection: Connection, llm: Callable[[str], str] | None, employee: str,
     return {"answer": " ".join(plain) + " (AI belum aktif, ini data mentahnya.)", "ai": False}
 
 
-INSTINCT_ZONES = ("pond", "roof", "cafe", "arena", "picnic", "sofa", "swing", "stay")
+INSTINCT_ZONES = ("pond", "roof", "lounge", "cafe", "arena", "picnic", "sofa", "swing", "stay")  # roof = the garden terrace
 
 
 def instinct(connection: Connection, llm: Callable[[str], str] | None, employee: str, ctx: dict) -> dict | None:

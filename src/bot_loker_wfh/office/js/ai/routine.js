@@ -1,7 +1,7 @@
 // ---------- staff AI: work, breaks, toilet, commute home at night ----------
 import * as THREE from 'three';
 import { V, rand, pick, today } from '../core/util.js';
-import { stalls } from '../buildings/rooms/kantin.js';
+import { stalls } from '../buildings/rooms/toilet.js';
 import { spots } from '../world/spots.js';
 import { me } from '../characters/player.js';
 import { staffMood } from '../characters/team.js';
@@ -13,15 +13,23 @@ import { updateEnergy } from '../domain/employee-state.js';
 
 // house furniture belongs to its occupant; the owner's room is not a lounge for staff
 export function freeSpot(filter) { const list = spots.filter(s => !s.by && !s.house && !s.ownerOnly && filter(s)); return list.length ? pick(list) : null; }
+// which side to walk up to a spot from: a sofa, bed or toilet from the front, a chair at a table,
+// a counter or a machine from behind
+const FRONT_SIT = new Set(['sofa', 'baca', 'tv', 'toilet', 'bench', 'beanbag', 'hammock', 'parasol', 'picnic']);
+export function approachOf(spot) {
+  if (spot.swing) return null;
+  const sign = spot.pose === 'lie' || spot.pose === 'floor' || (spot.pose === 'sit' && FRONT_SIT.has(spot.kind)) ? 1 : -1;
+  return { x: Math.sin(spot.ry || 0) * sign, z: Math.cos(spot.ry || 0) * sign };
+}
 export function sendTo(c, spot, onSit) {
   const target = spot.swing ? (() => { const w = new THREE.Vector3(); spot.swing.getWorldPosition(w); return V(w.x, w.z + 0.9); })() : V(spot.x, spot.z);
   c.goTo(spot.level, target.x, target.z, () => {
     if (spot.by && spot.by !== c) return; // someone took it
     spot.by = c; c.spot = spot; c.pose = spot.pose; c.targetRy = spot.ry;
-    if (spot.kind === 'kopi' || spot.kind === 'kafe') c.doEmote('drink', 3);
+    if (spot.kind === 'kopi' || spot.kind === 'kafe' || spot.kind === 'minum') c.doEmote('drink', 3);
     c.showEmo(spot.emo);
     onSit && onSit(c, spot);
-  }, { via: spot.via || [], box: spot.box });
+  }, { exact: true, prefer: approachOf(spot) });
   spot.by = c;
 }
 export function updateStaff(c, dt, now) {
@@ -84,5 +92,5 @@ function goToilet(c) {
 }
 export function goBack(c) {
   c.state = 'back';
-  c.goTo(c.seat.level, c.seat.x, c.seat.z, () => { c.state = 'work'; c.pose = 'work'; c.targetRy = c.seat.ry; c.timer = rand(30, 60); }, { via: c.seat.via });
+  c.goTo(c.seat.level, c.seat.x, c.seat.z, () => { c.state = 'work'; c.pose = 'work'; c.targetRy = c.seat.ry; c.timer = rand(30, 60); }, { exact: true, prefer: { x: 0, z: -1 } });
 }

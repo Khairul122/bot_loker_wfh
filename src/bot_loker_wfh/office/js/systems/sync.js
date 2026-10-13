@@ -2,7 +2,7 @@
 import { store, DEMO } from '../core/store.js';
 import { clamp } from '../core/util.js';
 import { derive, leadsBy } from '../data/stats.js';
-import { dyn } from '../buildings/floor.js';
+import { dyn } from '../buildings/registry.js';
 import { reportStack, drawKpi } from '../buildings/rooms/owner.js';
 import { staff } from '../characters/team.js';
 import { scheduleDeliveries } from '../ai/deliveries.js';

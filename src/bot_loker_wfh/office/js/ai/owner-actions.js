@@ -1,8 +1,8 @@
-// ---------- what the owner does at a spot: sit, play, shoot hoops, go home, take the lift ----------
+// ---------- what the owner does at a spot: sit, play, shoot hoops, go home ----------
 import * as THREE from 'three';
 import { animated } from '../core/factory.js';
 import { Snd } from '../core/sound.js';
-import { V, ELEV_X, DOOR_X, pick, clamp } from '../core/util.js';
+import { pick, clamp } from '../core/util.js';
 import { ball } from '../world/arena.js';
 import { spots } from '../world/spots.js';
 import { me } from '../characters/player.js';
@@ -24,32 +24,24 @@ export function sitOwner(openPanel = true) {
   sendTo(me, s, () => { say(me, 'Cek laporan tim dulu 📋', 2.5); Snd.play('pop'); });
 }
 // houses: walk in through the door
-export function goHouse(h) { me.goTo(0, h.x + 0.4, h.z + 0.6, null, { via: h.via, box: h.box }); }
+export function goHouse(h) { me.goTo(0, h.x + 0.4, h.z + 0.6); }
 
-const SAY = { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di atap… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️', toilet: 'Permisi… 🚻', wastafel: 'Cuci tangan dulu 🧼', kasur: 'Rebahan dulu… 😴', tv: 'Nonton TV ah 📺', kulkas: 'Ambil minum dingin 🥤' };
+const SAY = { bench: 'Duduk santai dulu 😌', swing: 'Wiii~ 🎶', picnic: 'Piknik kecil 🧺', pond: 'Bebeknya lucu 🦆', ping: 'Ayo tanding! 🏓', slide: 'Seluncur! 🛝', kafe: 'Satu kopi susu ya ☕', kopi: 'Ngopi dulu ☕', hammock: 'Ngadem di teras… 😴', parasol: 'Cerah banget hari ini 🌤️', sofa: 'Empuk~ 🛋️', beanbag: 'Tenggelam di bean bag 😌', baca: 'Baca buku sebentar 📚', nap: 'Tidur siang 15 menit… 😴', foosball: 'Gol! ⚽', arcade: 'Satu ronde lagi 🕹️', minum: 'Minum dulu biar segar 💧', toilet: 'Permisi… 🚻', wastafel: 'Cuci tangan dulu 🧼', kasur: 'Rebahan dulu… 😴', tv: 'Nonton TV ah 📺', kulkas: 'Ambil minum dingin 🥤' };
 export function useSpot(kindName, house) {
   endChat();
   if (kindName === 'hoop') return goShoot();
   if (kindName === 'kantin') return openMenu();
   if (kindName === 'owner') return sitOwner();
   if (kindName === 'rapat') return openMeeting();
-  if (kindName === 'lift') {
-    me.goTo(me.level, DOOR_X, 0);
-    me.path.push({ p: V(ELEV_X, 0) }); // enter through the door, not the glass
-    me.onArrive = () => say(me, 'Mau ke lantai berapa? 🛗');
-    return;
-  }
   const cands = spots.filter(s => s.kind === kindName && (!s.by || s.by === me) && (!house || s.house === house));
   if (!cands.length) { toast('Lagi dipakai, coba yang lain 🙂'); return; }
-  const dist = s => s.swing ? 0 : Math.hypot(s.x - me.pos.x, s.z - me.pos.z) + Math.abs(s.level - me.level) * 20;
+  const dist = s => s.swing ? 0 : Math.hypot(s.x - me.pos.x, s.z - me.pos.z);
   const s = cands.reduce((a, b) => dist(a) < dist(b) ? a : b);
-  const sameHouse = house && me.inside?.box === house.box;
   me.leaveSpot();
-  if (sameHouse) me.inside = null;
   sendTo(me, s, () => {
     say(me, SAY[s.kind] || '😊');
     Snd.play('pop');
-    if (s.kind === 'kafe' || s.kind === 'kopi' || s.kind === 'kulkas') { me.energy = clamp(me.energy + (s.kind === 'kulkas' ? 15 : 30), 0, 100); burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), s.kind === 'kulkas' ? ['🥤', '🧃', '✨'] : ['☕', '💨', '✨']); }
+    if (s.kind === 'kafe' || s.kind === 'kopi' || s.kind === 'kulkas' || s.kind === 'minum') { const cold = s.kind === 'kulkas' || s.kind === 'minum'; me.energy = clamp(me.energy + (cold ? 15 : 30), 0, 100); burst(new THREE.Vector3(me.pos.x, me.y, me.pos.z), cold ? ['🥤', '💧', '✨'] : ['☕', '💨', '✨']); }
   });
 }
 

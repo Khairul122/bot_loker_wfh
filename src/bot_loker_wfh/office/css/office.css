@@ -34,13 +34,6 @@ button:disabled{cursor:not-allowed;opacity:.55}
 #bInbox,#bSound,#bSettings{margin-left:8px;position:relative}
 #bInbox::before,#bSound::before,#bSettings::before{content:"";position:absolute;left:-7px;top:10px;bottom:10px;width:1px;background:var(--line)}
 #brand{background:rgba(255,255,255,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 30px rgba(15,23,42,.08);border:1px solid rgba(255,255,255,.9);border-radius:9999px;padding:6px 16px}
-#lift{position:fixed;right:14px;top:50%;transform:translateY(-50%);padding:12px;display:none;flex-direction:column;gap:6px;text-align:center;background:rgba(255,255,255,.9);backdrop-filter:blur(20px);border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 12px 36px rgba(15,23,42,.12)}
-#lift.show{display:flex;animation:pop .2s}
-#lift b{font-weight:900;font-size:14px;color:#0f172a}
-#liftBtns{display:flex;flex-direction:column;gap:4px}
-#liftBtns button{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:12px;font-weight:700;font-size:13px;background:#f8fafc;color:#334155;border:1px solid #e2e8f0;text-align:left}
-#liftBtns button:hover{background:#f1f5f9;color:#0f172a}
-#liftBtns button.here{background:var(--accent);color:#fff;border-color:var(--accent)}
 #cross{position:fixed;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px rgba(15,23,42,.35);display:none;pointer-events:none}
 #nav{position:fixed;left:14px;top:72px;max-height:calc(100vh - 72px - 100px);overflow-y:auto;display:none;flex-direction:column;gap:4px;padding:8px;background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.9);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:20px;box-shadow:0 12px 36px rgba(15,23,42,.12);scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent;width:210px}
 #nav::-webkit-scrollbar{width:4px}
@@ -262,12 +255,10 @@ body.night .bub{color:#4a3426}
   .tbtn span:not(.badge){display:none}
   #card{left:8px;right:8px;width:auto;bottom:76px;max-height:calc(100dvh - 158px);overflow:auto}
   #custom{left:8px;right:8px;width:auto}
-  #lift{right:8px;padding:8px}
   #hint{display:none}
   #settings{left:8px;right:8px;top:64px;width:auto;max-height:calc(100dvh - 150px)}
   #nav{width:min(280px,calc(100vw - 16px));max-height:calc(100dvh - 164px);padding:8px}
   #nav button{min-height:48px}
-  #lift{max-height:calc(100dvh - 140px);overflow:auto}
   .panel{box-shadow:0 10px 28px rgba(15,23,42,.18)}
 }
 @media (max-width:760px){#bInbox,#bSound,#bSettings{margin-left:0}#bInbox::before,#bSound::before,#bSettings::before{left:-2px}}
@@ -607,18 +598,14 @@ body.night .tag-src.telegram{color:#7dd3fc}
 }
 
 /* Keep the night palette legible across nested controls, not just the main panels. */
-body.night #lift,
 body.night #card,
 body.night #custom,
 body.night #settings,
 body.night #logDrawer,
 body.night .modal-content{background:var(--paper);border-color:var(--line);color:var(--ink)}
-body.night #lift b,
-body.night #liftBtns button,
 body.night #hud .name,
 body.night #score,
 body.night .navbtn{color:var(--ink)}
-body.night #liftBtns button,
 body.night .navbtn,
 body.night #hud .mood,
 body.night .emotes button,
@@ -626,7 +613,6 @@ body.night #score,
 body.night .meeting-info,
 body.night .msg-avatar,
 body.night .msg-box{background:var(--paper-2);border-color:var(--line)}
-body.night #liftBtns button:hover,
 body.night .navbtn:hover,
 body.night .emotes button:hover{background:var(--accent);color:#fff}
 body.night #custom input[type=text],
@@ -661,3 +647,37 @@ body.night .manager-tag{background:#574b32;color:#f4dfaa}
   .manager-task-form input,.manager-task-form button{grid-column:auto}
   .lead-actions.revise{flex-wrap:wrap}
 }
+
+/* ---------- clean toolbar & employee card ---------- */
+#tools{gap:2px;padding:4px;border:1px solid var(--line);box-shadow:0 4px 18px rgba(38,54,47,.08)}
+#tools .tbtn{height:40px;min-height:40px;min-width:40px;padding:0 10px;font-size:15px;border-radius:10px}
+#tools .tbtn:hover{transform:none;background:var(--paper-2)}
+#tools .tbtn.on{box-shadow:none}
+#bInbox,#bSound,#bSettings{margin-left:6px}
+#bInbox::before,#bSound::before,#bSettings::before{left:-4px;top:12px;bottom:12px}
+#tools .badge{position:static;min-width:18px;height:18px;padding:0 5px;font-size:10px;border:0;box-shadow:none}
+
+#card{width:288px;padding:14px;border-width:1px;border-radius:18px}
+#card .head{gap:10px;padding-right:30px}
+#card .face{width:38px;height:38px;font-size:20px;box-shadow:none}
+#card .who{font-size:16px}
+#card .role{font-size:12px}
+#card .close{right:8px;top:8px;width:30px;height:30px;min-height:30px;font-size:14px;color:var(--ink-soft)}
+#card .close:hover{background:var(--paper-2);color:var(--ink)}
+#card .row{gap:12px;margin:12px 0}
+#card .ring{width:52px;height:52px}
+#card .ring>div{width:40px;height:40px;font-size:20px}
+#card .stars{font-size:14px}
+#card .pills{gap:4px;margin-top:4px}
+#card .pill{padding:2px 8px;font-size:12px;border-radius:9px}
+#card .hunt{margin-top:0;padding:9px;border-radius:12px;font-size:13px;min-height:40px}
+#card .real{gap:4px;margin-top:8px}
+#card .real .btn,#card .links .btn{min-height:36px;padding:6px 4px;border-radius:10px;font-size:12px;font-weight:800;background:transparent;border:1px solid var(--line)}
+#card .real .btn:hover,#card .links .btn:hover{background:var(--paper-2)}
+#card .real .btn.on{border-color:var(--accent)}
+#card .links{display:flex;gap:4px;margin-top:4px}
+#card .links .btn{flex:1;justify-content:center}
+#card .acts{display:flex;justify-content:center;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+#card .acts button{width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;font-size:18px;background:transparent;justify-content:center}
+#card .acts button:hover{background:var(--paper-2)}
+#card .acts small{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}

@@ -21,7 +21,6 @@ import './ui/nav.js';
 import './ui/customize.js';
 import './ui/hud.js';
 import './ui/board.js';
-import { updateLiftPanel } from './ui/lift.js';
 import { setAuto } from './ui/inbox.js';
 import { night, followClock } from './systems/night.js';
 import { updateCutaway } from './systems/cutaway.js';
@@ -61,7 +60,7 @@ function frame() {
     updateAnimals(dt, t);
     updateParts(dt);
   }
-  updateCutaway(); updateLiftPanel(); updateCamera(dt); if (!store.fp) controls.update();
+  updateCutaway(); updateCamera(dt); if (!store.fp) controls.update();
   renderer.render(scene, camera);
   if (!reduceMotion) updateBubbles();
   requestAnimationFrame(frame);

@@ -1,9 +1,8 @@
 // ---------- spawn staff at their desks; their mood follows real performance ----------
 import { store } from '../core/store.js';
-import { V, rand, clamp } from '../core/util.js';
-import '../buildings/tower.js'; // fills deskSeats
-import { DIVS } from '../buildings/divisions.js';
-import { deskSeats, seatVia } from '../buildings/floor.js';
+import { rand, clamp } from '../core/util.js';
+import '../buildings/office.js'; // fills deskSeats
+import { deskSeats } from '../buildings/registry.js';
 import { Char } from './char.js';
 import { LADDER } from './body.js';
 import { STAFF } from './staff/index.js';
@@ -13,10 +12,8 @@ export const staff = [];
 const used = {};
 STAFF.forEach(def => {
   const seat = deskSeats[def.div][used[def.div] = (used[def.div] ?? -1) + 1];
-  const lvl = DIVS.findIndex(d => d.id === def.div);
-  const c = new Char(def.name, def.look, lvl, seat.x, seat.z);
-  c.def = def; c.seat = { ...seat, level: lvl, via: seatVia(seat) }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
-  c.inside = { level: lvl, via: c.seat.via, at: V(seat.x, seat.z) };
+  const c = new Char(def.name, def.look, 0, seat.x, seat.z);
+  c.def = def; c.seat = { ...seat, level: 0 }; c.ry = c.targetRy = seat.ry; c.pose = 'work';
   c.state = 'work'; c.timer = rand(15, 50); c.boost = 0; c.boostUntil = 0;
   c.energy = 78;
   c.speed = rand(2.2, 2.8);

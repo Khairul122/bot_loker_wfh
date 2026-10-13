@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { renderer, camera } from '../core/engine.js';
 import { clickables, walkables } from '../core/factory.js';
 import { store } from '../core/store.js';
-import { FH, W, D, pick, clamp } from '../core/util.js';
+import { pick, clamp } from '../core/util.js';
+import { snapFree } from '../world/navigation.js';
 import { island } from '../world/sky.js';
 import { MOODS } from '../characters/body.js';
 import { me, myLook } from '../characters/player.js';
@@ -36,16 +37,13 @@ export function interact(h) {
   if (ud.kind === 'spot') { store.overview = false; useSpot(ud.kindName, ud.house); return; }
   if (ud.kind === 'house') { store.overview = false; endChat(); goHouse(ud.house); return; }
   endChat();
-  const w = walkables.find(x => x.mesh === h.object);
-  const level = w ? w.level : 0;
-  let { x, z } = h.point;
-  if (level > 0) { x = clamp(x, -W / 2 + 0.6, W / 2 - 0.4); z = clamp(z, -D / 2 + 0.6, D / 2 - 0.4); }
-  else if (Math.hypot(x, z) > 46) return;
+  if (Math.hypot(h.point.x, h.point.z) > 46) return;
+  const { x, z } = snapFree(h.point); // a click on a desk or a wall walks to the floor beside it
   store.overview = false;
-  me.goTo(level, x, z, null, w ? { via: w.via || [], box: w.box } : {});
-  burst(new THREE.Vector3(x, level * FH - 1.8, z), ['📍'], 1);
+  me.goTo(0, x, z);
+  burst(new THREE.Vector3(x, -1.8, z), ['📍'], 1);
 }
-const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', lift: 'Naik lift', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };
+const TIP = { bench: 'Duduk di bangku', swing: 'Main ayunan', picnic: 'Piknik', pond: 'Lihat bebek', hoop: 'Main basket', ping: 'Main pingpong', slide: 'Main seluncuran', kafe: 'Beli kopi', hammock: 'Rebahan di hammock', parasol: 'Bersantai', kopi: 'Ngopi', sofa: 'Duduk di sofa', beanbag: 'Duduk di bean bag', baca: 'Baca buku', nap: 'Tidur siang', foosball: 'Main foosball', arcade: 'Main game arcade', minum: 'Ambil air minum', kantin: 'Pesan makanan', toilet: 'Toilet', wastafel: 'Cuci tangan', kasur: 'Tidur', tv: 'Nonton TV', kulkas: 'Buka kulkas', owner: 'Meja owner · laporan kinerja', rapat: 'Mulai rapat tim' };
 renderer.domElement.addEventListener('pointerleave', () => { $('tip').style.display = 'none'; });
 let lastHover = 0;
 renderer.domElement.addEventListener('pointermove', e => {

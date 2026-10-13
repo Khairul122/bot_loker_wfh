@@ -2,9 +2,8 @@
 import * as THREE from 'three';
 import { scene } from '../core/engine.js';
 import { gradient, add, box, cyl, sph, group, sign, tag } from '../core/factory.js';
-import { V } from '../core/util.js';
 import { lamp, rug, path } from '../world/props.js';
-import { ROOM_WALLS } from '../world/navigation.js';
+import { addWall, addSolid } from '../world/navigation.js';
 import { spots } from '../world/spots.js';
 import { staff } from '../characters/team.js';
 import { me, myLook } from '../characters/player.js';
@@ -18,15 +17,15 @@ function buildHouse(slot, name, color) {
   box(5, 0.1, 5, 0xd9b48a, 0, 0.05, 0, g, { cast: false });
   box(5.2, 2.6, 0.2, wall, 0, 1.3, -2.5, g);
   for (const s of [-1, 1]) box(0.2, 2.6, 5.2, wall, s * 2.5, 1.3, 0, g);
-  for (const s of [-1, 1]) box(1.9, 2.6, 0.2, wall, s * 1.6, 1.3, 2.5, g);
-  box(1.2, 0.6, 0.2, wall, 0, 2.3, 2.5, g);
+  for (const s of [-1, 1]) box(1.7, 2.6, 0.2, wall, s * 1.65, 1.3, 2.5, g);
+  box(1.6, 0.6, 0.2, wall, 0, 2.3, 2.5, g);
   // windows + lamp share one material: lit at night while the occupant is home and awake
   const win = new THREE.MeshToonMaterial({ color: 0xbfe3f2, gradientMap: gradient, emissive: new THREE.Color(0xffc56b), emissiveIntensity: 0 });
   for (const s of [-1, 1]) box(0.9, 0.8, 0.05, 0, s * 1.6, 1.5, 2.62, g, { material: win, cast: false });
   box(0.05, 0.8, 1.2, 0, 2.62, 1.5, -0.6, g, { material: win, cast: false });
   const roof = add(new THREE.ConeGeometry(3.9, 1.7, 4), color, 0, 3.45, 0, g); roof.rotation.y = Math.PI / 4;
   const chimney = box(0.4, 0.9, 0.4, 0xb98d63, 1.2, 3.8, -1, g);
-  const door = group(-0.6, 0, 2.5, g); box(1.2, 2, 0.08, 0x9a6b4a, 0.6, 1, 0, door);
+  const door = group(-0.8, 0, 2.5, g); box(1.6, 2, 0.08, 0x9a6b4a, 0.8, 1, 0, door);
   sign('🏠', name, '#' + color.toString(16).padStart(6, '0'), '#fff', 0, 2.3, 2.64, g, 2.2);
   const bed = group(-1.35, 0, -1.25, g);
   box(1.3, 0.35, 2.1, 0x9a6b4a, 0, 0.18, 0, bed); box(1.2, 0.25, 2, 0xffffff, 0, 0.47, 0, bed);
@@ -41,14 +40,14 @@ function buildHouse(slot, name, color) {
   box(0.7, 1.7, 0.65, 0xf4f7fa, 0, 0.85, 0, fridge); box(0.04, 0.5, 0.05, 0x9aa3ad, 0.36, 1.1, 0.2, fridge);
   const lampG = group(0.2, 0, -2.0, g); cyl(0.04, 0.05, 1.5, 0x5a4a42, 0, 0.75, 0, lampG); sph(0.2, 0, 0, 1.6, 0, lampG, { material: win });
   rug(0.4, 0.4, 1.1, 0xf6c89f, g);
-  const sx = hx <= 0 ? -EDGE_X : EDGE_X;
-  const via = row === 0 ? [V(hx, HOUSE_ROWS[0].street), V(hx, front + 0.9), V(hx, front - 0.7)]
-    : [...HOUSE_ROWS.slice(0, row).map(r => V(sx, r.street)), V(sx, HOUSE_ROWS[row].street), V(hx, HOUSE_ROWS[row].street), V(hx, front + 0.9), V(hx, front - 0.7)];
   const hb = [hx - 2.5, hx + 2.5, hz - 2.5, hz + 2.5];
-  ROOM_WALLS.push([hx - 2.6, hx + 2.6, hz - 2.6, hz - 2.4, 0], [hx - 2.6, hx - 2.4, hz - 2.6, hz + 2.6, 0], [hx + 2.4, hx + 2.6, hz - 2.6, hz + 2.6, 0],
-    [hx - 2.6, hx - 0.6, front - 0.1, front + 0.1, 0], [hx + 0.6, hx + 2.6, front - 0.1, front + 0.1, 0]);
-  const h = { name, x: hx, z: hz, front, roof, chimney, door, win, tvMat, via, box: hb, who: null };
-  const sp = (kind, x, z, ry, pose, emo, extra) => { const s = { kind, level: 0, x: hx + x, z: hz + z, ry, pose, emo, house: h, via, box: hb, by: null, id: spots.length, ...extra }; spots.push(s); return s; };
+  for (const r of [[hx - 2.6, hx + 2.6, hz - 2.6, hz - 2.4], [hx - 2.6, hx - 2.4, hz - 2.6, hz + 2.6], [hx + 2.4, hx + 2.6, hz - 2.6, hz + 2.6],
+    [hx - 2.6, hx - 0.8, front - 0.1, front + 0.1], [hx + 0.8, hx + 2.6, front - 0.1, front + 0.1]]) addWall(r);
+  // bed, TV stand, fridge stand against the walls and are walked around; the sofa in the middle is
+  // left out so the small room never splits into pockets nobody can walk out of
+  for (const [x, z, w, d] of [[-1.35, -1.25, 1.3, 2.1], [1.3, -2.2, 1.2, 0.4], [-1.95, 1.6, 0.7, 0.65]]) addSolid([hx + x - w / 2, hx + x + w / 2, hz + z - d / 2, hz + z + d / 2]);
+  const h = { name, x: hx, z: hz, front, roof, chimney, door, win, tvMat, box: hb, who: null };
+  const sp = (kind, x, z, ry, pose, emo, extra) => { const s = { kind, level: 0, x: hx + x, z: hz + z, ry, pose, emo, house: h, by: null, id: spots.length, ...extra }; spots.push(s); return s; };
   h.bed = sp('kasur', -1.35, -0.25, 0, 'lie', '😴', { energy: 14 });
   h.tv = sp('tv', 1.3, 0.85, Math.PI, 'sit', '📺', { joy: 4, energy: 3 });
   h.fridge = sp('kulkas', -1.15, 1.6, -Math.PI / 2, 'stand', '🥤', { energy: 8 });

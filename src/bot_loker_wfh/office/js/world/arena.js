@@ -10,7 +10,7 @@ export const hoop = group(28, 0, -13);
 cyl(0.12, 0.12, 3.4, 0x666677, 0, 1.7, -0.4, hoop); box(1.8, 1.1, 0.08, 0xffffff, 0, 3.4, -0.1, hoop);
 const rim = add(new THREE.TorusGeometry(0.45, 0.04, 8, 20), 0xef6a3a, 0, 3.0, 0.45, hoop); rim.rotation.x = Math.PI / 2;
 export const ball = sph(0.26, 0xf08a3d, 29, 0.26, -6);
-export const swingFrame = group(20, 0, 3);
+export const swingFrame = group(24.5, 0, 3);
 for (const x of [-2.2, 2.2]) for (const z of [-0.7, 0.7]) { const l = cyl(0.07, 0.07, 3.2, 0x7aa6d8, x, 1.55, z * 0.6, swingFrame); l.rotation.x = z > 0 ? -0.2 : 0.2; }
 cyl(0.07, 0.07, 4.6, 0x7aa6d8, 0, 3.05, 0, swingFrame).rotation.z = Math.PI / 2;
 export const swings = [-1, 1].map(x => {
@@ -26,5 +26,5 @@ box(2.8, 0.08, 1.5, 0x4c9a6a, 0, 0.78, 0, ping); box(0.04, 0.18, 1.5, 0xffffff, 
 for (const [a, b] of [[-1.2, -0.6], [1.2, -0.6], [-1.2, 0.6], [1.2, 0.6]]) box(0.07, 0.78, 0.07, 0x555555, a, 0.39, b, ping);
 export const pball = sph(0.06, 0xffffff, 34, 1.0, 4);
 pball.visible = false; // driven by updatePong()
-sign('🎮', 'Arena Bermain', '#7aa6d8', '#fff', 22, 3.4, 9.1, scene, 4.4);
+sign('🎮', 'Arena Bermain', '#7aa6d8', '#fff', 34, 3.4, 9.1, scene, 4.4);
 flowers(36, 12); flowers(18, -18);

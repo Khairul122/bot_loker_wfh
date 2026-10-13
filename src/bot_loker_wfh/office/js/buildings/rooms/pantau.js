@@ -1,20 +1,25 @@
-// level 5: meeting room, whiteboard chart, trophy shelf (trophies = offers, medals = interviews)
-import { box, cyl, group } from '../../core/factory.js';
+// Pantau & Interview: a glass trophy cabinet (trophies = offers, medals = interviews) and a chart board
+import { mat, box, cyl, group } from '../../core/factory.js';
 import { pick } from '../../core/util.js';
-import { chair, plant } from '../../world/props.js';
-import { seats, dyn } from '../floor.js';
+import { DESK_ROWS } from '../../domain/office-plan.js';
+import { seats, solid, dyn } from '../registry.js';
 
 export default function build(g, d) {
-  seats('pantau', [[-5.5, -3], [-1.7, -3]], g, d.screen);
-  cyl(1.6, 1.6, 0.1, 0xe6c49a, 3, 0.78, 1.5, g); cyl(0.12, 0.3, 0.75, 0xb98d63, 3, 0.38, 1.5, g);
-  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + 0.6; chair(3 + Math.cos(a) * 2.3, 1.5 + Math.sin(a) * 2.3, -a - Math.PI / 2, g, 0xd8738f); }
-  box(3.5, 2, 0.1, 0xffffff, 3, 2, -5.7, g); // whiteboard
-  for (let k = 0; k < 5; k++) box(0.4, 0.3 + k * 0.25, 0.04, pick([0x6bb38a, 0xf2b84b, 0xd8738f]), 1.8 + k * 0.6, 1.3 + (0.3 + k * 0.25) / 2, -5.63, g, { cast: false });
-  box(3, 0.1, 0.6, 0xc89a6c, -6, 1.6, 4.5, g); box(3, 0.1, 0.6, 0xc89a6c, -6, 2.4, 4.5, g); // trophy shelf
+  const { back, front } = DESK_ROWS;
+  seats('pantau', [[-1.05, back], [1.05, back]], g, d.screen);
+  const cab = group(-1.3, 0, front + 0.2, g);
+  box(2.2, 0.5, 0.5, 0x8a6b55, 0, 0.25, 0, cab); box(2.2, 0.06, 0.5, 0x8a6b55, 0, 1.95, 0, cab);
+  box(2.2, 1.4, 0.48, 0, 0, 1.2, 0, cab, { material: mat(0xcfeaf5, { p: { transparent: true, opacity: 0.25, depthWrite: false } }), cast: false });
+  box(2.1, 0.04, 0.44, 0xffffff, 0, 1.22, 0, cab, { cast: false });
+  solid(g, -1.3, front + 0.2, 2.2, 0.5);
   const trophies = [];
-  for (let k = 0; k < 6; k++) { const tg = group(-7.1 + k * 0.45, 1.65, 4.5, g); cyl(0.12, 0.06, 0.25, 0xf2c14e, 0, 0.17, 0, tg); cyl(0.08, 0.1, 0.08, 0x8a6b55, 0, 0.04, 0, tg); tg.visible = false; trophies.push(tg); }
+  for (let k = 0; k < 6; k++) { const tg = group(-0.85 + k * 0.34, 0.5, 0, cab); cyl(0.1, 0.05, 0.22, 0xf2c14e, 0, 0.15, 0, tg); cyl(0.07, 0.09, 0.07, 0x8a6b55, 0, 0.035, 0, tg); tg.visible = false; trophies.push(tg); }
   const medals = [];
-  for (let k = 0; k < 6; k++) { const m = cyl(0.13, 0.13, 0.04, 0xc0c7d6, -7.1 + k * 0.45, 2.62, 4.4, g); m.rotation.x = Math.PI / 2; m.visible = false; medals.push(m); }
+  for (let k = 0; k < 6; k++) { const m = cyl(0.11, 0.11, 0.04, 0xc0c7d6, -0.85 + k * 0.34, 1.4, 0, cab); m.rotation.x = Math.PI / 2; m.visible = false; medals.push(m); }
   dyn.trophies = trophies; dyn.medals = medals;
-  plant(8, 5, g, 1.2);
+  const wb = group(1.4, 0, front + 0.3, g);
+  for (const s of [-1, 1]) box(0.06, 1.9, 0.06, 0x9aa3ad, s * 0.95, 0.95, 0, wb);
+  box(2, 1.2, 0.06, 0xffffff, 0, 1.45, 0, wb);
+  for (let k = 0; k < 5; k++) box(0.25, 0.2 + k * 0.17, 0.02, pick([0x6bb38a, 0xf2b84b, 0xd8738f]), -0.6 + k * 0.3, 0.95 + (0.2 + k * 0.17) / 2, 0.04, wb, { cast: false });
+  solid(g, 1.4, front + 0.3, 2.1, 0.4);
 }
